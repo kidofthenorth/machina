@@ -4,8 +4,8 @@
 # or wallet-signing dependency is present anywhere in this workspace — money-moving
 # capability is gated by milestone AND explicit human approval (see docs/invariants.md).
 #
-# Deferred crates (named in plans/master-plan.md, not yet created): sweep (M4),
-# route-model (M6), solana-execution (M6/M8), wallet-state (M7), risk (M6).
+# Deferred crates (named in plans/master-plan.md, not yet created): route-model (M6),
+# solana-execution (M6/M8), wallet-state (M7), risk (M6). `sweep` (M4) is now present.
 
 [workspace]
 resolver = "2"
@@ -16,6 +16,7 @@ members = [
     "crates/metrics",
     "crates/strategies",
     "crates/results",
+    "crates/sweep",
     "crates/cli",
 ]
 
@@ -33,6 +34,7 @@ portfolio = { path = "crates/portfolio" }
 metrics = { path = "crates/metrics" }
 strategies = { path = "crates/strategies" }
 results = { path = "crates/results" }
+sweep = { path = "crates/sweep" }
 
 # External — pure math + serialization only. NO network/SDK/wallet crates.
 rust_decimal = { version = "1.42", features = ["serde"] }

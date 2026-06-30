@@ -19,7 +19,7 @@ Gate = the check that proves the task is complete.
 | T12 | DONE | M2/M3 | `crates/cli` | `cargo run -p cli -- demo` runs | deterministic demo wiring; emits validated RunResult. |
 | T13 | DONE | M0–M3 | (gates) | fmt+clippy+test green | fmt/clippy clean; 85 tests pass; demo byte-identical. |
 | T14 | DONE | M0–M3 | (review) | verification fan-out recorded | 6-lens adversarial workflow → PASS; 14 findings fixed/accepted (review-packet). |
-| M4 | DOING | M4 | `crates/sweep` (+ portfolio/results/research-core additive) | parallel==sequential; repeated identical; holdout untouched | Plan: [m4-sweep.md](m4-sweep.md), 12 subtasks S1–S12. **S1–S3 DONE** (existing-crate prep). S7=determinism gate, S9=holdout gate. Next: S4 (sweep skeleton). |
+| M4 | DOING | M4 | `crates/sweep` (+ portfolio/results/research-core additive) | parallel==sequential; repeated identical; holdout untouched | Plan: [m4-sweep.md](m4-sweep.md), 12 subtasks S1–S12. **S1–S7 DONE** (deterministic sweep core; S7 determinism gate passes). Next: S8 (walk-forward). S9=holdout gate remains. |
 | — | DEFERRED | M5 | research decision | — | trial count, stability, advance/reject gate. Needs real data (Q3). |
 | — | DEFERRED | M6 | `crates/route-model`, `crates/risk`, `crates/solana-execution` (no-sign) | — | Jupiter shadow quote collector. Re-verify plan §22 sources first. |
 | — | DEFERRED | M7 | `crates/wallet-state` | — | read-only mainnet shadow. No signing key. |

@@ -1061,6 +1061,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "sweep"
+version = "0.1.0"
+dependencies = [
+ "jsonschema",
+ "market-data",
+ "metrics",
+ "portfolio",
+ "research-core",
+ "results",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "serde",
+ "serde_json",
+ "strategies",
+ "toml",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
