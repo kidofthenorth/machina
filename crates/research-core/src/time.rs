@@ -1,8 +1,9 @@
 //! UTC time. [`Timestamp`] is Unix seconds; ordering is total and deterministic.
 //!
-//! Output formatting uses Howard Hinnant's `civil_from_days` algorithm so we can render RFC 3339
-//! without pulling in a date/time dependency. Only seconds→string is needed (fixtures carry Unix
-//! seconds), so no string→seconds parser lives here.
+//! Formatting uses Howard Hinnant's `civil_from_days` algorithm so we can render RFC 3339 without a
+//! date/time dependency; [`parse_ymd`] adds the strict inverse (`days_from_civil`) so config date
+//! ranges (e.g. walk-forward partitions) parse to `Timestamp`s with zero deps. Both directions are
+//! pure integer arithmetic.
 
 use serde::{Deserialize, Serialize};
 
@@ -52,6 +53,76 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
     (y + i64::from(m <= 2), m, d)
 }
 
+/// Convert a `(year, month, day)` civil date to days since 1970-01-01. Hinnant's `days_from_civil`,
+/// the exact inverse of [`civil_from_days`]. Assumes the inputs form a real date; [`parse_ymd`]
+/// validates before calling.
+fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = (if y >= 0 { y } else { y - 399 }) / 400;
+    let yoe = y - era * 400; // [0, 399]
+    let mi = i64::from(m);
+    let doy = (153 * (if m > 2 { mi - 3 } else { mi + 9 }) + 2) / 5 + (i64::from(d) - 1); // [0, 365]
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; // [0, 146096]
+    era * 146_097 + doe - 719_468
+}
+
+/// Midnight-UTC Unix seconds for a `(year, month, day)` civil date — the inverse of the date part of
+/// [`Timestamp::to_rfc3339`]. Does **not** validate the date; use [`parse_ymd`] for checked parsing.
+#[must_use]
+pub fn civil_date_to_unix(y: i64, m: u32, d: u32) -> i64 {
+    days_from_civil(y, m, d) * 86_400
+}
+
+/// Why a `YYYY-MM-DD` string could not be parsed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DateParseError {
+    /// Not a strict `YYYY-MM-DD` shape, or a field was not numeric.
+    Malformed(String),
+    /// Fields parsed but the date is not a real calendar day (e.g. `2025-02-30`).
+    OutOfRange(String),
+}
+
+impl std::fmt::Display for DateParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Malformed(s) => write!(f, "malformed date (expected YYYY-MM-DD): {s}"),
+            Self::OutOfRange(s) => write!(f, "not a real calendar date: {s}"),
+        }
+    }
+}
+
+impl std::error::Error for DateParseError {}
+
+/// Parse a strict `YYYY-MM-DD` UTC date into a midnight [`Timestamp`]. Rejects malformed input and
+/// dates that are not real calendar days. Calendar validity is checked by round-tripping the day
+/// count through [`civil_from_days`], so impossible days (`2025-02-30`, `2025-04-31`) are rejected.
+///
+/// # Errors
+/// Returns [`DateParseError`] if the string is not strict `YYYY-MM-DD` or is not a real date.
+pub fn parse_ymd(s: &str) -> Result<Timestamp, DateParseError> {
+    let parts: Vec<&str> = s.split('-').collect();
+    let well_formed = parts.len() == 3
+        && parts[0].len() == 4
+        && parts[1].len() == 2
+        && parts[2].len() == 2
+        && parts.iter().all(|p| p.bytes().all(|b| b.is_ascii_digit()));
+    if !well_formed {
+        return Err(DateParseError::Malformed(s.to_string()));
+    }
+    // Lengths are bounded above (4/2/2 digits) so these parses cannot overflow i64/u32.
+    let y: i64 = parts[0].parse().expect("4 ascii digits fit i64");
+    let m: u32 = parts[1].parse().expect("2 ascii digits fit u32");
+    let d: u32 = parts[2].parse().expect("2 ascii digits fit u32");
+    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+        return Err(DateParseError::OutOfRange(s.to_string()));
+    }
+    let days = days_from_civil(y, m, d);
+    if civil_from_days(days) != (y, m, d) {
+        return Err(DateParseError::OutOfRange(s.to_string()));
+    }
+    Ok(Timestamp::from_unix(days * 86_400))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -78,6 +149,52 @@ mod tests {
             Timestamp::from_unix(1_709_208_000).to_rfc3339(),
             "2024-02-29T12:00:00Z"
         );
+    }
+
+    #[test]
+    fn civil_date_to_unix_pinned_to_known_seconds() {
+        // 2021-01-01T00:00:00Z and the leap day 2024-02-29 (midnight = the existing 12:00 value − 12h).
+        assert_eq!(civil_date_to_unix(2021, 1, 1), 1_609_459_200);
+        assert_eq!(civil_date_to_unix(2024, 2, 29), 1_709_208_000 - 43_200);
+        // 2025-12-31T00:00:00Z.
+        assert_eq!(civil_date_to_unix(2025, 12, 31), 1_767_139_200);
+    }
+
+    #[test]
+    fn parse_ymd_is_inverse_of_to_rfc3339() {
+        for s in ["2021-01-01", "2024-02-29", "2025-12-31", "1970-01-01"] {
+            let ts = parse_ymd(s).unwrap();
+            assert_eq!(ts.to_rfc3339(), format!("{s}T00:00:00Z"));
+        }
+    }
+
+    #[test]
+    fn parse_ymd_rejects_malformed_and_impossible_dates() {
+        for bad in [
+            "2025-13-01",
+            "2025-00-10",
+            "2025-02-30",
+            "2025-04-31",
+            "2025-01-00",
+        ] {
+            assert!(
+                matches!(parse_ymd(bad), Err(DateParseError::OutOfRange(_))),
+                "expected OutOfRange for {bad}"
+            );
+        }
+        for bad in [
+            "2025-1-1",
+            "2025/01/01",
+            "not-a-date",
+            "2025-01",
+            "20250101",
+            "2025-aa-01",
+        ] {
+            assert!(
+                matches!(parse_ymd(bad), Err(DateParseError::Malformed(_))),
+                "expected Malformed for {bad}"
+            );
+        }
     }
 
     #[test]

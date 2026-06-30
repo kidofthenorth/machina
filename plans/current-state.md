@@ -7,8 +7,12 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
 - **DONE:** M0 (bootstrap), M1 (data foundation), M2 (deterministic spot simulator).
 - **IN PLACE (scaffolds, gate not formally declared):** M3 (Strategy Lab MVP) — trait, 4 baselines,
   trend_alloc_v1, threshold_rebalance_v1, regime scaffold, CLI comparison.
-- **NEXT:** M4 (sweep / walk-forward) — not started. M5+ gated; M6 needs plan §22 source re-check;
-  M8/M9 (signing/submit) need **separate explicit human approval**.
+- **DOING:** M4 (sweep / walk-forward). Plan = [m4-sweep.md](m4-sweep.md) (12 subtasks S1–S12;
+  S7 = determinism gate, S9 = holdout gate). **S1–S3 DONE** (existing-crate prep: portfolio
+  `traded_notional_quote`, research-core `parse_ymd`, results turnover). **Next diff: S4** — create
+  the `crates/sweep` skeleton + workspace wiring. No `sweep` crate exists yet.
+- **NEXT after M4:** M5 research-decision gate. M6 needs plan §22 source re-check; M8/M9
+  (signing/submit) need **separate explicit human approval**.
 
 ## Completed artifacts
 - Workspace: 7 crates — research-core, market-data, portfolio, metrics, strategies, results, cli.
@@ -28,7 +32,7 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
 ## Gates run (2026-06-29, all from this tree)
 - `cargo fmt --all --check` → clean (exit 0).
 - `cargo clippy --all-targets --all-features -- -D warnings` → clean (exit 0).
-- `cargo test --workspace --all-features` → **85 passed, 0 failed**.
+- `cargo test --workspace --all-features` → **92 passed, 0 failed** (85 baseline + 7 from M4 S1–S3).
 - `cargo run -p cli -- demo` → byte-identical across runs (determinism verified).
 - no-execution-deps grep gate → pass (comments ignored). Dep tree = rust_decimal/serde/serde_json/
   toml (+ dev jsonschema); **no Solana/Jupiter/HTTP/wallet/signing crate anywhere**.
@@ -52,6 +56,6 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
   sweep crate; M6 route/shadow crates; M7 wallet-state; M8/M9 gated execution.
 
 ## Next recommended command
-- Begin M4: `/plan` a `sweep` crate (parameter sweeps + parallel canonical export + walk-forward),
-  OR re-verify plan §22 sources before any M6 shadow work. Do NOT start execution (M8/M9) without
-  separate human approval.
+- Continue M4 per [m4-sweep.md](m4-sweep.md): S1–S3 (existing-crate prep) are DONE. Next is **S4** —
+  create the `crates/sweep` skeleton + workspace wiring — then S5→S12. Each subtask is a small diff
+  that keeps the workspace green. Do NOT start execution (M8/M9) without separate human approval.

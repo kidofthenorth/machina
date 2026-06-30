@@ -29,6 +29,10 @@ pub struct RunInputs<'a> {
     pub cost: &'a CostModel,
     /// Price used to mark the final equity/balances (USDC per SOL).
     pub final_price: Decimal,
+    /// Pre-computed turnover ratio (traded notional / mean equity) as an exact `Decimal`, if known.
+    /// Sweeps fill this from `sweep::turnover`; the demo leaves it `None`. Populates
+    /// `MetricsReport.turnover` (kept off the f64 path so it is exact and order-stable).
+    pub turnover: Option<Decimal>,
     /// Whether to embed the full equity curve and round trips (large for long runs).
     pub include_series: bool,
 }
@@ -64,7 +68,7 @@ impl RunResult {
             sharpe: stat_to_string(m.sharpe),
             sortino: stat_to_string(m.sortino),
             calmar: stat_to_string(m.calmar),
-            turnover: None,
+            turnover: inputs.turnover.map(|t| t.to_string()),
             time_in_market: Some(out.time_in_market().to_string()),
             fees_paid_usdc: Some(out.fees_paid_quote.to_string()),
             slippage_paid_usdc: Some(out.slippage_paid_quote.to_string()),

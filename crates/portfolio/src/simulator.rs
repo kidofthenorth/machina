@@ -31,6 +31,10 @@ pub struct RunOutput {
     pub round_trips: Vec<RoundTrip>,
     pub final_state: PortfolioState,
     pub n_trades: u32,
+    /// Sum of USDC notional moved per executed trade (buy: USDC spent; sell: mid value of SOL sold,
+    /// gas leg excluded). Counts every rebalance, including churn that never closes a round trip —
+    /// so it is the correct base for turnover, which `round_trips` would undercount (see M4 plan §4).
+    pub traded_notional_quote: Decimal,
     pub fees_paid_quote: Decimal,
     pub slippage_paid_quote: Decimal,
     pub gas_paid_sol: Decimal,
@@ -76,6 +80,7 @@ where
     let mut round_trips = Vec::new();
     let mut open: Option<OpenPosition> = None;
     let mut n_trades = 0u32;
+    let mut traded_notional_quote = Decimal::ZERO;
     let mut fees_paid_quote = Decimal::ZERO;
     let mut slippage_paid_quote = Decimal::ZERO;
     let mut gas_paid_sol = Decimal::ZERO;
@@ -91,6 +96,7 @@ where
             let quote_before = state.quote_balance;
             if let Some(outcome) = rebalance(&mut state, target, exec_price, cost)? {
                 n_trades += 1;
+                traded_notional_quote += traded_notional(&outcome);
                 fees_paid_quote += outcome.dex_fee_quote;
                 slippage_paid_quote += outcome.slippage_quote;
                 gas_paid_sol += outcome.gas_sol;
@@ -121,6 +127,7 @@ where
         round_trips,
         final_state: state,
         n_trades,
+        traded_notional_quote,
         fees_paid_quote,
         slippage_paid_quote,
         gas_paid_sol,
@@ -215,6 +222,18 @@ fn record_round_trip(
 
 fn clamp01(w: Decimal) -> Decimal {
     w.max(Decimal::ZERO).min(Decimal::ONE)
+}
+
+/// USDC notional moved by one trade, at mid price, excluding the gas leg.
+///
+/// Buy: the exact USDC spent (`-quote_delta == quote_in`). Sell: the mid value of the SOL disposed;
+/// `base_delta` on a sell is `-(base_in + gas_sol)`, so `base_in = |base_delta| - gas_sol` and the
+/// mid notional is `(|base_delta| - gas_sol) * exec_price`. Both are exact `Decimal`.
+fn traded_notional(outcome: &TradeOutcome) -> Decimal {
+    match outcome.side {
+        Side::Buy => -outcome.quote_delta,
+        Side::Sell => (outcome.base_delta.abs() - outcome.gas_sol) * outcome.exec_price,
+    }
 }
 
 /// Current SOL weight = base value / equity at `price`. Zero when flat or equity is non-positive.
@@ -354,6 +373,47 @@ mod tests {
         );
         assert!(out.fees_paid_quote > dec!(0));
         assert!(out.slippage_paid_quote > dec!(0));
+    }
+
+    #[test]
+    fn traded_notional_matches_hand_computed_for_a_round_trip() {
+        // Flat price 100, zero cost. Full deploy at bar 1 (1000 USDC in), full exit at bar 3
+        // (10 SOL out at mid 100 = 1000). Hand total = 2000. A round trip is also closed.
+        let bars = series(&[100, 100, 100, 100]);
+        let mut step = 0;
+        let out = run(&bars, dec!(1000), &CostModel::zero(), |_h, _w| {
+            step += 1;
+            if step >= 3 {
+                dec!(0)
+            } else {
+                dec!(1)
+            }
+        })
+        .unwrap();
+        assert_eq!(out.n_trades, 2);
+        assert_eq!(out.round_trips.len(), 1);
+        assert_eq!(out.traded_notional_quote, dec!(2000));
+    }
+
+    #[test]
+    fn traded_notional_counts_rebalancer_churn_with_zero_round_trips() {
+        // Constant 50% target (Static5050-style) over a moving price never goes flat, so it closes
+        // ZERO round trips while still trading — the exact case a round-trip-based turnover misses.
+        // Zero cost. Hand: buy 500 @b1, sell 1.25 SOL @200=250 @b3, buy 187.5 @b4 → 937.5.
+        let bars = series(&[100, 100, 200, 100]);
+        let out = run(&bars, dec!(1000), &CostModel::zero(), |_h, _w| dec!(0.5)).unwrap();
+        assert_eq!(out.round_trips.len(), 0, "rebalancer never goes flat");
+        assert_eq!(out.n_trades, 3);
+        assert!(out.traded_notional_quote > dec!(0));
+        assert_eq!(out.traded_notional_quote, dec!(937.5));
+    }
+
+    #[test]
+    fn traded_notional_is_zero_for_a_no_trade_run() {
+        let bars = series(&[100, 110, 90, 120]);
+        let out = run(&bars, dec!(1000), &CostModel::zero(), |_h, _w| dec!(0)).unwrap();
+        assert_eq!(out.n_trades, 0);
+        assert_eq!(out.traded_notional_quote, dec!(0));
     }
 
     #[test]

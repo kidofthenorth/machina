@@ -18,7 +18,7 @@ pub use bar::{Bar, BarError};
 pub use money::{
     apply_bps, lamports_to_sol, quantize_floor, LAMPORTS_PER_SOL, SOL_DECIMALS, USDC_DECIMALS,
 };
-pub use time::Timestamp;
+pub use time::{civil_date_to_unix, parse_ymd, DateParseError, Timestamp};
 pub use token::{MintAddress, TokenError, TokenMeta};
 
 // Re-export Decimal so downstream crates use exactly one Decimal type/version.

@@ -1,0 +1,2 @@
+cadence: 0.4.11
+# Bump on any change to the .claude/ payload (skills, commands, templates, guide, checklists). Project notes (root AGENTS.md/CLAUDE.md) aren't part of the stamp.

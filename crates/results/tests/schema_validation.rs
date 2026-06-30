@@ -63,6 +63,7 @@ fn built_run_result_validates_against_schema() {
         initial_cash_usdc: dec!(10000),
         cost: &cost,
         final_price: bars.last().unwrap().close,
+        turnover: None,
         include_series: true,
     };
     let rr = RunResult::build(&inputs, &out, &m);
@@ -77,6 +78,42 @@ fn built_run_result_validates_against_schema() {
         "RunResult failed schema validation: {errors:?}\n{}",
         rr.to_json()
     );
+}
+
+#[test]
+fn populated_turnover_serializes_as_decimal_string_and_validates() {
+    let bars = vec![
+        bar(1_609_459_200, 100),
+        bar(1_609_545_600, 110),
+        bar(1_609_632_000, 105),
+        bar(1_609_718_400, 120),
+    ];
+    let cost = CostModel::zero();
+    let out = run(&bars, dec!(10000), &cost, |_h, _w| dec!(0.5)).unwrap();
+    let eq: Vec<Decimal> = out.equity_curve.iter().map(|p| p.equity_quote).collect();
+    let m = Metrics::from_equity(&eq, 365.0);
+    let inputs = RunInputs {
+        run_id: "demo-turnover-0001".to_string(),
+        created_at: bars.last().unwrap().ts.to_rfc3339(),
+        mode: "research",
+        allowlist_version: "2026-06-29".to_string(),
+        strategy: "static_50_50".to_string(),
+        base_symbol: "SOL".to_string(),
+        quote_symbol: "USDC".to_string(),
+        bar_interval: "1d".to_string(),
+        initial_cash_usdc: dec!(10000),
+        cost: &cost,
+        final_price: bars.last().unwrap().close,
+        turnover: Some(dec!(0.123456)),
+        include_series: false,
+    };
+    let rr = RunResult::build(&inputs, &out, &m);
+    // Exact decimal string, not a float and not null.
+    assert_eq!(rr.metrics.turnover.as_deref(), Some("0.123456"));
+    let value = rr.to_value();
+    assert_eq!(value["metrics"]["turnover"], json!("0.123456"));
+    assert!(!value["metrics"]["turnover"].is_null());
+    assert_valid("run-result.schema.json", &value);
 }
 
 #[test]

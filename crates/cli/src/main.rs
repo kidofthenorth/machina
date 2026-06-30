@@ -139,6 +139,8 @@ fn run_strategy(
         initial_cash_usdc: initial_cash,
         cost,
         final_price,
+        // Turnover is a first-class sweep output (M4); the wiring demo leaves it unset.
+        turnover: None,
         include_series: strat.name() == "trend_alloc_v1",
     };
     RunResult::build(&inputs, &out, &m)

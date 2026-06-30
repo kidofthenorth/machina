@@ -1,10 +1,12 @@
 # Operator questions
 
 Only **real** operator decisions live here. Each has a safe default already applied, so none of these
-block autonomous M0–M3 work. Format: Question · Why it matters · Safe default (applied) · What's
-blocked.
+block autonomous M0–M4 *engine* work. Format: Question · Why it matters · Safe default (applied) ·
+What's blocked.
 
-> Status: **0 blocking**, 4 non-blocking. The executor proceeded on safe defaults.
+> Status: **0 blocking**, 5 non-blocking. The executor proceeded on safe defaults. Note: Q5's
+> walk-forward sizing + rejection thresholds must be **frozen by the operator before the M5 research
+> decision** (post-hoc choice = overfitting); they do not block the M4 engine.
 
 ---
 
@@ -30,12 +32,26 @@ blocked.
   no credentials. Real-data ingestion is deferred to a later, operator-approved task.
 - **Blocked:** real-data backtests and any M4+ statistical claims. M0–M3 are unaffected.
 
-## Q4 — Strategy parameter values (non-blocking)
+## Q4 — Strategy parameter values + sweep grids (non-blocking)
 - **Why it matters.** `config/strategies/strategy-lab.example.toml` contains illustrative parameters
   (SMA period, weights, bands). These are placeholders, not tuned values, and must not be read as a
-  recommendation.
-- **Safe default (applied).** Ship conservative illustrative defaults; tuning/validation is M4–M5.
+  recommendation. M4 also adds parameter *grids* (sets of values to sweep) over these.
+- **Safe default (applied).** Ship conservative illustrative defaults/grids; tuning/validation is
+  M4–M5. No value here is a recommendation.
 - **Blocked:** nothing; no profitability is claimed.
+
+## Q5 — M4 research policy: walk-forward sizing + rejection thresholds (non-blocking for the engine; FREEZE before M5)
+- **Why it matters.** M4 needs (a) walk-forward window sizing & kind (`train/test/step/embargo`,
+  Rolling vs Anchored) and (b) numeric rejection thresholds (max-drawdown budget, turnover ceiling,
+  baseline-outperformance margin, walk-forward dispersion, neighbor-parameter tolerance). Plan §14
+  lists the criteria but no numbers. Choosing them **after** seeing results is overfitting.
+- **Safe default (applied).** Build the M4 engine + all gate tests against illustrative defaults in
+  `strategy-lab.example.toml` (`[walk_forward]` `train=365,test=90,step=90,embargo=5,kind=rolling`;
+  `[advancement]` illustrative budgets, clearly marked NOT tuned). The engine reads them from config;
+  none are hard-coded.
+- **Blocked:** the M5 *research decision* (advance/reject) must use values **frozen by the operator
+  before** the sweep that informs it. The M4 engine, determinism gate, and holdout seal are
+  unaffected — they don't depend on the numbers.
 
 ---
 
