@@ -1,0 +1,18 @@
+[package]
+name = "metrics"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Performance metrics computed from an equity curve."
+
+[dependencies]
+research-core = { workspace = true }
+rust_decimal = { workspace = true }
+
+[dev-dependencies]
+rust_decimal_macros = { workspace = true }
+
+[lints]
+workspace = true

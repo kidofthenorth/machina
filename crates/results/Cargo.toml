@@ -1,0 +1,23 @@
+[package]
+name = "results"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "RunResult/RunConfig models (money as exact decimal strings) + JSON-schema validation."
+
+[dependencies]
+research-core = { workspace = true }
+portfolio = { workspace = true }
+metrics = { workspace = true }
+rust_decimal = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+jsonschema = { workspace = true }
+rust_decimal_macros = { workspace = true }
+
+[lints]
+workspace = true

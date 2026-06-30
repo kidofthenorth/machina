@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machina.local/schemas/run-result.schema.json",
+  "title": "RunResult",
+  "description": "Canonical, deterministic result of a single research simulation run. Money values are exact decimal strings (never JSON floats) to preserve fixed-point exactness across consumers.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "created_at",
+    "mode",
+    "allowlist_version",
+    "config",
+    "metrics",
+    "final_balances"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "run_id": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "mode": {
+      "description": "Research runs are always 'research'. Other modes exist for the future shadow/execution surface and are gated by milestone + human approval.",
+      "type": "string",
+      "enum": ["research", "shadow", "devnet", "canary", "live-disabled"]
+    },
+    "allowlist_version": { "type": "string", "minLength": 1 },
+    "config": { "$ref": "#/$defs/RunConfig" },
+    "metrics": { "$ref": "#/$defs/Metrics" },
+    "final_balances": { "$ref": "#/$defs/Balances" },
+    "equity_curve": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/EquityPoint" }
+    },
+    "round_trips": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/RoundTrip" }
+    }
+  },
+  "$defs": {
+    "decimalString": {
+      "description": "An exact decimal value encoded as a string.",
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+    },
+    "unitInterval": {
+      "description": "A decimal string constrained to [0,1] is enforced in code; the schema only checks the decimal shape.",
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+    },
+    "RunConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strategy", "base_symbol", "quote_symbol", "bar_interval", "initial_cash_usdc", "cost_model"],
+      "properties": {
+        "strategy": { "type": "string", "minLength": 1 },
+        "base_symbol": { "type": "string", "minLength": 1 },
+        "quote_symbol": { "type": "string", "minLength": 1 },
+        "bar_interval": { "type": "string", "minLength": 1 },
+        "initial_cash_usdc": { "$ref": "#/$defs/decimalString" },
+        "cost_model": { "$ref": "#/$defs/CostModel" }
+      }
+    },
+    "CostModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dex_fee_bps", "slippage_bps", "base_fee_lamports", "priority_fee_lamports"],
+      "properties": {
+        "dex_fee_bps": { "type": "integer", "minimum": 0 },
+        "slippage_bps": { "type": "integer", "minimum": 0 },
+        "base_fee_lamports": { "type": "integer", "minimum": 0 },
+        "priority_fee_lamports": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "Metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total_return", "max_drawdown", "n_trades"],
+      "properties": {
+        "total_return": { "$ref": "#/$defs/decimalString" },
+        "cagr": { "$ref": "#/$defs/decimalString" },
+        "max_drawdown": { "$ref": "#/$defs/unitInterval" },
+        "volatility": { "$ref": "#/$defs/decimalString" },
+        "sharpe": { "$ref": "#/$defs/decimalString" },
+        "sortino": { "$ref": "#/$defs/decimalString" },
+        "calmar": { "$ref": "#/$defs/decimalString" },
+        "turnover": { "$ref": "#/$defs/decimalString" },
+        "time_in_market": { "$ref": "#/$defs/unitInterval" },
+        "n_trades": { "type": "integer", "minimum": 0 },
+        "fees_paid_usdc": { "$ref": "#/$defs/decimalString" },
+        "slippage_paid_usdc": { "$ref": "#/$defs/decimalString" },
+        "priority_fees_paid_sol": { "$ref": "#/$defs/decimalString" }
+      }
+    },
+    "Balances": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base", "quote", "equity_quote"],
+      "properties": {
+        "base": { "$ref": "#/$defs/decimalString" },
+        "quote": { "$ref": "#/$defs/decimalString" },
+        "equity_quote": { "$ref": "#/$defs/decimalString" }
+      }
+    },
+    "EquityPoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timestamp", "equity_quote"],
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "equity_quote": { "$ref": "#/$defs/decimalString" }
+      }
+    },
+    "RoundTrip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entry_ts", "exit_ts", "entry_price", "exit_price", "qty_base", "pnl_quote"],
+      "properties": {
+        "entry_ts": { "type": "string", "format": "date-time" },
+        "exit_ts": { "type": "string", "format": "date-time" },
+        "entry_price": { "$ref": "#/$defs/decimalString" },
+        "exit_price": { "$ref": "#/$defs/decimalString" },
+        "qty_base": { "$ref": "#/$defs/decimalString" },
+        "pnl_quote": { "$ref": "#/$defs/decimalString" }
+      }
+    }
+  }
+}

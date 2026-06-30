@@ -1,0 +1,44 @@
+# ── Strategy Lab config (TEMPLATE) ───────────────────────────────────────────
+# Declares which strategies and baselines a research run compares, plus their
+# parameters and the data partitions. Copy to `strategy-lab.toml` (gitignored).
+#
+# Strategy naming: <family>_v<n>. Strategies produce TARGET WEIGHTS (intent) only;
+# they never own keys, call RPC, or touch execution (plan §5).
+
+allowlist_version = "2026-06-29"   # must match the active allowlist; embedded in results
+base_symbol = "SOL"
+quote_symbol = "USDC"
+bar_interval = "1d"                 # daily bars for MVP (4h supported later)
+
+# Data partitions are defined BEFORE tuning (plan §14). The holdout is untouched
+# during ordinary development.
+[partitions]
+development = { start = "2021-01-01", end = "2023-12-31" }
+validation  = { start = "2024-01-01", end = "2024-12-31" }
+holdout     = { start = "2025-01-01", end = "2025-12-31" }
+
+# Baselines every experiment is compared against (plan §8, §14).
+[baselines]
+hold_usdc = true
+buy_and_hold_sol = true
+static_50_50 = true
+dca_sol = true                      # benchmark; periodic fixed-notional buy
+
+# ── trend_alloc_v1 ───────────────────────────────────────────────────────────
+# Long-only SOL/USDC allocation by trend bucket. Close vs. a long SMA selects a
+# discrete target SOL weight. Scaffold-level; parameters are illustrative, NOT
+# tuned, and imply no profitability.
+[trend_alloc_v1]
+enabled = true
+sma_period = 50
+# Target SOL weight when price is above / below the SMA (allocation buckets).
+weight_above = "0.75"
+weight_below = "0.00"
+
+# ── threshold_rebalance_v1 ───────────────────────────────────────────────────
+# Maintains a target SOL weight; only rebalances when drift exceeds the band.
+# Bands widen under stress (high vol / poor route quality) in later versions.
+[threshold_rebalance_v1]
+enabled = true
+target_sol_weight = "0.50"
+rebalance_band = "0.10"             # rebalance only when |current − target| > band

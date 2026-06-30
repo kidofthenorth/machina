@@ -1,0 +1,74 @@
+name: ci
+
+# Clean-checkout CI gate for machina (M0). Determinism is a hard requirement, so
+# the gate is: format, lint (warnings = errors), and the full deterministic test
+# suite. No secrets, no network services, no deploy step — this is research code.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# No credentials are needed or granted. Keep the token read-only.
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  build-test:
+    name: fmt + clippy + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (from rust-toolchain.toml)
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup component add rustfmt clippy
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Formatting (cargo fmt --check)
+        run: cargo fmt --all --check
+
+      - name: Lint (cargo clippy -D warnings)
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Build
+        run: cargo build --workspace --all-targets
+
+      - name: Test (deterministic suite)
+        run: cargo test --workspace --all-features
+
+  # Defense-in-depth: fail CI if any dependency that could enable signing or
+  # transaction submission is ever introduced. This codifies the invariant in
+  # docs/invariants.md as an automated gate, not just a convention.
+  no-execution-deps:
+    name: no signing/submission dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan Cargo manifests for forbidden crates
+        run: |
+          set -euo pipefail
+          # Crates that would imply a key/sign/submit capability. None may appear.
+          # Match dependency lines only; ignore TOML comments (a comment is never a dependency).
+          pattern='solana-sdk|solana-client|solana-program|solana-rpc|jupiter|jito|ed25519-dalek|keypair|bip39|tiny-bip39|secp256k1'
+          hits="$(grep -REn --include='Cargo.toml' "$pattern" . | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true)"
+          if [ -n "$hits" ]; then
+            echo "$hits"
+            echo "::error::A forbidden execution/signing dependency was found. See docs/invariants.md."
+            exit 1
+          fi
+          echo "OK: no signing or transaction-submission dependencies present."

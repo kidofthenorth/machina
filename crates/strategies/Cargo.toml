@@ -1,0 +1,20 @@
+[package]
+name = "strategies"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+description = "Strategy trait, baselines, and trend_alloc_v1 / threshold_rebalance_v1 scaffolds. Intent only."
+
+[dependencies]
+research-core = { workspace = true }
+rust_decimal = { workspace = true }
+
+[dev-dependencies]
+# Test-only: wire strategies through the simulator. Strategies themselves never depend on execution.
+portfolio = { workspace = true }
+rust_decimal_macros = { workspace = true }
+
+[lints]
+workspace = true

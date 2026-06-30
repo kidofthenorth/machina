@@ -1,0 +1,63 @@
+# ── machina / solana-crypto-trader — project .gitignore ──────────────────────
+# Secret-safe by construction. The hard rule: no private keys, seed phrases,
+# wallet files, RPC credentials, or generated data ever enter version control.
+# Only *.example.toml config TEMPLATES are tracked; real config is ignored.
+
+# ── Secrets, keys, wallets (NEVER commit) ────────────────────────────────────
+*.key
+*.keypair
+*keypair*.json
+*-keypair.json
+id.json
+*.pem
+*.seed
+*.mnemonic
+*.wallet
+wallet*.json
+secrets/
+.secrets/
+*.secret
+*.secret.toml
+*.secret.json
+
+# ── Environment files ────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.env
+
+# ── Real config (only *.example.toml templates are tracked) ──────────────────
+config/**/*.toml
+!config/**/*.example.toml
+
+# ── Rust build artifacts ─────────────────────────────────────────────────────
+/target
+**/target
+# Cargo.lock IS tracked (committed) for reproducible CI — do not ignore it.
+
+# ── Generated data, normalized series, and exported results ──────────────────
+/data/raw/
+/data/normalized/
+/data/**/*.parquet
+/data/**/*.csv
+/data/**/*.db
+/data/**/*.sqlite
+/results/**/*.json
+/results/**/*.csv
+/results/**/*.ndjson
+# keep directory placeholders + checked-in example artifacts
+!**/.gitkeep
+!**/*.example.json
+!**/*.example.csv
+
+# ── Crate fixtures stay tracked (tiny, checked-in test inputs) ────────────────
+!crates/**/fixtures/**
+
+# ── OS / editor cruft ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# ── Local agent tooling (cadence engine, machine-local settings) ─────────────
+.claude/settings.local.json

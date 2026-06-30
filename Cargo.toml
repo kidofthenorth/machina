@@ -1,0 +1,52 @@
+# machina / solana-crypto-trader — Cargo workspace manifest.
+#
+# Only research crates exist (M0–M3). No on-chain SDK, aggregator client, HTTP client,
+# or wallet-signing dependency is present anywhere in this workspace — money-moving
+# capability is gated by milestone AND explicit human approval (see docs/invariants.md).
+#
+# Deferred crates (named in plans/master-plan.md, not yet created): sweep (M4),
+# route-model (M6), solana-execution (M6/M8), wallet-state (M7), risk (M6).
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/research-core",
+    "crates/market-data",
+    "crates/portfolio",
+    "crates/metrics",
+    "crates/strategies",
+    "crates/results",
+    "crates/cli",
+]
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.80"
+license = "UNLICENSED"
+publish = false
+
+[workspace.dependencies]
+# Internal crates.
+research-core = { path = "crates/research-core" }
+market-data = { path = "crates/market-data" }
+portfolio = { path = "crates/portfolio" }
+metrics = { path = "crates/metrics" }
+strategies = { path = "crates/strategies" }
+results = { path = "crates/results" }
+
+# External — pure math + serialization only. NO network/SDK/wallet crates.
+rust_decimal = { version = "1.42", features = ["serde"] }
+rust_decimal_macros = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+
+# Dev-only.
+jsonschema = { version = "0.46", default-features = false }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+# Money correctness guardrails — surfaced as warnings, denied in CI.
+float_arithmetic = "allow" # permitted only in metrics statistical fns; audited separately

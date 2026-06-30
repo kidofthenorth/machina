@@ -1,0 +1,44 @@
+# ── Token allowlist (TEMPLATE) ───────────────────────────────────────────────
+# The allowlist is a FIRST-CLASS research artifact. No strategy may trade a token
+# that is absent from the active allowlist, and the allowlist `version` below is
+# embedded into every run result for survivorship-bias auditing.
+#
+# This is a TEMPLATE. Copy to `allowlist.toml` (gitignored) before use. Mint
+# addresses below are PUBLIC on-chain constants, not secrets.
+#
+# Required per-token fields (plan §11 "Survivorship and token safety"):
+#   token_id, symbol, mint, decimals, first_allowed, last_allowed (empty = active),
+#   venues, min_liquidity_usdc, min_age_days, risk_category, custody_notes.
+
+version = "2026-06-29"
+description = "MVP SOL/USDC allowlist. Conservative, liquid, blue-chip only."
+
+[[token]]
+token_id = "USDC"
+symbol = "USDC"
+mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+decimals = 6
+first_allowed = "2021-01-01"
+last_allowed = ""
+venues = ["jupiter"]
+min_liquidity_usdc = "100000000"
+min_age_days = 365
+risk_category = "stablecoin"
+custody_notes = "Quote/cash asset. Fixed at 1.0 in research; depeg handled only as an explicit scenario."
+
+[[token]]
+token_id = "SOL"
+symbol = "SOL"
+mint = "So11111111111111111111111111111111111111112"
+decimals = 9
+first_allowed = "2021-01-01"
+last_allowed = ""
+venues = ["jupiter"]
+min_liquidity_usdc = "50000000"
+min_age_days = 365
+risk_category = "blue_chip"
+custody_notes = "Native/wrapped SOL. A minimum SOL reserve is kept for network + priority fees."
+
+# Later additions (BTC/ETH wrapped, LSTs) are deliberately omitted until SOL/USDC
+# research and shadow execution are stable (plan §2, §8). Do not add tokens here
+# without liquidity history and a min_age justification.

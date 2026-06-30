@@ -1,0 +1,6 @@
+# Pin the toolchain so CI and local builds are reproducible (determinism is a
+# hard project requirement). Update deliberately, in its own reviewed change.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machina.local/schemas/execution-event.schema.json",
+  "title": "ExecutionEvent",
+  "description": "An audit event in the transaction lifecycle. In research/shadow modes only the non-signing states occur; signing/submission states are gated by milestone (M8 devnet / M9 mainnet) AND explicit human approval. NO code in this repository emits signing or submission events. This schema fixes the agreed audit shape.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "decision_ts",
+    "mode",
+    "state",
+    "strategy_version"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "event_id": { "type": "string", "minLength": 1 },
+    "decision_ts": { "type": "string", "format": "date-time" },
+    "mode": {
+      "type": "string",
+      "enum": ["research", "shadow", "devnet", "canary", "live-disabled"],
+      "description": "Pre-canary modes must never carry a real signature; see invariants."
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "Planned",
+        "Quoted",
+        "RejectedByRisk",
+        "Built",
+        "Simulated",
+        "Signed",
+        "Submitted",
+        "Confirmed",
+        "Expired",
+        "Failed",
+        "Reconciled"
+      ]
+    },
+    "strategy_version": { "type": "string", "minLength": 1 },
+    "wallet_address": { "type": ["string", "null"], "description": "Read-only address in shadow mode; never a key." },
+    "input_mint": { "$ref": "#/$defs/mint" },
+    "output_mint": { "$ref": "#/$defs/mint" },
+    "input_amount": { "$ref": "#/$defs/decimalString" },
+    "expected_output_amount": { "$ref": "#/$defs/decimalString" },
+    "min_output_amount": { "$ref": "#/$defs/decimalString" },
+    "route_source": { "type": "string" },
+    "price_impact_pct": { "$ref": "#/$defs/decimalString" },
+    "slippage_bps": { "type": "integer", "minimum": 0 },
+    "base_fee_lamports": { "type": "integer", "minimum": 0 },
+    "priority_fee_lamports": { "type": "integer", "minimum": 0 },
+    "rpc_provider": { "type": ["string", "null"] },
+    "slot": { "type": ["integer", "null"], "minimum": 0 },
+    "tx_signature": { "type": ["string", "null"], "description": "Null in research/shadow; only set in approved devnet/canary lanes." },
+    "confirmation_status": { "type": ["string", "null"], "enum": ["pending", "confirmed", "finalized", "timeout", "failed", null] },
+    "rejected_reason": { "type": ["string", "null"] },
+    "pre_balances": { "$ref": "#/$defs/balanceMap" },
+    "post_balances": { "$ref": "#/$defs/balanceMap" }
+  },
+  "$defs": {
+    "decimalString": { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?$" },
+    "mint": { "type": "string", "minLength": 32, "maxLength": 44 },
+    "balanceMap": {
+      "type": ["object", "null"],
+      "description": "Map of mint/symbol → exact decimal balance, for realized balance-delta accounting.",
+      "additionalProperties": { "$ref": "#/$defs/decimalString" }
+    }
+  }
+}

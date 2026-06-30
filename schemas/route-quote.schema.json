@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machina.local/schemas/route-quote.schema.json",
+  "title": "RouteQuote",
+  "description": "A captured DEX-aggregator route quote (e.g. Jupiter Swap V2 /order) in NO-SIGN/NO-SUBMIT shadow mode. This schema fixes the agreed shape for the M6 shadow quote collector; NO code in this repository produces or fetches route quotes yet. Money amounts are exact decimal strings.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "router",
+    "input_mint",
+    "input_amount",
+    "output_mint",
+    "expected_output_amount",
+    "min_received_amount",
+    "price_impact_pct",
+    "slippage_bps",
+    "observed_at",
+    "correlation_id"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "router": { "type": "string", "minLength": 1, "description": "Routing source/aggregator, e.g. 'jupiter-swap-v2'." },
+    "input_mint": { "$ref": "#/$defs/mint" },
+    "input_amount": { "$ref": "#/$defs/decimalString" },
+    "output_mint": { "$ref": "#/$defs/mint" },
+    "expected_output_amount": { "$ref": "#/$defs/decimalString" },
+    "min_received_amount": { "$ref": "#/$defs/decimalString" },
+    "price_impact_pct": { "$ref": "#/$defs/decimalString" },
+    "slippage_mode": { "type": "string", "enum": ["fixed", "auto"] },
+    "slippage_bps": { "type": "integer", "minimum": 0 },
+    "platform_fee_bps": { "type": "integer", "minimum": 0 },
+    "dex_fee_bps": { "type": "integer", "minimum": 0 },
+    "base_fee_lamports": { "type": "integer", "minimum": 0 },
+    "priority_fee_lamports": { "type": "integer", "minimum": 0 },
+    "correlation_id": { "type": "string", "minLength": 1, "description": "Request/RFQ id for correlating quote→build→submit→confirm." },
+    "slot": { "type": "integer", "minimum": 0 },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "latency": { "$ref": "#/$defs/Latency" },
+    "tx_signature": { "type": ["string", "null"], "description": "Present only if later submitted; always null in shadow mode." },
+    "final_status": { "type": "string", "enum": ["quoted", "expired", "error", "submitted", "confirmed", "failed"] },
+    "error_code": { "type": ["string", "null"] }
+  },
+  "$defs": {
+    "decimalString": { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?$" },
+    "mint": { "type": "string", "minLength": 32, "maxLength": 44, "description": "Base58 SPL mint address." },
+    "Latency": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per-stage latency timestamps (ms since epoch) for quote/build/sign/submit/confirm.",
+      "properties": {
+        "quote_ms": { "type": "integer", "minimum": 0 },
+        "build_ms": { "type": ["integer", "null"], "minimum": 0 },
+        "sign_ms": { "type": ["integer", "null"], "minimum": 0 },
+        "submit_ms": { "type": ["integer", "null"], "minimum": 0 },
+        "confirm_ms": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    }
+  }
+}

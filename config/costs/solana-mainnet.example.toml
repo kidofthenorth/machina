@@ -1,0 +1,38 @@
+# ── Solana mainnet cost model (TEMPLATE) ─────────────────────────────────────
+# Conservative execution-cost assumptions for the deterministic simulator. These
+# are MODELED ASSUMPTIONS, not live measurements. They are intentionally
+# pessimistic; the candidate-advancement gate (plan §14) additionally requires
+# survival under DOUBLED costs/slippage.
+#
+# Copy to `solana-mainnet.toml` (gitignored) to override locally. All money values
+# are exact decimals; fee_bps are basis points (1 bp = 0.01%).
+
+# Solana base fee is 5,000 lamports per signature (plan §22). 1 SOL = 1e9 lamports.
+lamports_per_sol = 1000000000
+base_fee_lamports = 5000
+
+# Optional prioritization fee. Elevated default to avoid optimistic landing.
+priority_fee_lamports = 50000
+
+# Aggregator/DEX fee taken on the output side of each swap.
+dex_fee_bps = 5            # 0.05%
+
+# Adverse price movement between decision and fill (slippage), applied against
+# the trader. Widen for stress scenarios.
+slippage_bps = 20         # 0.20%
+
+# Minimum SOL kept back for network/priority fees; risk gate must not spend below it.
+min_sol_reserve = "0.05"
+
+# Quote staleness budget (seconds). Stale quotes block execution (shadow/canary).
+max_quote_age_secs = 5
+
+# Failed-route probability is a SCENARIO STRESSOR ONLY. Canonical research runs
+# use 0.0 (no randomness). A nonzero value is used only in explicit stress tests.
+failed_route_probability = "0.0"
+
+# Doubled-cost stress preset for the advancement gate (plan §14 baselines).
+[stress.doubled]
+dex_fee_bps = 10
+slippage_bps = 40
+priority_fee_lamports = 100000

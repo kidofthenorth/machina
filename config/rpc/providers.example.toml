@@ -1,0 +1,45 @@
+# ── RPC provider abstraction (TEMPLATE) ──────────────────────────────────────
+# This file holds ONLY provider labels, endpoint URLs, and the NAME of the
+# environment variable that supplies a key at runtime. It must NEVER contain an
+# actual API key, token, or secret. Copy to `providers.toml` (gitignored) and set
+# the referenced env vars in your shell — not in this file.
+#
+# NOTE: No code in this repository reads these endpoints yet. There is no RPC
+# client in the workspace (M0–M5 are research-only). This template fixes the
+# agreed shape for the M6 provider abstraction.
+
+# Policy knobs for the future provider layer (plan §7 "RPC provider strategy").
+[policy]
+# Reads must record slot, commitment, provider id, and observed timestamp.
+require_slot_metadata = true
+max_slot_staleness = 150          # slots; block decisions on staler reads
+block_on_provider_disagreement = true
+
+# Local development only. Public endpoints are shared infrastructure and may
+# rate-limit or block; never use for shadow/canary.
+[[provider]]
+id = "public-dev"
+kind = "public"
+url = "https://api.mainnet-beta.solana.com"
+commitment = "confirmed"
+api_key_env = ""                  # public endpoint takes no key
+use_for = ["local-dev"]
+
+# Dedicated provider for shadow/canary. The key is read from the named env var
+# AT RUNTIME; it is intentionally absent here.
+[[provider]]
+id = "dedicated-primary"
+kind = "dedicated"
+url = "https://example-dedicated-rpc.invalid/"
+commitment = "confirmed"
+api_key_env = "MACHINA_RPC_PRIMARY_KEY"
+use_for = ["shadow", "canary"]
+
+# Optional read-only backup for cross-checking slots/balances.
+[[provider]]
+id = "dedicated-backup"
+kind = "dedicated"
+url = "https://example-backup-rpc.invalid/"
+commitment = "confirmed"
+api_key_env = "MACHINA_RPC_BACKUP_KEY"
+use_for = ["reads"]
