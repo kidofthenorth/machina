@@ -29,8 +29,10 @@ pub mod cell;
 pub mod parallel;
 pub mod param;
 pub mod turnover;
+pub mod window;
 
 pub use cell::{eval_cell, CellResult};
 pub use parallel::{run_cells, run_in_parallel, Parallelism, SweepCell};
 pub use param::{build_strategy, ParamGrid, ParamPoint};
 pub use turnover::turnover_ratio;
+pub use window::{WalkForward, Window, WindowError, WindowKind};

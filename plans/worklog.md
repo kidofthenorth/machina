@@ -59,3 +59,21 @@ recorded inline (not full logs).
   anti-vacuous guard (most cells trade). Zero new deps (rayon rejected, D-0009). +5 tests.
 - Re-gate after S4–S7: fmt clean; clippy -D warnings clean; **109 tests pass**; no-execution-deps OK; demo
   byte-identical. Deterministic sweep core complete. Next: S8 (walk-forward windows).
+- Refreshed `plans/handoff.md` for a new chat: M4-in-progress (S1–S7 done), m4-sweep.md promoted to the active
+  plan, verified state = 109 tests + no-exec-deps, S8-first "what's next", M4-specific guardrails (determinism
+  gate / traded_notional turnover / Decimal keys / sealed holdout), and an updated seed prompt.
+- M4 S8 (walk-forward windows): `sweep::window` — `Window { train, test: Range<usize> }`,
+  `WalkForward { kind, train_len, test_len, step, embargo }`, `WindowKind::{Rolling default, Anchored}`,
+  `WindowError` (hand-rolled, SimError-style). `new()` validates (rejects zero lengths + `step<test_len`
+  overlap); `windows(n_bars)` is pure + total + defensive (saturating math, struct-literal bypass yields
+  empty not infinite-loop). Invariants structural: `train.end + embargo == test.start`, ordered/non-overlapping
+  tests, in-bounds. Zero new deps. +10 tests (3 unit + 7 integration).
+- M4 S8 verification: ran a 5-lens adversarial workflow (boundary/invariants/determinism/edge/tests) + adjudicator
+  (6 agents). Verdict: **impl correct** (formula hand-derived across configs; gate bullets a–e hold; pure/
+  terminating), but **two real test-coverage gaps**: embargo only asserted `<=` (a too-large-embargo mutant
+  survived) and Anchored shape only tested at `step==test_len` (a "grow by test_len" mutant survived). Closed both:
+  strengthened `assert_fold_invariants` to pin every fold against the gate formula by index; added exact tests for
+  `embargo≥2` and Anchored `step>test_len`; anchored the determinism test to real values; honest doc on the
+  `usize::MAX` termination edge (unreachable). +2 tests (now 9 integration).
+- Re-gate after S8: fmt clean; clippy -D warnings clean; **121 tests pass**; demo byte-identical; no-execution-deps
+  OK. Walk-forward model complete. Next: S9 (holdout gate — physical partition + consume-by-value seal).

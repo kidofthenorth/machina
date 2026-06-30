@@ -8,12 +8,14 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
 - **IN PLACE (scaffolds, gate not formally declared):** M3 (Strategy Lab MVP) — trait, 4 baselines,
   trend_alloc_v1, threshold_rebalance_v1, regime scaffold, CLI comparison.
 - **DOING:** M4 (sweep / walk-forward). Plan = [m4-sweep.md](m4-sweep.md) (12 subtasks S1–S12).
-  **S1–S7 DONE** — the *deterministic sweep core*: existing-crate prep (S1–S3) + `crates/sweep`
-  skeleton (S4), param grid + strategy bridge (S5), single-cell runner + exact turnover (S6), and
-  **the determinism gate (S7) passes** (`std::thread::scope`; parallel==sequential byte-identical
-  across thread counts {1,2,3,7,8}; repeated-run identical). **Next diff: S8** — walk-forward window
-  model. Remaining: S8 windows, S9 holdout seal (gate), S10 cost sensitivity, S11 report+schema,
-  S12 CLI.
+  **S1–S8 DONE** — the *deterministic sweep core* (S1–S7) plus the **walk-forward window model (S8)**:
+  existing-crate prep (S1–S3) + `crates/sweep` skeleton (S4), param grid + strategy bridge (S5),
+  single-cell runner + exact turnover (S6), the determinism gate (S7, `std::thread::scope`;
+  parallel==sequential byte-identical across thread counts {1,2,3,7,8}; repeated-run identical), and
+  walk-forward windows (S8: `Window` / `WalkForward` / `WindowKind::{Rolling (default), Anchored}`;
+  exact embargo gap; ordered, non-overlapping test ranges; in-bounds; bad params rejected; pure +
+  total). **Next diff: S9** — holdout seal (the holdout gate). Remaining: S9 holdout seal,
+  S10 cost sensitivity, S11 report+schema, S12 CLI.
 - **NEXT after M4:** M5 research-decision gate. M6 needs plan §22 source re-check; M8/M9
   (signing/submit) need **separate explicit human approval**.
 
@@ -35,7 +37,7 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
 ## Gates run (2026-06-29, all from this tree)
 - `cargo fmt --all --check` → clean (exit 0).
 - `cargo clippy --all-targets --all-features -- -D warnings` → clean (exit 0).
-- `cargo test --workspace --all-features` → **109 passed, 0 failed** (85 baseline + 24 from M4 S1–S7).
+- `cargo test --workspace --all-features` → **121 passed, 0 failed** (85 baseline + 36 from M4 S1–S8).
 - `cargo run -p cli -- demo` → byte-identical across runs (determinism verified).
 - no-execution-deps grep gate → pass (comments ignored). Dep tree = rust_decimal/serde/serde_json/
   toml (+ dev jsonschema); **no Solana/Jupiter/HTTP/wallet/signing crate anywhere**.
@@ -59,7 +61,8 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
   sweep crate; M6 route/shadow crates; M7 wallet-state; M8/M9 gated execution.
 
 ## Next recommended command
-- Continue M4 per [m4-sweep.md](m4-sweep.md): S1–S7 (deterministic sweep core) are DONE. Next is
-  **S8** — walk-forward window model (`sweep/src/window.rs`) — then S9 (holdout seal), S10 (cost
-  sensitivity), S11 (report+schema), S12 (CLI). Each subtask is a small diff that keeps the workspace
-  green. Do NOT start execution (M8/M9) without separate human approval.
+- Continue M4 per [m4-sweep.md](m4-sweep.md): S1–S8 are DONE (deterministic sweep core + walk-forward
+  windows). Next is **S9** — the holdout gate (physical partition + consume-by-value seal;
+  `sweep/src/partition.rs` + `config.rs`) — then S10 (cost sensitivity), S11 (report+schema),
+  S12 (CLI). Each subtask is a small diff that keeps the workspace green. Do NOT start execution
+  (M8/M9) without separate human approval.
