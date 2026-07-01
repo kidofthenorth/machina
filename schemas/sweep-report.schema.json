@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machina.local/schemas/sweep-report.schema.json",
+  "title": "SweepReport",
+  "description": "Canonical, deterministic result of a parameter sweep's robustness battery (M4). A research FILTER, not a profitability verdict: 'advanceable' means a candidate survived costs/doubled-costs/walk-forward/baseline checks and is eligible for M5 review, never that it is profitable (invariant 11). All budgets and observed/threshold values are exact decimal strings (never JSON floats).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "note", "trial_count", "thresholds", "verdicts"],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "note": { "type": "string", "minLength": 1 },
+    "trial_count": {
+      "description": "Total cells evaluated across the sweep (for M5 multiple-testing accounting).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "thresholds": { "$ref": "#/$defs/Thresholds" },
+    "verdicts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/CandidateVerdict" }
+    }
+  },
+  "$defs": {
+    "decimalString": {
+      "description": "An exact decimal value encoded as a string.",
+      "type": "string",
+      "pattern": "^-?[0-9]+(\\.[0-9]+)?$"
+    },
+    "Thresholds": {
+      "description": "Configured robustness budgets (research policy; illustrative until frozen for M5).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "drawdown_budget",
+        "turnover_budget",
+        "baseline_margin",
+        "dispersion_budget",
+        "neighbor_tolerance",
+        "min_windows"
+      ],
+      "properties": {
+        "drawdown_budget": { "$ref": "#/$defs/decimalString" },
+        "turnover_budget": { "$ref": "#/$defs/decimalString" },
+        "baseline_margin": { "$ref": "#/$defs/decimalString" },
+        "dispersion_budget": { "$ref": "#/$defs/decimalString" },
+        "neighbor_tolerance": { "$ref": "#/$defs/decimalString" },
+        "min_windows": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "CandidateVerdict": {
+      "description": "One candidate's verdict. The status <-> failed_criteria coupling ('advanceable' iff the list is empty) is enforced in code (sweep::advance::evaluate_candidate), not by the schema — following the repo convention that the schema checks shape while code enforces semantics (cf. run-result 'unitInterval').",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_label", "status", "failed_criteria"],
+      "properties": {
+        "candidate_label": { "type": "string", "minLength": 1 },
+        "status": {
+          "description": "'advanceable' = survived the robustness battery, eligible for M5 review (NOT profitable). 'rejected' = failed at least one criterion.",
+          "type": "string",
+          "enum": ["advanceable", "rejected"]
+        },
+        "failed_criteria": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/RejectionReason" }
+        }
+      }
+    },
+    "RejectionReason": {
+      "description": "A single failed robustness criterion, recording the observed value against its threshold.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "observed", "threshold"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "fails_baseline_comparison",
+            "edge_vanishes_under_doubled_costs",
+            "depends_on_one_period",
+            "parameter_fragile",
+            "drawdown_exceeds_budget",
+            "turnover_implausible",
+            "insufficient_data"
+          ]
+        },
+        "observed": { "$ref": "#/$defs/decimalString" },
+        "threshold": { "$ref": "#/$defs/decimalString" }
+      }
+    }
+  }
+}

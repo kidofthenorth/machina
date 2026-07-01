@@ -8,9 +8,9 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
 - **IN PLACE (scaffolds, gate not formally declared):** M3 (Strategy Lab MVP) — trait, 4 baselines,
   trend_alloc_v1, threshold_rebalance_v1, regime scaffold, CLI comparison.
 - **DOING:** M4 (sweep / walk-forward). Plan = [m4-sweep.md](m4-sweep.md) (12 subtasks S1–S12).
-  **S1–S10 DONE** — the *deterministic sweep core* (S1–S7), the **walk-forward window model (S8)**, the
-  **holdout gate (S9)**, and the **cost/fee sensitivity ladder (S10)**: existing-crate prep (S1–S3) +
-  `crates/sweep` skeleton (S4), param grid +
+  **S1–S11 DONE** — the *deterministic sweep core* (S1–S7), the **walk-forward window model (S8)**, the
+  **holdout gate (S9)**, the **cost/fee sensitivity ladder (S10)**, and the **advancement/rejection
+  report + new schema (S11)**: existing-crate prep (S1–S3) + `crates/sweep` skeleton (S4), param grid +
   strategy bridge (S5), single-cell runner + exact turnover (S6), the determinism gate (S7,
   `std::thread::scope`; parallel==sequential byte-identical across thread counts {1,2,3,7,8};
   repeated-run identical), walk-forward windows (S8: `Window` / `WalkForward` /
@@ -34,8 +34,15 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
   `eval_strategy` (label==strategy `name()`; `best_baseline_return` floor). Adversarially reviewed
   (3 lenses + skeptics): no code defects — surfaced that **cost monotonicity is conditional** (higher
   costs can suppress a marginal trade → fewer fees/higher return/negative drag), now documented + a
-  regression test pins it; 2 doc nits fixed. **Next diff: S11** — advancement/rejection report + new
-  `schemas/sweep-report.schema.json`. Remaining: S11 report+schema, S12 CLI.
+  regression test pins it; 2 doc nits fixed. And the **advancement/rejection report + new schema
+  (S11)**: `sweep::{advance, report}` + `schemas/sweep-report.schema.json` — Decimal-only
+  `evaluate_candidate` (7 `RejectionReason` criteria, InsufficientData hard-stop, canonical order),
+  `SweepReport` (robustness-only `note`, `trial_count`, total-order sort) validating against the new
+  Draft-2020-12 schema (additive contract, D-0001). Gate: real report validates; each criterion→reason;
+  f64-audit; two serializations byte-identical; run-result schema UNCHANGED. Adversarially reviewed
+  (3 lenses + skeptics): schema fidelity clean; 3 nit fixes (single-source edge-vanishes, total-order
+  sort, coupling-code-enforced note). **Next diff: S12** — CLI `sweep`/`sweep-verify` + DECISIONS
+  D-0009 + final plans/docs refresh (the last M4 subtask). Remaining: S12 CLI.
 - **NEXT after M4:** M5 research-decision gate. M6 needs plan §22 source re-check; M8/M9
   (signing/submit) need **separate explicit human approval**.
 
@@ -57,7 +64,7 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
 ## Gates run (2026-06-29, all from this tree)
 - `cargo fmt --all --check` → clean (exit 0).
 - `cargo clippy --all-targets --all-features -- -D warnings` → clean (exit 0).
-- `cargo test --workspace --all-features` → **153 passed, 0 failed** (85 baseline + 68 from M4 S1–S10).
+- `cargo test --workspace --all-features` → **169 passed, 0 failed** (85 baseline + 84 from M4 S1–S11).
 - `cargo run -p cli -- demo` → byte-identical across runs (determinism verified).
 - no-execution-deps grep gate → pass (comments ignored). Dep tree = rust_decimal/serde/serde_json/
   toml (+ dev jsonschema); **no Solana/Jupiter/HTTP/wallet/signing crate anywhere**.
@@ -70,6 +77,11 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
   key finding: cost monotonicity is conditional (trade suppression can invert it), now documented +
   pinned by a regression test; 2 doc nits fixed. 2 findings refuted (overflow/negative-lamport both
   unreachable — CostModel has no Deserialize; all constructions are hardcoded positive literals).
+- S11 report+schema adversarial review (3 lenses + skeptics, 7 agents) → **schema fidelity clean, no
+  blockers**; 3 nit fixes applied (edge-vanishes derived from a single source; total-order verdict
+  sort for byte-identical output with duplicate labels; note that status⇔criteria coupling is
+  code-enforced). 1 refuted (f64-audit's two-file scope is intentional — siblings use f64 only for
+  display-only stats, already normalized to None).
 
 ## Safety posture (all upheld)
 - No keys / signing / submit / RPC / network in the tree (no such crate is even depended upon).
@@ -88,10 +100,11 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
   sweep crate; M6 route/shadow crates; M7 wallet-state; M8/M9 gated execution.
 
 ## Next recommended command
-- Continue M4 per [m4-sweep.md](m4-sweep.md): S1–S10 are DONE (deterministic sweep core + walk-forward
-  windows + sealed holdout + cost/fee sensitivity). Next is **S11** — the advancement/rejection report
-  + **new `schemas/sweep-report.schema.json`** (`sweep/src/advance.rs` + `report.rs`; Decimal-only
-  selection keys + an f64-comparison audit test; `trial_count` recorded; robustness language only,
-  invariant 11; adding the schema is a deliberate contract act, D-0001) — then S12 (CLI
-  `sweep`/`sweep-verify` + plans/docs/DECISIONS refresh). Each subtask is a small diff that keeps the
-  workspace green. Do NOT start execution (M8/M9) without separate human approval.
+- Continue M4 per [m4-sweep.md](m4-sweep.md): S1–S11 are DONE (deterministic sweep core + walk-forward
+  windows + sealed holdout + cost/fee sensitivity + advancement/rejection report & schema). Next — and
+  **last for M4** — is **S12**: CLI `machina sweep` / `machina sweep-verify` (hand-rolled args, no clap,
+  D-0002; add `sweep` dep to `crates/cli/Cargo.toml`; **holdout stays M5-only — never call
+  `evaluate_on_holdout`**), plus record **DECISIONS D-0009** (sweep determinism, rayon rejection, the
+  additive `RunOutput` field, the new schema) and a final `plans/*` + `docs/architecture-index.md`
+  refresh. Each subtask is a small diff that keeps the workspace green. Do NOT start execution (M8/M9)
+  without separate human approval.

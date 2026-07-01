@@ -123,3 +123,27 @@ recorded inline (not full logs).
   literals). +1 regression test.
 - Re-gate after S10: fmt clean; clippy -D warnings clean; **153 tests pass**; demo byte-identical; no-execution-deps
   OK. Cost/fee sensitivity complete. Next: S11 (advancement/rejection report + new sweep-report schema).
+- M4 S11 (ADVANCEMENT/REJECTION REPORT + new schema, D-0001): new `sweep::advance` — `AdvancementThresholds` /
+  `CandidateEvidence` (all Decimal), `Verdict::{Advanceable,Rejected}`, `RejectionKind` (7 §11 criteria),
+  `RejectionReason{kind,observed,threshold}` (observed/threshold as exact decimal strings), `evaluate_candidate`
+  (InsufficientData hard-stop first; then a fixed canonical order of criteria; Advanceable iff no failures). New
+  `sweep::report` — `SweepReport{schema_version,note,trial_count,thresholds,verdicts}` with a robustness-only `note`
+  (invariant 11), canonical `to_json`/`to_value`, verdicts sorted. New `schemas/sweep-report.schema.json`
+  (Draft 2020-12, additionalProperties:false, decimalString; **run-result schema UNCHANGED**) + `tests/
+  schema_validation.rs` mirroring `results` — a REAL built report validates; rejects numeric budget / unknown
+  status / unknown reason kind / extra props; source-level f64-audit proves advance.rs + report.rs are Decimal-only;
+  trial_count recorded; two serializations byte-identical. Zero new deps (jsonschema/rust_decimal_macros pre-existing
+  dev-deps). +15 tests.
+- M4 S11 verification: ran a 3-lens adversarial review (schema-fidelity / advancement-logic / invariant-scope) +
+  per-finding skeptics (7 agents). Verdict: **schema fidelity clean, no blockers** (real report validates; decimalString
+  covers all reachable Decimal.to_string outputs; run-result untouched). 3 confirmed (all nit), all fixed:
+  (1) `EdgeVanishesUnderDoubledCosts` predicate decoupled from its recorded observed/threshold → collapsed to a single
+  source of truth (`doubled_return <= doubled_baseline_floor`, matching S10's strict `>`; dropped the redundant
+  `survives_doubled` bool); (2) verdict sort keyed only on label (duplicate labels — reachable via scale-variant grid
+  points — could make byte-output input-order-dependent) → derived `Ord` on the verdict chain + total-order
+  `verdicts.sort()`, pinned by a duplicate-label determinism test; (3) status⇔failed_criteria coupling is code-only →
+  added a schema/plan note that it's deliberately code-enforced (house convention, cf. run-result `unitInterval`).
+  1 refuted (f64-audit's two-file scope is intentional — sibling modules use f64 only for display-only stats, already
+  normalized to None at `CellResult`). +1 test.
+- Re-gate after S11: fmt clean; clippy -D warnings clean; **169 tests pass**; demo byte-identical; no-execution-deps
+  OK; run-result.schema.json unchanged. Report + schema complete. Next: S12 (CLI + DECISIONS D-0009 + docs — last M4).

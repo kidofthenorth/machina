@@ -21,8 +21,8 @@ authorizes trading. Full invariants: [docs/invariants.md](../docs/invariants.md)
 ## Read these first (source of truth)
 
 1. [plans/current-state.md](current-state.md) — live per-milestone status, gates, blockers, next command.
-2. **[plans/m4-sweep.md](m4-sweep.md) — the ACTIVE milestone plan (M4). 12 subtasks S1–S12; S1–S10 DONE,
-   next is S11 (advancement/rejection report + new sweep-report schema).** This is your working source of truth now.
+2. **[plans/m4-sweep.md](m4-sweep.md) — the ACTIVE milestone plan (M4). 12 subtasks S1–S12; S1–S11 DONE,
+   next is S12 (CLI `sweep`/`sweep-verify` + DECISIONS D-0009 + docs — the LAST M4 subtask).** Your working source of truth.
 3. [plans/master-plan.md](master-plan.md) — authoritative M0–M11 roadmap & architecture.
 4. [plans/task-queue.md](task-queue.md) — actionable status table (TODO/DOING/DONE/DEFERRED/BLOCKED).
 5. [docs/architecture-index.md](../docs/architecture-index.md) + [docs/invariants.md](../docs/invariants.md) — module map + hard invariants.
@@ -30,7 +30,7 @@ authorizes trading. Full invariants: [docs/invariants.md](../docs/invariants.md)
 Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronological log:
 [plans/worklog.md](worklog.md). Open operator questions: [plans/questions.md](questions.md).
 
-## What's accomplished (M0–M2 complete; M3 scaffolds; **M4 in progress — S1–S10 done**)
+## What's accomplished (M0–M2 complete; M3 scaffolds; **M4 in progress — S1–S11 done**)
 
 - **M0 Bootstrap.** 7-crate Cargo workspace; pinned toolchain; rustfmt; CI (`fmt + clippy -D warnings
   + test + no-execution-deps` scan); README/DECISIONS/AGENTS/CLAUDE; 4 secret-safe `*.example.toml`
@@ -44,7 +44,7 @@ Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronolo
 - **M3 Strategy Lab (scaffolds).** `Strategy` trait (intent only); baselines `hold_usdc` /
   `buy_and_hold_sol` / `static_50_50` / `dca_sol`; `regime::classify` scaffold; `trend_alloc_v1`;
   `threshold_rebalance_v1`; `results` RunResult model; `cli` deterministic demo.
-- **M4 — sweep core + walk-forward + holdout seal + cost sensitivity (S1–S10 of 12 done).** Designed via a 3-architecture + adversarial
+- **M4 — sweep core + walk-forward + holdout seal + cost sensitivity + advancement report (S1–S11 of 12 done).** Designed via a 3-architecture + adversarial
   workflow (see [m4-sweep.md](m4-sweep.md)). Shipped, each a small green diff:
   - **S1** additive `portfolio::RunOutput.traded_notional_quote` (the correct turnover base — the
     adversary proved round-trip turnover reads ~0 for zero-round-trip rebalancers).
@@ -93,50 +93,61 @@ Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronolo
     costs can suppress a marginal trade → fewer fees / higher return / negative drag), now documented +
     pinned by a regression test; 2 doc nits fixed; 2 findings refuted (overflow/negative-lamport both
     unreachable — `CostModel` has no `Deserialize`).
+  - **S11 — ADVANCEMENT/REJECTION REPORT + new schema (D-0001).** `sweep::{advance, report}` +
+    `schemas/sweep-report.schema.json`. `advance.rs`: Decimal-only `evaluate_candidate` — 7
+    `RejectionKind` criteria, InsufficientData hard-stop, fixed canonical order, `RejectionReason`
+    records observed/threshold as exact decimal strings. `report.rs`: `SweepReport` with a
+    robustness-only `note` (invariant 11), `trial_count`, and a **total-order** verdict sort
+    (byte-identical even with duplicate labels). New Draft-2020-12 schema (additive contract);
+    **run-result schema UNCHANGED**; `tests/schema_validation.rs` mirrors `results` (real report
+    validates; rejects numeric budget / unknown enums / extra props; source-level f64-audit).
+    **Zero new deps.** Adversarially reviewed (3-lens + skeptics, 7 agents): **schema fidelity clean**;
+    3 nit fixes (single-source edge-vanishes; total-order sort; coupling-code-enforced note); 1 refuted.
 - **Quality.** A 6-lens adversarial verification workflow ran on M0–M3 → **PASS, no blockers**; a
   5-lens + adjudicator workflow verified S8 → impl correct, found & fixed two test gaps; a 6-lens +
   per-finding-skeptic workflow verified the S9 seal → **sound**, 3 minor/nit hardening fixes applied; a
   3-lens + skeptic workflow verified S10 → **no code defects**, surfaced conditional cost monotonicity
-  (documented + regression-tested), 2 doc nits fixed.
+  (documented + regression-tested), 2 doc nits fixed; a 3-lens + skeptic workflow verified S11 → **schema
+  fidelity clean**, 3 nit fixes applied.
 
 ## Verified state (re-confirm on a fresh checkout)
 
 ```bash
 cargo fmt --all --check                                  # clean
 cargo clippy --all-targets --all-features -- -D warnings # clean
-cargo test --workspace --all-features                    # 153 passed, 0 failed (85 baseline + 68 from M4 S1–S10)
+cargo test --workspace --all-features                    # 169 passed, 0 failed (85 baseline + 84 from M4 S1–S11)
 cargo run -p cli -- demo                                 # deterministic, schema-valid RunResult
 # no-execution-deps scan (CI parity) — must print OK:
 pattern='solana-sdk|solana-client|solana-program|solana-rpc|jupiter|jito|ed25519-dalek|keypair|bip39|tiny-bip39|secp256k1'
 grep -REn --include='Cargo.toml' "$pattern" . | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || echo OK
 ```
 
-Repo state: **no commits yet** (BASE=EMPTY); the operator commits. To stage the M4 work so far:
-the new `crates/sweep/` (untracked — `git add crates/sweep`), plus modified `Cargo.toml`, `Cargo.lock`,
-and `plans/*` + the S1–S3 edits in `crates/{portfolio,research-core,results,cli}`. **Never** `git add -A`;
-**never** stage `.claude/`. Stage explicit paths only.
+Repo state: the operator commits between turns (committed through **S10** — `9f591bb`). **S11 is
+uncommitted**: new `crates/sweep/src/{advance,report}.rs`, new `schemas/sweep-report.schema.json` +
+`crates/sweep/tests/schema_validation.rs`, modified `crates/sweep/src/lib.rs`, and `plans/*`. **Never**
+`git add -A`; **never** stage `.claude/`. Stage explicit paths only. (Run `git status` to confirm — the
+operator may have committed more since this was written.)
 
-## What's next — continue M4 from S11 (see [m4-sweep.md](m4-sweep.md) §14 for the subtask table)
+## What's next — continue M4 from S12, the LAST subtask (see [m4-sweep.md](m4-sweep.md) §13/§14)
 
-Pick up the **second half of M4** (research-rigor + reporting + wiring). Each is a small diff that
-must keep the workspace green (fmt + clippy `-D warnings` + test). Suggested order = the plan's:
+S1–S11 are done; **only S12 remains to complete M4.** It is a small diff that must keep the workspace
+green (fmt + clippy `-D warnings` + test).
 
-- **S9 — Holdout gate — ✅ DONE.** Physical seal (`sweep::{config, partition}`): holdout moved into a
-  *separate* `Vec<Bar>`; `seal_holdout(self) -> (DevValidation, Sealed)` (no holdout accessor);
-  call-once `evaluate_on_holdout(sealed: Sealed, …)` (M5-only). Adversarially reviewed → sound.
-- **S10 — Cost/fee sensitivity ladder — ✅ DONE.** `sweep::{sensitivity, baseline}` (+ shared
-  `eval_strategy` core in `cell.rs`): `cost_scenarios` ladder via exact integer `scale_cost_model`;
-  `FeeSensitivity` (Decimal `return_drag_*`, baseline-grounded `survives_doubled`); 4 baselines re-run
-  cost-matched. Adversarially reviewed → no code defects; **cost monotonicity is conditional** (trade
-  suppression can invert it — see m4-sweep §9), documented + regression-tested.
-- **S11 — Advancement/rejection report + NEW `schemas/sweep-report.schema.json` (next)** (`advance.rs`,
-  `report.rs`, `tests/schema_validation.rs`). Decimal-only selection keys + an f64-comparison audit
-  test; `trial_count` recorded; robustness language only (invariant 11). Depends on S7/S9/S10 (all done).
-  **Adding the schema is a deliberate contract act (D-0001).** Reuse `FeeSensitivity`/`best_baseline_return`
-  from S10 and the `RejectionReason`/`Verdict` design in m4-sweep §11.
-- **S12 — CLI `sweep`/`sweep-verify`** + refresh `plans/*`, `docs/architecture-index.md`, and record
-  **DECISIONS D-0009** (sweep determinism, rayon rejection, the additive `RunOutput` field, new schema).
-  Depends on S11.
+- **S9 — Holdout gate — ✅ DONE.** Physical seal; call-once `evaluate_on_holdout` (M5-only). Reviewed → sound.
+- **S10 — Cost/fee sensitivity ladder — ✅ DONE.** `sweep::{sensitivity, baseline}`; conditional cost
+  monotonicity documented + regression-tested. Reviewed → no code defects.
+- **S11 — Advancement/rejection report + new schema — ✅ DONE.** `sweep::{advance, report}` +
+  `schemas/sweep-report.schema.json` (D-0001); Decimal-only `evaluate_candidate`, robustness-only report,
+  total-order verdict sort. Reviewed → schema fidelity clean, 3 nit fixes.
+- **S12 — CLI `sweep`/`sweep-verify` + DECISIONS + docs (next, LAST).** Add to `crates/cli/src/main.rs`
+  (hand-rolled `args.next()` match, **no clap**, D-0002) + `sweep = { workspace = true }` to
+  `crates/cli/Cargo.toml`. `machina sweep [--threads N] [--out PATH]` builds a spec from the embedded
+  `strategy-lab.example.toml` + `allowlist.example.toml` (**config key `rebalance_band` → struct field
+  `band`**), runs the sweep, prints/writes the canonical `SweepReport`. `machina sweep-verify` runs it
+  Sequential vs Threads(N) and asserts byte-identical (local mirror of the CI gate). **Holdout is NOT
+  reachable from any CLI path — `evaluate_on_holdout` is M5-only.** Record **DECISIONS D-0009** (sweep
+  determinism, rayon rejection, the additive `RunOutput.traded_notional_quote`, the new schema) and do a
+  final `plans/*` + `docs/architecture-index.md` refresh. See plan §13. Depends on S11 (done).
 
 Beyond M4: **M5** research-decision gate (needs the operator to FREEZE walk-forward sizing + rejection
 thresholds first — questions.md Q5); **M6** Jupiter shadow (re-verify plan §22 sources; no signing).
@@ -156,7 +167,7 @@ tiny synthetic checked-in fixtures only.
 - Work in milestone order; small diffs; refresh `plans/current-state.md` + `worklog.md` in the same diff.
 - No profitability claims from in-sample results.
 
-**M4-specific (don't regress what S1–S10 established):**
+**M4-specific (don't regress what S1–S11 established):**
 - Parallelism is `std::thread::scope` only — **no new dependency** (rayon is rejected, D-0009).
   Any sweep output must stay byte-identical parallel==sequential==repeated; the gate lives in
   `crates/sweep/tests/determinism.rs` and must use **explicit** thread counts, never `available_parallelism`.
@@ -176,54 +187,60 @@ tiny synthetic checked-in fixtures only.
   cheaper / higher-return and `return_drag_doubled` can go negative (see m4-sweep §9). Do **not**
   re-impose monotonicity as a runtime invariant; `fee_sensitivity` records the signed drag honestly.
   Baselines run through the shared `cell::eval_strategy` core (same pipeline as candidates — no drift).
+- The advancement report (S11) is **robustness-only** (invariant 11): `Advanceable` = "eligible for M5
+  review", never "profitable". All threshold/selection keys are `Decimal` (`advance.rs`/`report.rs` are
+  f64-free, source-audited). `SweepReport` verdicts sort by a **total** order so output is byte-identical;
+  `schemas/sweep-report.schema.json` is an additive contract (D-0001) — **`run-result.schema.json` stays
+  UNCHANGED**. Schema checks shape; code enforces semantics (status⇔`failed_criteria`).
 
 ---
 
-## Seed prompt for the new chat — S11, the advancement/rejection report + new schema (paste this)
+## Seed prompt for the new chat — S12, the CLI + DECISIONS + docs (LAST M4 subtask) (paste this)
 
 > You are the EXECUTOR continuing the **machina** (`solana-crypto-trader`) repo — a paper-first,
 > Solana-focused crypto trading-**research** platform in Rust (no keys/signing/RPC/network anywhere).
 > Read `plans/handoff.md`, then `plans/current-state.md`, **`plans/m4-sweep.md` — the active milestone
-> plan, especially §11 "Rejection report" and §12 "Canonical export & schema impact" and §14 row S11**,
-> then `plans/task-queue.md` and `docs/invariants.md`.
+> plan, especially §13 "CLI wiring" and §14 row S12**, then `plans/task-queue.md` and
+> `docs/invariants.md`.
 >
-> **State:** M0–M2 complete, M3 scaffolds in place, and **M4 subtasks S1–S10 are DONE and green** —
-> the deterministic sweep core (S1–S7, incl. the determinism gate), the walk-forward window model (S8),
-> the **sealed holdout gate (S9)**, and the **cost/fee sensitivity ladder (S10)**. `cargo fmt --all
-> --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --workspace
-> --all-features` = **153 passing**, `cargo run -p cli -- demo` byte-identical, no-execution-deps scan
-> clean. The repo has **no commits** — **do not commit or push; the operator commits** (stage explicit
-> paths only, never `.claude/`, never `git add -A`).
+> **State:** M0–M2 complete, M3 scaffolds in place, and **M4 subtasks S1–S11 are DONE and green** —
+> the deterministic sweep core (S1–S7), walk-forward windows (S8), the sealed holdout gate (S9), the
+> cost/fee sensitivity ladder (S10), and the advancement/rejection report + new schema (S11). `cargo fmt
+> --all --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --workspace
+> --all-features` = **169 passing**, `cargo run -p cli -- demo` byte-identical, no-execution-deps scan
+> clean. The repo has commits through S9; S10/S11 are uncommitted. **Do not commit or push; the operator
+> commits** (stage explicit paths only, never `.claude/`, never `git add -A`).
 >
-> **First** re-confirm the gates on a fresh checkout. **Then implement S11 — the ADVANCEMENT/REJECTION
-> REPORT + the new `schemas/sweep-report.schema.json` — in small green diffs** (each keeps fmt + clippy
-> `-D warnings` + test green), per `m4-sweep.md` §11/§12/§14. New files:
-> `crates/sweep/src/advance.rs`, `crates/sweep/src/report.rs`, `schemas/sweep-report.schema.json`,
-> `crates/sweep/tests/schema_validation.rs`. The design:
-> - `RejectionReport { thresholds, trial_count, verdicts: Vec<CandidateVerdict> }`;
->   `CandidateVerdict { candidate_label, status: Verdict::{Advanceable, Rejected}, failed_criteria:
->   Vec<RejectionReason> }`. One `RejectionReason` variant per §11 criterion (fails-baseline,
->   edge-vanishes-under-doubled-costs, depends-on-one-period, parameter-fragile, drawdown-exceeds-budget,
->   turnover-implausible, insufficient-data), each carrying observed `Decimal` vs threshold as strings.
-> - **All selection/threshold keys are `Decimal`** (reuse S10's `FeeSensitivity` / `best_baseline_return`
->   and the un-annualized `turnover` ratio); `f64` is display-only. `trial_count` = total cells evaluated
->   (for M5 multiple-testing accounting). Language is **robustness-only** — `Advanceable` means "passed
->   the battery, eligible for M5 review", never "this works" (invariant 11); include a JSON `note`.
-> - `SweepReport::to_json()` canonical (money/turnover as exact decimal strings, f64 via
->   `results::stat_to_string` `{:.10}`, collections pre-sorted / `BTreeMap`). **New schema** is
->   Draft 2020-12, `additionalProperties:false`, `decimalString` for money — a **deliberate additive
->   contract act (D-0001)**. `run-result.schema.json` stays UNCHANGED.
+> **First** re-confirm the gates on a fresh checkout. **Then implement S12 — the CLI + DECISIONS + docs,
+> the LAST M4 subtask — in small green diffs** (each keeps fmt + clippy `-D warnings` + test green), per
+> `m4-sweep.md` §13/§14. Touch: `crates/cli/src/main.rs`, `crates/cli/Cargo.toml`, `DECISIONS.md`,
+> `docs/architecture-index.md`, `plans/*`. The design:
+> - Add `sweep = { workspace = true }` to `crates/cli/Cargo.toml`. Extend the existing hand-rolled
+>   `args.next()` match in `main.rs` (**no clap** — D-0002) alongside `demo`.
+> - `machina sweep [--threads N] [--out PATH]`: load the embedded `strategy-lab.example.toml` +
+>   `allowlist.example.toml`, build a spec (families from the `[trend_alloc_v1]` / `[threshold_rebalance_v1]`
+>   grids — **config key `rebalance_band` maps to struct field `band`**; cost scenarios before/base/doubled
+>   via `sweep::cost_scenarios`; walk-forward over the development partition), run with `Parallelism::Threads(N)`
+>   (default `Sequential`), and print / write the canonical `SweepReport` JSON. `available_parallelism()` is
+>   allowed here (values are count-invariant) but NOT in the determinism gate.
+> - `machina sweep-verify`: run the sweep both `Sequential` and `Threads(N)`, assert byte-identical output,
+>   exit non-zero on mismatch (local mirror of the CI determinism gate).
+> - **The holdout is NOT reachable from any CLI path — `evaluate_on_holdout` is M5-only. Never call it.**
+>   No keys/signing/RPC/network; the CLI loads `*.example.toml` templates only.
 >
-> **S11 gate:** report validates against the new schema; each §11 criterion yields its matching reason;
-> `trial_count` recorded; an **f64-comparison audit test** forbids `f64` in the selection/advancement
-> module; two serializations are byte-identical. Depends on S7/S9/S10 (all done). The **holdout stays
-> sealed** — S11 selects only over dev/val results; never call `evaluate_on_holdout`.
+> **S12 gate:** `machina sweep` prints a deterministic, schema-valid `SweepReport`; `machina sweep-verify`
+> exits 0; the full workspace stays green (fmt + clippy `-D warnings` + test + demo byte-identical +
+> no-execution-deps). Record **DECISIONS D-0009** (sweep determinism via `std::thread::scope`, rayon
+> rejection, the additive `RunOutput.traded_notional_quote`, the new `sweep-report.schema.json`) and refresh
+> `docs/architecture-index.md` (the `sweep` crate + new schema) and the current-state M4 pointer to
+> **M4 COMPLETE**.
 >
 > Honor the operating contract in `plans/handoff.md`, incl. the **M4-specific rules**: parallelism is
-> `std::thread::scope` (zero new deps; rayon rejected, D-0009); turnover comes from
-> `RunOutput.traded_notional_quote`, never `round_trips`; all sort/threshold/selection keys are
-> `Decimal` (`f64` display-only, non-finite→`None`); cost monotonicity is **not** a runtime invariant
-> (S10 §9). Update
-> `plans/current-state.md`, `plans/m4-sweep.md` (S11 status), `plans/task-queue.md`, and
-> `plans/worklog.md` as part of "done", and consider a fresh-session/subagent adversarial review before
-> declaring S11 done. **Do NOT start M8/M9** (signing/submit) — separate explicit human approval required.
+> `std::thread::scope` (zero new deps; rayon rejected, D-0009); turnover from
+> `RunOutput.traded_notional_quote`, never `round_trips`; all sort/threshold/selection keys are `Decimal`;
+> cost monotonicity is **not** a runtime invariant (S10 §9); the holdout stays sealed. Update
+> `plans/current-state.md`, `plans/m4-sweep.md` (S12 status → M4 complete), `plans/task-queue.md`, and
+> `plans/worklog.md` as part of "done", and consider a fresh-session/subagent review before declaring M4
+> complete. **After M4, STOP for the M5 gate** — M5 needs the operator to FREEZE walk-forward sizing +
+> rejection thresholds first (questions.md Q5). **Do NOT start M8/M9** (signing/submit) — separate explicit
+> human approval required.

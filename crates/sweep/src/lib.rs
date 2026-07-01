@@ -25,22 +25,29 @@
 //! The crate is built in small milestone-ordered diffs (plan §14, subtasks S4–S12). Public items
 //! are introduced as each subtask lands.
 
+pub mod advance;
 pub mod baseline;
 pub mod cell;
 pub mod config;
 pub mod parallel;
 pub mod param;
 pub mod partition;
+pub mod report;
 pub mod sensitivity;
 pub mod turnover;
 pub mod window;
 
+pub use advance::{
+    evaluate_candidate, AdvancementThresholds, CandidateEvidence, CandidateVerdict, RejectionKind,
+    RejectionReason, Verdict,
+};
 pub use baseline::{best_baseline_return, eval_all_baselines, eval_baseline, BaselineId};
 pub use cell::{eval_cell, CellResult};
 pub use config::PartitionSpec;
 pub use parallel::{run_cells, run_in_parallel, Parallelism, SweepCell};
 pub use param::{build_strategy, ParamGrid, ParamPoint};
 pub use partition::{evaluate_on_holdout, DevValidation, PartitionError, PartitionedBars, Sealed};
+pub use report::{SweepReport, ThresholdsDto, SWEEP_SCHEMA_VERSION};
 pub use sensitivity::{
     cost_scenarios, fee_sensitivity, scale_cost_model, CostScenario, FeeSensitivity, ScenarioId,
     ScenarioMetrics,

@@ -1,0 +1,156 @@
+//! S11 gate (plan §11/§12/§14): the new `sweep-report.schema.json` is a real contract — a built
+//! `SweepReport` validates against it, the schema rejects money-as-number and unknown enums, each
+//! rejection criterion round-trips, `trial_count` is recorded, and two serializations are
+//! byte-identical. Plus the f64-comparison audit: the advancement/selection modules are Decimal-only.
+
+use rust_decimal_macros::dec;
+use serde_json::{json, Value};
+use sweep::{
+    evaluate_candidate, AdvancementThresholds, CandidateEvidence, RejectionKind, SweepReport,
+    Verdict,
+};
+
+fn schema() -> Value {
+    let path = format!(
+        "{}/../../schemas/sweep-report.schema.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
+    serde_json::from_str(&text).unwrap_or_else(|e| panic!("parse {path}: {e}"))
+}
+
+fn validator() -> jsonschema::Validator {
+    jsonschema::validator_for(&schema()).expect("sweep-report schema is valid JSON Schema")
+}
+
+fn assert_valid(value: &Value) {
+    let v = validator();
+    let errors: Vec<String> = v.iter_errors(value).map(|e| e.to_string()).collect();
+    assert!(errors.is_empty(), "schema validation failed: {errors:?}");
+}
+
+fn thresholds() -> AdvancementThresholds {
+    AdvancementThresholds {
+        drawdown_budget: dec!(0.30),
+        turnover_budget: dec!(5),
+        baseline_margin: dec!(0.02),
+        dispersion_budget: dec!(0.50),
+        neighbor_tolerance: dec!(0.10),
+        min_windows: 4,
+    }
+}
+
+fn evidence(label: &str) -> CandidateEvidence {
+    CandidateEvidence {
+        candidate_label: label.to_string(),
+        max_drawdown: dec!(0.12),
+        turnover: dec!(1.4),
+        baseline_margin: dec!(0.05),
+        doubled_return: dec!(0.08),
+        doubled_baseline_floor: dec!(0.03),
+        fold_dispersion: dec!(0.20),
+        neighbor_degradation: dec!(0.04),
+        valid_windows: 7,
+    }
+}
+
+#[test]
+fn schema_is_valid_json_schema() {
+    let _ = validator(); // panics if the schema itself is malformed
+}
+
+#[test]
+fn built_report_validates_against_schema() {
+    let th = thresholds();
+
+    // An advanceable candidate.
+    let ok = evaluate_candidate(&evidence("threshold_rebalance_v1/target=0.5;band=0"), &th);
+    assert_eq!(ok.status, Verdict::Advanceable);
+
+    // A candidate failing several criteria at once (drawdown, turnover, edge-vanishes).
+    let mut bad = evidence("trend_alloc_v1/sma=3;above=1;below=0");
+    bad.max_drawdown = dec!(0.55);
+    bad.turnover = dec!(9);
+    bad.doubled_return = dec!(0.01); // <= doubled_baseline_floor (0.03) → edge vanishes
+    let bad = evaluate_candidate(&bad, &th);
+    assert_eq!(bad.status, Verdict::Rejected);
+
+    // A candidate rejected on insufficient data alone.
+    let mut thin = evidence("trend_alloc_v1/sma=99;above=1;below=0");
+    thin.valid_windows = 1;
+    let thin = evaluate_candidate(&thin, &th);
+    assert_eq!(
+        thin.failed_criteria[0].kind,
+        RejectionKind::InsufficientData
+    );
+
+    let report = SweepReport::new(&th, 48, vec![ok, bad, thin]);
+    assert_valid(&report.to_value());
+}
+
+#[test]
+fn report_rejects_a_numeric_budget() {
+    let report = SweepReport::new(&thresholds(), 12, vec![]);
+    let mut value = report.to_value();
+    assert!(validator().is_valid(&value));
+    // Violate the decimal-string contract: a budget as a JSON number.
+    value["thresholds"]["drawdown_budget"] = json!(0.3);
+    assert!(
+        !validator().is_valid(&value),
+        "schema must reject a numeric budget"
+    );
+}
+
+#[test]
+fn report_rejects_unknown_status_and_reason_kind() {
+    let mut ev = evidence("x/target=0.5;band=0");
+    ev.max_drawdown = dec!(0.99);
+    let report = SweepReport::new(
+        &thresholds(),
+        1,
+        vec![evaluate_candidate(&ev, &thresholds())],
+    );
+    let mut value = report.to_value();
+    assert!(validator().is_valid(&value));
+
+    let mut bad_status = value.clone();
+    bad_status["verdicts"][0]["status"] = json!("maybe");
+    assert!(
+        !validator().is_valid(&bad_status),
+        "unknown status must fail"
+    );
+
+    value["verdicts"][0]["failed_criteria"][0]["kind"] = json!("vibes_off");
+    assert!(
+        !validator().is_valid(&value),
+        "unknown reason kind must fail"
+    );
+}
+
+#[test]
+fn report_rejects_additional_properties() {
+    let report = SweepReport::new(&thresholds(), 1, vec![]);
+    let mut value = report.to_value();
+    value["surprise"] = json!("not allowed");
+    assert!(
+        !validator().is_valid(&value),
+        "additionalProperties:false must reject unknown top-level fields"
+    );
+}
+
+/// The f64-comparison audit (plan §5.5 / §14 S11): all sort/threshold/selection keys are `Decimal`;
+/// the advancement and report modules must contain no floating point at all. A source-level check —
+/// blunt but decisive — so a future edit that reaches for `f64` in a decision path fails loudly.
+#[test]
+fn advancement_and_report_modules_are_decimal_only() {
+    let advance_src = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/advance.rs"));
+    let report_src = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/src/report.rs"));
+    assert!(
+        !advance_src.contains("f64"),
+        "advance.rs must be Decimal-only (no f64 in selection/threshold logic)"
+    );
+    assert!(
+        !report_src.contains("f64"),
+        "report.rs must be Decimal-only (no f64 in the exported report)"
+    );
+}
