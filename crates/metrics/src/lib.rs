@@ -226,4 +226,135 @@ mod tests {
         assert_eq!(m.n_periods, 0);
         assert!(m.sharpe.is_none());
     }
+
+    /// `(a - b).abs()` under a small tolerance, for the display-only f64 metrics.
+    fn approx(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-9
+    }
+
+    #[test]
+    fn empty_curve_is_all_zero_and_none() {
+        let m = Metrics::from_equity(&[], 365.0);
+        assert_eq!(m.total_return, dec!(0));
+        assert_eq!(m.max_drawdown, dec!(0));
+        assert_eq!(m.n_periods, 0);
+        assert!(m.cagr.is_none());
+        assert!(m.volatility.is_none());
+        assert!(m.sharpe.is_none());
+        assert!(m.sortino.is_none());
+        assert!(m.calmar.is_none());
+    }
+
+    #[test]
+    fn total_return_guards_zero_and_negative_start() {
+        // A zero starting value is undefined → guarded to 0 rather than dividing by zero.
+        assert_eq!(total_return(&[dec!(0), dec!(100)]), dec!(0));
+        // Single element: first == last → 0.
+        assert_eq!(total_return(&[dec!(100)]), dec!(0));
+    }
+
+    #[test]
+    fn max_drawdown_edge_inputs() {
+        // Empty and single-point curves have no decline.
+        assert_eq!(max_drawdown(&[]), dec!(0));
+        assert_eq!(max_drawdown(&[dec!(100)]), dec!(0));
+        // An all-zero curve never establishes a positive peak, so drawdown stays 0.
+        assert_eq!(max_drawdown(&[dec!(0), dec!(0), dec!(0)]), dec!(0));
+    }
+
+    #[test]
+    fn max_drawdown_clamps_when_equity_goes_negative() {
+        // Peak 100 then -50 would be a 1.5 raw decline; the defensive clamp caps it at 1.
+        assert_eq!(max_drawdown(&[dec!(100), dec!(-50)]), dec!(1));
+    }
+
+    #[test]
+    fn max_drawdown_takes_the_largest_of_several_declines() {
+        // Two separate declines: 100→80 (0.2) recovers to 150, then 150→90 (0.4). Max is 0.4.
+        let eq = [dec!(100), dec!(80), dec!(150), dec!(90), dec!(150)];
+        assert_eq!(max_drawdown(&eq), dec!(0.4));
+    }
+
+    #[test]
+    fn monotonic_up_curve_has_no_downside_so_sortino_is_none() {
+        // Every period return is positive → downside deviation is 0 → Sortino undefined.
+        let m = Metrics::from_equity(&[dec!(100), dec!(110), dec!(120), dec!(130)], 365.0);
+        assert!(m.sortino.is_none(), "no downside → Sortino undefined");
+        // Volatility and Sharpe are still defined (there is dispersion around the mean).
+        assert!(m.volatility.is_some());
+        assert!(m.sharpe.is_some());
+        // A rising curve has a strictly positive Sharpe.
+        assert!(m.sharpe.unwrap() > 0.0);
+    }
+
+    #[test]
+    fn total_loss_curve_has_no_cagr_or_calmar() {
+        // Ending at zero equity → growth factor 0, so CAGR (a root of growth) is undefined, and
+        // Calmar (CAGR / max_dd) is undefined in turn.
+        let m = Metrics::from_equity(&[dec!(100), dec!(50), dec!(0)], 365.0);
+        assert_eq!(m.total_return, dec!(-1));
+        assert_eq!(m.max_drawdown, dec!(1));
+        assert!(m.cagr.is_none(), "growth factor 0 → CAGR undefined");
+        assert!(m.calmar.is_none(), "no CAGR → no Calmar");
+    }
+
+    #[test]
+    fn declining_curve_has_negative_cagr_and_finite_calmar() {
+        // Still solvent (growth > 0) so CAGR is defined and negative; with a real drawdown Calmar
+        // is defined and equals CAGR / max_drawdown.
+        let m = Metrics::from_equity(&[dec!(100), dec!(90), dec!(80), dec!(70)], 365.0);
+        let cagr = m.cagr.expect("solvent curve has a CAGR");
+        assert!(cagr < 0.0, "declining curve has negative CAGR: {cagr}");
+        let calmar = m.calmar.expect("drawdown present → Calmar defined");
+        let max_dd = m.max_drawdown.to_f64().unwrap();
+        assert!(approx(calmar, cagr / max_dd));
+    }
+
+    #[test]
+    fn two_point_curve_has_cagr_but_no_dispersion_metrics() {
+        // One return period: not enough samples for a sample stdev (n−1 = 1 denominator needs ≥2
+        // samples), so volatility/Sharpe/Sortino are None, but total return and CAGR are defined.
+        let m = Metrics::from_equity(&[dec!(100), dec!(110)], 365.0);
+        assert_eq!(m.n_periods, 1);
+        assert_eq!(m.total_return, dec!(0.1));
+        assert!(m.cagr.is_some());
+        assert!(m.volatility.is_none());
+        assert!(m.sharpe.is_none());
+        assert!(m.sortino.is_none());
+    }
+
+    #[test]
+    fn n_periods_is_curve_length_minus_one() {
+        for len in 2..8usize {
+            let eq: Vec<Decimal> = (0..len).map(|i| Decimal::from(100 + i as i64)).collect();
+            assert_eq!(Metrics::from_equity(&eq, 365.0).n_periods, len - 1);
+        }
+    }
+
+    #[test]
+    fn volatility_annualizes_by_sqrt_of_periods_per_year() {
+        // Same return series, different annualization factor → volatility scales by √(ratio).
+        let eq = [dec!(100), dec!(110), dec!(95), dec!(120), dec!(105)];
+        let v1 = Metrics::from_equity(&eq, 1.0).volatility.unwrap();
+        let v4 = Metrics::from_equity(&eq, 4.0).volatility.unwrap();
+        // √4 / √1 = 2.
+        assert!(approx(v4, v1 * 2.0), "v1={v1} v4={v4}");
+    }
+
+    #[test]
+    fn from_equity_is_deterministic() {
+        // Determinism is a hard project invariant: identical inputs → identical metrics.
+        let eq = [dec!(100), dec!(108), dec!(97), dec!(121), dec!(115)];
+        assert_eq!(
+            Metrics::from_equity(&eq, 365.0),
+            Metrics::from_equity(&eq, 365.0)
+        );
+    }
+
+    #[test]
+    fn down_trending_curve_has_negative_sharpe() {
+        let eq = [dec!(100), dec!(90), dec!(95), dec!(80), dec!(70)];
+        let m = Metrics::from_equity(&eq, 365.0);
+        assert!(m.sharpe.unwrap() < 0.0);
+    }
 }
