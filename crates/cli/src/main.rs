@@ -171,3 +171,109 @@ fn synthetic_series() -> Vec<Bar> {
         })
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn allowlist() -> Allowlist {
+        Allowlist::from_toml_str(ALLOWLIST_TEMPLATE).expect("allowlist template parses")
+    }
+
+    fn demo_cost() -> CostModel {
+        CostModel {
+            dex_fee_bps: 5,
+            slippage_bps: 20,
+            base_fee_lamports: 5_000,
+            priority_fee_lamports: 50_000,
+        }
+    }
+
+    fn trend_alloc() -> TrendAllocV1 {
+        TrendAllocV1 {
+            sma_period: 5,
+            weight_above: Decimal::new(75, 2),
+            weight_below: Decimal::ZERO,
+        }
+    }
+
+    #[test]
+    fn synthetic_series_is_ohlc_valid_and_gap_free() {
+        let bars = synthetic_series();
+        assert_eq!(bars.len(), 24);
+        for b in &bars {
+            b.check_ohlc().expect("degenerate bar is OHLC-valid");
+            // Degenerate intrabar: open == high == low == close.
+            assert_eq!(b.open, b.high);
+            assert_eq!(b.high, b.low);
+            assert_eq!(b.low, b.close);
+            assert_eq!(b.volume, Decimal::from(1_000));
+        }
+        // Exactly-daily spacing, strictly increasing, no gaps (no silent forward-fill).
+        validate_series_spacing(&bars, 86_400).expect("uniform daily spacing");
+        assert_eq!(bars[0].ts, Timestamp::from_unix(1_609_459_200));
+    }
+
+    #[test]
+    fn synthetic_series_is_deterministic() {
+        // Determinism invariant: the demo's data source is a pure function of nothing.
+        assert_eq!(synthetic_series(), synthetic_series());
+    }
+
+    #[test]
+    fn run_strategy_is_deterministic() {
+        // The whole demo pipeline (sim → metrics → RunResult) is byte-for-byte reproducible.
+        let al = allowlist();
+        let bars = synthetic_series();
+        let cost = demo_cost();
+        let s = trend_alloc();
+        assert_eq!(
+            run_strategy(&s, &bars, &cost, &al),
+            run_strategy(&s, &bars, &cost, &al)
+        );
+    }
+
+    #[test]
+    fn run_strategy_stamps_schema_shaped_config() {
+        let al = allowlist();
+        let bars = synthetic_series();
+        let rr = run_strategy(&HoldUsdc, &bars, &demo_cost(), &al);
+        assert_eq!(rr.schema_version, results::SCHEMA_VERSION);
+        assert_eq!(rr.mode, "research");
+        assert_eq!(rr.config.strategy, "hold_usdc");
+        assert_eq!(rr.config.base_symbol, "SOL");
+        assert_eq!(rr.config.quote_symbol, "USDC");
+        assert_eq!(rr.config.bar_interval, "1d");
+        assert_eq!(rr.allowlist_version, al.version());
+        assert_eq!(rr.config.initial_cash_usdc, "10000");
+        // created_at is derived from the data (last bar), never the wall clock.
+        assert_eq!(rr.created_at, bars.last().unwrap().ts.to_rfc3339());
+    }
+
+    #[test]
+    fn hold_usdc_makes_no_trades_and_keeps_cash() {
+        // Sanity-check the full wiring on a strategy with a known closed form.
+        let al = allowlist();
+        let bars = synthetic_series();
+        let rr = run_strategy(&HoldUsdc, &bars, &demo_cost(), &al);
+        assert_eq!(rr.metrics.n_trades, 0);
+        assert_eq!(rr.final_balances.quote, "10000");
+        assert_eq!(rr.final_balances.base, "0");
+        assert_eq!(rr.final_balances.equity_quote, "10000");
+        assert_eq!(rr.metrics.total_return, "0");
+    }
+
+    #[test]
+    fn include_series_only_for_trend_alloc_v1() {
+        let al = allowlist();
+        let bars = synthetic_series();
+        let cost = demo_cost();
+        // trend_alloc_v1 embeds the full equity curve...
+        let rr_trend = run_strategy(&trend_alloc(), &bars, &cost, &al);
+        assert_eq!(rr_trend.equity_curve.len(), bars.len());
+        // ...every other strategy keeps the result compact.
+        let rr_hold = run_strategy(&HoldUsdc, &bars, &cost, &al);
+        assert!(rr_hold.equity_curve.is_empty());
+        assert!(rr_hold.round_trips.is_empty());
+    }
+}
