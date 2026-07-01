@@ -77,3 +77,26 @@ recorded inline (not full logs).
   `usize::MAX` termination edge (unreachable). +2 tests (now 9 integration).
 - Re-gate after S8: fmt clean; clippy -D warnings clean; **121 tests pass**; demo byte-identical; no-execution-deps
   OK. Walk-forward model complete. Next: S9 (holdout gate — physical partition + consume-by-value seal).
+- M4 S9 (HOLDOUT GATE — invariant 11 enforcement): new `sweep::config` (`PartitionSpec::{ByIndex, ByDate}`;
+  `by_date()` via the S2 `parse_ymd`) + `sweep::partition` — `PartitionedBars::from_spec` validates the series and
+  **physically moves** the holdout into a SEPARATE `Vec<Bar>` (`split_off`, not an aliasing borrow); rejects
+  overlap/empty/out-of-bounds. `seal_holdout(self) -> (DevValidation, Sealed)`: `DevValidation` exposes
+  development/validation/dev_validation/walk_forward_windows and has NO holdout accessor (windows run over dev/val
+  length only → structurally can't reach holdout). `evaluate_on_holdout(sealed: Sealed, …)` consumes by value
+  (call-once; M5-only, never the M4 CLI); the single read goes through a `Cell<u32>` counter gateway. Gate
+  (tests/holdout_sealing.rs + doctests): read-counter==0 + digest unchanged after the full sweep+selection pipeline
+  (holds only `&DevValidation`); 3 `compile_fail` doctests (no selection→holdout path, no seal fabrication, call-once
+  consume-by-value) each with a `no_run` canary so they fail for the RIGHT reason; overlap rejected (ByIndex+ByDate).
+  Zero new deps. +23 tests (3 config + 10 partition unit + 5 integration + 5 doctests).
+- M4 S9 verification: ran a 6-lens adversarial review (seal-bypass / counter-soundness / compile_fail-soundness /
+  determinism / validation-edges / invariant-scope) + per-finding skeptics (12 agents). Verdict: **seal SOUND, no
+  blockers** (physical separation, no DevValidation→holdout path, call-once reader all verified). 3 confirmed
+  (minor/nit), all fixed: (1) `from_spec` now delegates to canonical `market_data::validate_series` so duplicate
+  timestamps are rejected (was only non-decreasing — drifted from the platform's sorted+unique contract);
+  `PartitionError` folds empty/OHLC/unsorted/dup into `InvalidSeries(DataError)`; +1 dup-rejection test. (2) replaced
+  the tautological pre-split `debug_assert` with a real post-`split_off` structural assert. (3) tightened the digest
+  doc to "within-process witness only, not a durable cross-toolchain identifier" (DefaultHasher isn't version-stable).
+  3 findings refuted (digest is an audit hook unreachable from selection; CLI doesn't depend on sweep yet; the
+  `holdout()` compile_fail is sound alongside the seal-bypass lens).
+- Re-gate after S9: fmt clean; clippy -D warnings clean; **144 tests pass**; demo byte-identical; no-execution-deps
+  OK. Holdout gate complete. Next: S10 (cost/fee sensitivity ladder).

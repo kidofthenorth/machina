@@ -26,13 +26,17 @@
 //! are introduced as each subtask lands.
 
 pub mod cell;
+pub mod config;
 pub mod parallel;
 pub mod param;
+pub mod partition;
 pub mod turnover;
 pub mod window;
 
 pub use cell::{eval_cell, CellResult};
+pub use config::PartitionSpec;
 pub use parallel::{run_cells, run_in_parallel, Parallelism, SweepCell};
 pub use param::{build_strategy, ParamGrid, ParamPoint};
+pub use partition::{evaluate_on_holdout, DevValidation, PartitionError, PartitionedBars, Sealed};
 pub use turnover::turnover_ratio;
 pub use window::{WalkForward, Window, WindowError, WindowKind};
