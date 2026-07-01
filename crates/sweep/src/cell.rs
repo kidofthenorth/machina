@@ -14,6 +14,7 @@ use crate::turnover::turnover_ratio;
 use metrics::Metrics;
 use portfolio::{run, CostModel, SimError};
 use research_core::{Bar, Decimal};
+use strategies::Strategy;
 
 /// The deterministic result of evaluating one parameter point over one bar series and cost model.
 ///
@@ -52,7 +53,28 @@ pub fn eval_cell(
     initial_cash_usdc: Decimal,
     periods_per_year: f64,
 ) -> Result<CellResult, SimError> {
-    let strat = build_strategy(point);
+    eval_strategy(
+        &*build_strategy(point),
+        bars,
+        cost,
+        initial_cash_usdc,
+        periods_per_year,
+    )
+}
+
+/// Evaluate any intent-only [`Strategy`] over `bars` under `cost` into a [`CellResult`]. The shared
+/// deterministic core of [`eval_cell`]; also the path baselines (`baseline.rs`) run through, so a
+/// candidate and a cost-matched baseline are scored by byte-identical logic — no drift between them.
+///
+/// # Errors
+/// Propagates `portfolio::SimError` (e.g. `NoBars` for an empty series).
+pub(crate) fn eval_strategy(
+    strat: &dyn Strategy,
+    bars: &[Bar],
+    cost: &CostModel,
+    initial_cash_usdc: Decimal,
+    periods_per_year: f64,
+) -> Result<CellResult, SimError> {
     let out = run(bars, initial_cash_usdc, cost, |h, w| {
         strat.target_weight(h, w)
     })?;
