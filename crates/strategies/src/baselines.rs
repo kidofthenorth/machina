@@ -116,4 +116,26 @@ mod tests {
         assert_eq!(s.target_weight(&bars(4), dec!(0)), dec!(1)); // 4/4
         assert_eq!(s.target_weight(&bars(9), dec!(0)), dec!(1)); // capped at 1
     }
+
+    #[test]
+    fn dca_zero_ramp_is_fully_invested() {
+        // Guard: ramp_bars == 0 means "already fully in" and avoids a divide-by-zero.
+        let s = DcaIntoSol { ramp_bars: 0 };
+        assert_eq!(s.target_weight(&bars(0), dec!(0)), dec!(1));
+        assert_eq!(s.target_weight(&bars(5), dec!(0)), dec!(1));
+    }
+
+    #[test]
+    fn dca_illustrative_default_ramp() {
+        assert_eq!(DcaIntoSol::illustrative().ramp_bars, 10);
+    }
+
+    #[test]
+    fn baselines_ignore_history_and_current_weight() {
+        // Constant-target baselines are pure constants regardless of inputs.
+        let hist = bars(20);
+        assert_eq!(HoldUsdc.target_weight(&hist, dec!(0.9)), dec!(0));
+        assert_eq!(BuyAndHoldSol.target_weight(&hist, dec!(0.1)), dec!(1));
+        assert_eq!(Static5050.target_weight(&hist, dec!(0.0)), dec!(0.5));
+    }
 }

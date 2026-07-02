@@ -118,4 +118,47 @@ mod tests {
             s.target_weight(&bars, dec!(0.5))
         );
     }
+
+    #[test]
+    fn zero_period_stays_defensive() {
+        // A zero SMA period can't form a mean → return weight_below (avoids div-by-zero).
+        let s = TrendAllocV1 {
+            sma_period: 0,
+            weight_above: dec!(1),
+            weight_below: dec!(0.25),
+        };
+        assert_eq!(s.target_weight(&series(&[10, 20, 30]), dec!(0)), dec!(0.25));
+    }
+
+    #[test]
+    fn exactly_at_sma_is_defensive() {
+        // last_close == SMA is NOT "above" (strict `>`), so target is weight_below.
+        let s = TrendAllocV1 {
+            sma_period: 3,
+            weight_above: dec!(0.75),
+            weight_below: dec!(0),
+        };
+        assert_eq!(s.target_weight(&series(&[10, 10, 10]), dec!(0)), dec!(0));
+    }
+
+    #[test]
+    fn only_the_last_sma_period_bars_matter() {
+        let s = TrendAllocV1 {
+            sma_period: 3,
+            weight_above: dec!(1),
+            weight_below: dec!(0),
+        };
+        // A huge early close is outside the 3-bar window: tail 10,11,15 → SMA 12, last 15 > 12.
+        assert_eq!(s.target_weight(&series(&[1000, 1, 10, 11, 15]), dec!(0)), dec!(1));
+        // Same leading noise, tail ends below its own SMA → defensive.
+        assert_eq!(s.target_weight(&series(&[1, 1000, 15, 12, 9]), dec!(0)), dec!(0));
+    }
+
+    #[test]
+    fn illustrative_defaults_are_stable() {
+        let s = TrendAllocV1::illustrative();
+        assert_eq!(s.sma_period, 50);
+        assert_eq!(s.weight_above, dec!(0.75));
+        assert_eq!(s.weight_below, dec!(0));
+    }
 }

@@ -82,4 +82,31 @@ mod tests {
         // Exactly at the band edge (drift == band) → hold (strict `>` to fire).
         assert_eq!(s.target_weight(&[], dec!(0.6)), dec!(0.6));
     }
+
+    #[test]
+    fn just_outside_band_rebalances() {
+        let s = ThresholdRebalanceV1 {
+            target_sol_weight: dec!(0.5),
+            band: dec!(0.1),
+        };
+        // drift 0.1000001 > 0.1 → fire, back to target.
+        assert_eq!(s.target_weight(&[], dec!(0.6000001)), dec!(0.5));
+    }
+
+    #[test]
+    fn at_target_holds() {
+        let s = ThresholdRebalanceV1 {
+            target_sol_weight: dec!(0.5),
+            band: dec!(0.1),
+        };
+        // Zero drift → hold at the (equal) current weight; the simulator won't trade.
+        assert_eq!(s.target_weight(&[], dec!(0.5)), dec!(0.5));
+    }
+
+    #[test]
+    fn illustrative_defaults_are_stable() {
+        let s = ThresholdRebalanceV1::illustrative();
+        assert_eq!(s.target_sol_weight, dec!(0.5));
+        assert_eq!(s.band, dec!(0.1));
+    }
 }

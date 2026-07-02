@@ -96,4 +96,37 @@ mod tests {
             Regime::RangeBound
         );
     }
+
+    #[test]
+    fn zero_mean_is_unknown() {
+        // All-zero closes → mean 0 → no deviation ratio is definable → Unknown (not a divide).
+        assert_eq!(classify(&series(&[0, 0, 0]), 3, dec!(0.05)), Regime::Unknown);
+    }
+
+    #[test]
+    fn deviation_exactly_at_threshold_is_range_bound() {
+        // window 95,100,105 → mean 100, last 105 → deviation exactly 0.05; strict `>` → RangeBound.
+        assert_eq!(
+            classify(&series(&[95, 100, 105]), 3, dec!(0.05)),
+            Regime::RangeBound
+        );
+    }
+
+    #[test]
+    fn downtrend_far_below_mean_is_trending() {
+        // closes 100,100,70 → mean 90, last 70, |deviation| ≈ 0.22 > 0.05 → Trending (abs handles down).
+        assert_eq!(
+            classify(&series(&[100, 100, 70]), 3, dec!(0.05)),
+            Regime::Trending
+        );
+    }
+
+    #[test]
+    fn only_the_last_lookback_bars_are_used() {
+        // The leading 9999 is outside the 3-bar window; tail 95,100,105 → deviation 0.05 → RangeBound.
+        assert_eq!(
+            classify(&series(&[9999, 95, 100, 105]), 3, dec!(0.05)),
+            Regime::RangeBound
+        );
+    }
 }
