@@ -13,23 +13,42 @@ pub enum DataError {
     EmptySeries,
     /// Timestamps are not strictly increasing (out of order).
     Unsorted {
+        /// Index of the out-of-order bar.
         index: usize,
+        /// Unix timestamp of the preceding bar.
         prev_unix: i64,
+        /// Unix timestamp of the offending bar (earlier than `prev_unix`).
         cur_unix: i64,
     },
     /// Two bars share a timestamp.
-    DuplicateTimestamp { index: usize, unix: i64 },
+    DuplicateTimestamp {
+        /// Index of the second bar carrying the shared timestamp.
+        index: usize,
+        /// The duplicated unix timestamp.
+        unix: i64,
+    },
     /// A single bar failed its OHLC invariants.
     Ohlc(BarError),
     /// Token decimals are out of the sane range.
-    BadDecimals { token_id: String, decimals: u32 },
+    BadDecimals {
+        /// Token whose metadata failed the check.
+        token_id: String,
+        /// The implausible decimals value.
+        decimals: u32,
+    },
     /// A token is not present in the active allowlist.
-    NotAllowlisted { token_id: String },
+    NotAllowlisted {
+        /// The token id absent from the allowlist.
+        token_id: String,
+    },
     /// A hole in the series: the spacing between two bars is not the expected interval.
     /// Enforces "missing data blocks a run — no silent forward-fill".
     Gap {
+        /// Index of the bar following the hole.
         index: usize,
+        /// The configured bar interval, in seconds.
         expected_secs: i64,
+        /// The observed spacing, in seconds.
         actual_secs: i64,
     },
 }

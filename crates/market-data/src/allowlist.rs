@@ -11,15 +11,21 @@ use std::collections::BTreeMap;
 /// A fully-parsed, validated allowlist entry with its survivorship metadata.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllowlistEntry {
+    /// Core token identity: id, symbol, mint address, and decimals.
     pub meta: TokenMeta,
     /// First date (YYYY-MM-DD) the token may be traded.
     pub first_allowed: String,
     /// Last allowed date, or `None` if still active.
     pub last_allowed: Option<String>,
+    /// Venues (e.g. `jupiter`) the token may be traded on.
     pub venues: Vec<String>,
+    /// Minimum venue liquidity in USDC required to consider the token tradable.
     pub min_liquidity_usdc: Decimal,
+    /// Minimum token age in days before it may be traded.
     pub min_age_days: u32,
+    /// Operator-assigned risk bucket (e.g. `blue_chip`, `stablecoin`).
     pub risk_category: String,
+    /// Free-form operator notes on custody handling.
     pub custody_notes: String,
 }
 
@@ -102,14 +108,22 @@ impl Allowlist {
 /// Errors loading an allowlist.
 #[derive(Debug)]
 pub enum AllowlistError {
+    /// The allowlist text is not valid TOML.
     Toml(toml::de::Error),
+    /// The allowlist has no non-empty `version` field.
     MissingVersion,
+    /// The allowlist parsed but contains no tokens.
     Empty,
+    /// Two entries share the same `token_id`.
     DuplicateToken(String),
+    /// An entry's mint address failed validation.
     InvalidMint {
+        /// The entry whose mint is invalid.
         token_id: String,
+        /// The underlying mint-address error.
         source: research_core::TokenError,
     },
+    /// A data-hygiene check failed (e.g. implausible token decimals).
     Data(DataError),
 }
 
