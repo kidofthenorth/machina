@@ -14,6 +14,10 @@ id.json
 *.mnemonic
 *.wallet
 wallet*.json
+# `wallet*.json` above targets key files, but it also matches the wallet-snapshot
+# JSON *Schema* — a tracked contract with no key material. Re-include that exact
+# path only, so real wallet files stay ignored.
+!schemas/wallet-snapshot.schema.json
 secrets/
 .secrets/
 *.secret

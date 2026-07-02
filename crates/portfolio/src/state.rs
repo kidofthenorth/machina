@@ -112,12 +112,19 @@ impl PortfolioState {
 /// The realized effect of one applied trade (for round-trip and cost reporting).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TradeOutcome {
+    /// Which direction the swap went (buy = USDC → SOL, sell = SOL → USDC).
     pub side: Side,
+    /// Mid price the fill was priced at (USDC per SOL), before slippage adjustment.
     pub exec_price: Decimal,
+    /// Signed SOL balance change. Buy: net SOL received minus gas; sell: −(SOL sold + gas).
     pub base_delta: Decimal,
+    /// Signed USDC balance change. Buy: −USDC spent; sell: +net USDC credited.
     pub quote_delta: Decimal,
+    /// Network gas (base + priority) charged for this trade, in SOL.
     pub gas_sol: Decimal,
+    /// DEX fee for this trade, valued in USDC at mid price (reporting only).
     pub dex_fee_quote: Decimal,
+    /// Slippage cost for this trade, valued in USDC at mid price (reporting only).
     pub slippage_quote: Decimal,
 }
 

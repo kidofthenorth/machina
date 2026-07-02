@@ -27,17 +27,26 @@ fn min_trade_notional() -> Decimal {
 /// Everything a single run produces. Deterministic for a given `(bars, cash, cost, strategy)`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunOutput {
+    /// Mark-to-market equity at each bar's close — exactly one point per input bar, in bar order.
     pub equity_curve: Vec<EquityPoint>,
+    /// Completed flat → long → flat trips, in close order. A position still open when the run
+    /// ends is not recorded.
     pub round_trips: Vec<RoundTrip>,
+    /// Balances after the last bar's rebalance (the run's ending portfolio).
     pub final_state: PortfolioState,
+    /// Number of executed rebalance trades (buys and sells; skipped/dust rebalances not counted).
     pub n_trades: u32,
     /// Sum of USDC notional moved per executed trade (buy: USDC spent; sell: mid value of SOL sold,
     /// gas leg excluded). Counts every rebalance, including churn that never closes a round trip —
     /// so it is the correct base for turnover, which `round_trips` would undercount (see M4 plan §4).
     pub traded_notional_quote: Decimal,
+    /// Total DEX fees across all trades, valued in USDC at mid price (reporting figure).
     pub fees_paid_quote: Decimal,
+    /// Total slippage cost across all trades, valued in USDC at mid price (reporting figure).
     pub slippage_paid_quote: Decimal,
+    /// Total network gas (base + priority) actually charged, in SOL.
     pub gas_paid_sol: Decimal,
+    /// Priority-fee portion of gas only: `cost.priority_sol() × n_trades`, in SOL.
     pub priority_fees_paid_sol: Decimal,
     /// Bars whose close was held with a non-dust SOL position (for time-in-market).
     pub bars_in_market: u32,
