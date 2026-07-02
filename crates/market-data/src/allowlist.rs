@@ -320,6 +320,115 @@ first_allowed = "2021-01-01"
     }
 
     #[test]
+    fn rejects_duplicate_token_id() {
+        let toml = r#"
+version = "v1"
+[[token]]
+token_id = "SOL"
+symbol = "SOL"
+mint = "So11111111111111111111111111111111111111112"
+decimals = 9
+first_allowed = "2021-01-01"
+[[token]]
+token_id = "SOL"
+symbol = "SOL2"
+mint = "So11111111111111111111111111111111111111112"
+decimals = 9
+first_allowed = "2021-01-01"
+"#;
+        assert!(
+            matches!(Allowlist::from_toml_str(toml), Err(AllowlistError::DuplicateToken(t)) if t == "SOL")
+        );
+    }
+
+    #[test]
+    fn rejects_version_present_but_no_tokens() {
+        assert!(matches!(
+            Allowlist::from_toml_str(r#"version = "v1""#),
+            Err(AllowlistError::Empty)
+        ));
+    }
+
+    #[test]
+    fn rejects_malformed_toml() {
+        assert!(matches!(
+            Allowlist::from_toml_str("[unclosed"),
+            Err(AllowlistError::Toml(_))
+        ));
+    }
+
+    #[test]
+    fn get_contains_and_not_empty() {
+        let al = Allowlist::from_toml_str(SAMPLE).unwrap();
+        assert!(al.contains("SOL"));
+        assert!(al.get("SOL").is_some());
+        assert!(al.get("NOPE").is_none());
+        assert!(!al.is_empty());
+    }
+
+    #[test]
+    fn defaults_when_optional_fields_omitted() {
+        // min_liquidity_usdc omitted → 0; last_allowed empty → None; venues empty.
+        let toml = r#"
+version = "v1"
+[[token]]
+token_id = "SOL"
+symbol = "SOL"
+mint = "So11111111111111111111111111111111111111112"
+decimals = 9
+first_allowed = "2021-01-01"
+"#;
+        let al = Allowlist::from_toml_str(toml).unwrap();
+        let sol = al.require("SOL").unwrap();
+        assert_eq!(sol.min_liquidity_usdc, dec!(0));
+        assert_eq!(sol.last_allowed, None);
+        assert!(sol.venues.is_empty());
+    }
+
+    #[test]
+    fn last_allowed_populated_when_present() {
+        let toml = r#"
+version = "v1"
+[[token]]
+token_id = "OLD"
+symbol = "OLD"
+mint = "So11111111111111111111111111111111111111112"
+decimals = 9
+first_allowed = "2021-01-01"
+last_allowed = "2022-01-01"
+"#;
+        let al = Allowlist::from_toml_str(toml).unwrap();
+        assert_eq!(
+            al.require("OLD").unwrap().last_allowed.as_deref(),
+            Some("2022-01-01")
+        );
+    }
+
+    #[test]
+    fn invalid_min_liquidity_is_rejected() {
+        let toml = r#"
+version = "v1"
+[[token]]
+token_id = "SOL"
+symbol = "SOL"
+mint = "So11111111111111111111111111111111111111112"
+decimals = 9
+first_allowed = "2021-01-01"
+min_liquidity_usdc = "not-a-number"
+"#;
+        assert!(Allowlist::from_toml_str(toml).is_err());
+    }
+
+    #[test]
+    fn allowlist_error_display_reasons() {
+        assert!(AllowlistError::MissingVersion.to_string().contains("version"));
+        assert!(AllowlistError::Empty.to_string().contains("no tokens"));
+        assert!(AllowlistError::DuplicateToken("X".into())
+            .to_string()
+            .contains("duplicate"));
+    }
+
+    #[test]
     fn example_template_parses() {
         // Proves the shipped config template is valid and loadable.
         let path = concat!(

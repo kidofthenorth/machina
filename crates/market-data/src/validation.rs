@@ -244,4 +244,109 @@ mod tests {
             DataError::BadDecimals { decimals: 255, .. }
         ));
     }
+
+    #[test]
+    fn single_valid_bar_passes_both_checks() {
+        let one = [bar(100, 10, 12, 9, 11)];
+        assert!(validate_series(&one).is_ok());
+        // A one-bar series has no pairs, so spacing is trivially satisfied.
+        assert!(validate_series_spacing(&one, 100).is_ok());
+    }
+
+    #[test]
+    fn ohlc_failure_is_reported_for_a_later_bar() {
+        // Second bar has high < low; the per-bar check fires regardless of position.
+        let bars = vec![bar(100, 10, 12, 9, 11), bar(200, 10, 8, 9, 9)];
+        assert!(matches!(
+            validate_series(&bars).unwrap_err(),
+            DataError::Ohlc(_)
+        ));
+    }
+
+    #[test]
+    fn bars_too_close_together_are_a_gap() {
+        // Expected 100s spacing but 100→150 is only 50s — under-spacing is a gap too.
+        let bars = vec![bar(100, 10, 12, 9, 11), bar(150, 11, 13, 10, 12)];
+        assert!(matches!(
+            validate_series_spacing(&bars, 100).unwrap_err(),
+            DataError::Gap {
+                index: 1,
+                expected_secs: 100,
+                actual_secs: 50
+            }
+        ));
+    }
+
+    #[test]
+    fn spacing_check_catches_ordering_problems_first() {
+        // Base validation (ordering/dups) runs before the spacing pass.
+        let bars = vec![bar(200, 10, 12, 9, 11), bar(100, 11, 13, 10, 12)];
+        assert!(matches!(
+            validate_series_spacing(&bars, 100).unwrap_err(),
+            DataError::Unsorted { .. }
+        ));
+    }
+
+    #[test]
+    fn token_decimals_boundary_18_ok_19_bad() {
+        let mint =
+            research_core::MintAddress::new("So11111111111111111111111111111111111111112").unwrap();
+        let ok = TokenMeta {
+            token_id: "T".into(),
+            symbol: "T".into(),
+            mint: mint.clone(),
+            decimals: MAX_TOKEN_DECIMALS,
+        };
+        assert!(validate_token_decimals(&ok).is_ok());
+        let bad = TokenMeta {
+            token_id: "T".into(),
+            symbol: "T".into(),
+            mint,
+            decimals: MAX_TOKEN_DECIMALS + 1,
+        };
+        assert!(matches!(
+            validate_token_decimals(&bad).unwrap_err(),
+            DataError::BadDecimals { decimals: 19, .. }
+        ));
+    }
+
+    #[test]
+    fn data_error_display_and_from_bar_error() {
+        assert!(DataError::EmptySeries.to_string().contains("empty"));
+        assert!(DataError::Unsorted {
+            index: 1,
+            prev_unix: 200,
+            cur_unix: 100
+        }
+        .to_string()
+        .contains("out of order"));
+        assert!(DataError::DuplicateTimestamp { index: 1, unix: 100 }
+            .to_string()
+            .contains("duplicate"));
+        assert!(DataError::Gap {
+            index: 2,
+            expected_secs: 100,
+            actual_secs: 200
+        }
+        .to_string()
+        .contains("missing bar"));
+        assert!(DataError::NotAllowlisted {
+            token_id: "WIF".into()
+        }
+        .to_string()
+        .contains("allowlist"));
+        assert!(DataError::BadDecimals {
+            token_id: "X".into(),
+            decimals: 99
+        }
+        .to_string()
+        .contains("implausible decimals"));
+        // From<BarError> wraps into Ohlc and forwards its message.
+        let e: DataError = BarError::NegativeVolume {
+            ts: Timestamp::from_unix(0),
+        }
+        .into();
+        assert!(matches!(e, DataError::Ohlc(_)));
+        assert!(e.to_string().contains("negative volume"));
+    }
 }
