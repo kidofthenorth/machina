@@ -135,6 +135,8 @@ pub fn run_cells(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use research_core::Timestamp;
+    use rust_decimal_macros::dec;
 
     #[test]
     fn parallel_map_preserves_index_order() {
@@ -170,6 +172,74 @@ mod tests {
                 |x| *x
             ),
             vec![42]
+        );
+    }
+
+    #[test]
+    fn more_threads_than_items_still_index_ordered() {
+        // chunk = ceil(3/8) = 1 → three single-item chunks; output must stay in index order.
+        let items: Vec<usize> = (0..3).collect();
+        let par = run_in_parallel(
+            &items,
+            Parallelism::Threads(NonZeroUsize::new(8).unwrap()),
+            |x| x * 2,
+        );
+        assert_eq!(par, vec![0, 2, 4]);
+    }
+
+    fn cell_series(n: usize) -> Vec<Bar> {
+        (0..n)
+            .map(|i| {
+                let p = Decimal::from(100 + i as i64);
+                Bar {
+                    ts: Timestamp::from_unix(i as i64 * 86_400),
+                    open: p,
+                    high: p,
+                    low: p,
+                    close: p,
+                    volume: dec!(1),
+                }
+            })
+            .collect()
+    }
+
+    fn reb_cell(index: usize, test: Range<usize>) -> SweepCell {
+        SweepCell {
+            index,
+            point: ParamPoint::ThresholdRebalance {
+                target_sol_weight: dec!(0.5),
+                band: dec!(0),
+            },
+            cost: CostModel::zero(),
+            test,
+        }
+    }
+
+    #[test]
+    fn run_cells_matches_sequential_and_preserves_order() {
+        let bars = cell_series(12);
+        let cells: Vec<SweepCell> = (0..4).map(|i| reb_cell(i, 0..12)).collect();
+        let seq = run_cells(&cells, &bars, dec!(1000), 365.0, Parallelism::Sequential).unwrap();
+        let par = run_cells(
+            &cells,
+            &bars,
+            dec!(1000),
+            365.0,
+            Parallelism::Threads(NonZeroUsize::new(3).unwrap()),
+        )
+        .unwrap();
+        assert_eq!(seq, par, "parallel == sequential");
+        assert_eq!(seq.len(), 4);
+    }
+
+    #[test]
+    fn run_cells_propagates_error_from_an_empty_test_range() {
+        let bars = cell_series(12);
+        // An empty test range selects an empty slice → NoBars, propagated deterministically.
+        let cells = vec![reb_cell(0, 5..5)];
+        assert_eq!(
+            run_cells(&cells, &bars, dec!(1000), 365.0, Parallelism::Sequential).unwrap_err(),
+            SimError::NoBars
         );
     }
 }

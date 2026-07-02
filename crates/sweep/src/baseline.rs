@@ -221,6 +221,12 @@ mod tests {
         assert!(floor > dec!(0));
     }
 
+    #[test]
+    fn best_baseline_return_of_empty_set_is_zero() {
+        // Defensive path: `BaselineId::all()` is never empty, but the floor must not panic on one.
+        assert_eq!(best_baseline_return(&[]), dec!(0));
+    }
+
     /// The doubled scenario's cost model (mirrors `sensitivity::scale_cost_model(base, 2, 1)`).
     fn scaled_double() -> CostModel {
         CostModel {

@@ -246,6 +246,29 @@ mod tests {
     }
 
     #[test]
+    fn scaling_by_zero_num_zeros_all_fields() {
+        assert_eq!(scale_cost_model(&base_cost(), 0, 1), CostModel::zero());
+    }
+
+    #[test]
+    fn scenario_metrics_projects_the_cell_fields() {
+        let bars = series(&[100, 108, 96, 112]);
+        let point = ParamPoint::ThresholdRebalance {
+            target_sol_weight: dec!(0.5),
+            band: dec!(0),
+        };
+        let cell = eval_cell(&point, &bars, &base_cost(), dec!(10_000), 365.0).unwrap();
+        let sm = ScenarioMetrics::from_cell(ScenarioId::Base, &cell);
+        assert_eq!(sm.scenario, ScenarioId::Base);
+        assert_eq!(sm.total_return, cell.total_return);
+        assert_eq!(sm.turnover, cell.turnover);
+        assert_eq!(sm.n_trades, cell.n_trades);
+        assert_eq!(sm.fees_paid_quote, cell.fees_paid_quote);
+        assert_eq!(sm.slippage_paid_quote, cell.slippage_paid_quote);
+        assert_eq!(sm.priority_fees_paid_sol, cell.priority_fees_paid_sol);
+    }
+
+    #[test]
     fn cost_scenarios_are_the_fixed_ladder_in_canonical_order() {
         let base = base_cost();
         let ladder = cost_scenarios(&base);

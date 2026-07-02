@@ -237,4 +237,89 @@ mod tests {
     fn default_kind_is_rolling() {
         assert_eq!(WindowKind::default(), WindowKind::Rolling);
     }
+
+    /// Assert each fold honors the embargo gap and that test ranges are ordered & non-overlapping.
+    fn assert_wellformed(folds: &[Window], embargo: usize) {
+        for w in folds {
+            assert!(w.train.start < w.train.end, "train range non-empty");
+            assert!(w.test.start < w.test.end, "test range non-empty");
+            assert_eq!(w.train.end + embargo, w.test.start, "embargo gap honored");
+        }
+        for pair in folds.windows(2) {
+            assert!(
+                pair[0].test.end <= pair[1].test.start,
+                "test ranges ordered and non-overlapping"
+            );
+        }
+    }
+
+    #[test]
+    fn rolling_generates_ordered_nonoverlapping_folds() {
+        let wf = WalkForward::new(WindowKind::Rolling, 3, 2, 2, 0).unwrap();
+        let folds = wf.windows(10);
+        assert_eq!(
+            folds,
+            vec![
+                Window { train: 0..3, test: 3..5 },
+                Window { train: 2..5, test: 5..7 },
+                Window { train: 4..7, test: 7..9 },
+            ]
+        );
+        assert_wellformed(&folds, 0);
+    }
+
+    #[test]
+    fn embargo_inserts_a_gap_between_train_and_test() {
+        let wf = WalkForward::new(WindowKind::Rolling, 3, 2, 2, 1).unwrap();
+        let folds = wf.windows(10);
+        assert!(!folds.is_empty());
+        assert_eq!(folds[0], Window { train: 0..3, test: 4..6 });
+        assert_wellformed(&folds, 1);
+    }
+
+    #[test]
+    fn anchored_pins_train_start_and_grows_the_window() {
+        let wf = WalkForward::new(WindowKind::Anchored, 3, 2, 2, 0).unwrap();
+        let folds = wf.windows(12);
+        assert!(folds.len() >= 3);
+        for w in &folds {
+            assert_eq!(w.train.start, 0, "anchored training always starts at 0");
+        }
+        for pair in folds.windows(2) {
+            assert!(
+                pair[1].train.end > pair[0].train.end,
+                "anchored training window grows"
+            );
+        }
+        assert_wellformed(&folds, 0);
+    }
+
+    #[test]
+    fn step_larger_than_test_len_leaves_gaps_between_tests() {
+        let wf = WalkForward::new(WindowKind::Rolling, 3, 2, 3, 0).unwrap();
+        let folds = wf.windows(15);
+        assert!(folds.len() >= 2);
+        assert_wellformed(&folds, 0);
+        // step (3) − test_len (2) = a 1-bar gap between successive test ranges.
+        assert!(folds
+            .windows(2)
+            .all(|p| p[1].test.start - p[0].test.end == 1));
+    }
+
+    #[test]
+    fn series_too_short_yields_no_folds() {
+        let wf = WalkForward::new(WindowKind::Rolling, 3, 2, 2, 0).unwrap();
+        assert!(wf.windows(4).is_empty(), "need train(3)+test(2)=5 bars");
+        assert!(wf.windows(0).is_empty());
+    }
+
+    #[test]
+    fn window_error_display_messages() {
+        assert!(WindowError::ZeroTrainLen.to_string().contains("train_len"));
+        assert!(WindowError::ZeroTestLen.to_string().contains("test_len"));
+        assert!(WindowError::ZeroStep.to_string().contains("step"));
+        assert!(WindowError::TestsOverlap { step: 1, test_len: 2 }
+            .to_string()
+            .contains("overlap"));
+    }
 }

@@ -334,6 +334,58 @@ mod tests {
     }
 
     #[test]
+    fn all_non_data_criteria_fail_in_canonical_order() {
+        // Trip every non-data criterion at once and pin the full canonical ordering of reasons.
+        let mut ev = passing();
+        ev.baseline_margin = dec!(-1); // < 0.02
+        ev.doubled_return = dec!(0); // <= floor 0.03
+        ev.fold_dispersion = dec!(1); // > 0.50
+        ev.neighbor_degradation = dec!(1); // > 0.10
+        ev.max_drawdown = dec!(0.9); // > 0.30
+        ev.turnover = dec!(100); // > 5
+        let v = evaluate_candidate(&ev, &thresholds());
+        let kinds: Vec<_> = v.failed_criteria.iter().map(|r| r.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                RejectionKind::FailsBaselineComparison,
+                RejectionKind::EdgeVanishesUnderDoubledCosts,
+                RejectionKind::DependsOnOnePeriod,
+                RejectionKind::ParameterFragile,
+                RejectionKind::DrawdownExceedsBudget,
+                RejectionKind::TurnoverImplausible,
+            ]
+        );
+    }
+
+    #[test]
+    fn threshold_boundaries_are_inclusive_except_doubled_costs() {
+        let th = thresholds();
+        // Every budget metric exactly at its limit passes (drawdown/turnover/dispersion/neighbor use
+        // strict `>`; baseline_margin uses strict `<`; valid_windows uses strict `<`).
+        let mut ev = passing();
+        ev.max_drawdown = th.drawdown_budget;
+        ev.turnover = th.turnover_budget;
+        ev.baseline_margin = th.baseline_margin;
+        ev.fold_dispersion = th.dispersion_budget;
+        ev.neighbor_degradation = th.neighbor_tolerance;
+        ev.valid_windows = th.min_windows;
+        ev.doubled_return = ev.doubled_baseline_floor + dec!(0.001); // strictly beats the floor
+        assert_eq!(evaluate_candidate(&ev, &th).status, Verdict::Advanceable);
+
+        // The one asymmetry: doubled_return exactly equal to the floor FAILS (the rule is `<=`), so an
+        // edge that merely ties the baseline under doubled costs is judged non-robust.
+        ev.doubled_return = ev.doubled_baseline_floor;
+        let v = evaluate_candidate(&ev, &th);
+        assert_eq!(v.status, Verdict::Rejected);
+        assert_eq!(v.failed_criteria.len(), 1);
+        assert_eq!(
+            v.failed_criteria[0].kind,
+            RejectionKind::EdgeVanishesUnderDoubledCosts
+        );
+    }
+
+    #[test]
     fn verdict_and_kind_serialize_as_snake_case() {
         assert_eq!(
             serde_json::to_string(&Verdict::Advanceable).unwrap(),
