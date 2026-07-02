@@ -12,9 +12,13 @@ use serde::{Deserialize, Serialize};
 pub struct Bar {
     /// Bar open time (UTC). Bars are keyed and sorted by this.
     pub ts: Timestamp,
+    /// Opening price; must lie within `[low, high]`.
     pub open: Decimal,
+    /// Highest traded price; must be ≥ `low`.
     pub high: Decimal,
+    /// Lowest traded price; must be ≤ `high`.
     pub low: Decimal,
+    /// Closing price; must lie within `[low, high]`. The simulator marks equity at this price.
     pub close: Decimal,
     /// Base-asset volume; must be ≥ 0.
     pub volume: Decimal,
@@ -43,10 +47,26 @@ impl Bar {
 /// A single-bar validation failure, tagged with the offending timestamp.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BarError {
-    HighBelowLow { ts: Timestamp },
-    OpenOutOfRange { ts: Timestamp },
-    CloseOutOfRange { ts: Timestamp },
-    NegativeVolume { ts: Timestamp },
+    /// `high` is below `low`.
+    HighBelowLow {
+        /// Open time of the offending bar.
+        ts: Timestamp,
+    },
+    /// `open` lies outside `[low, high]`.
+    OpenOutOfRange {
+        /// Open time of the offending bar.
+        ts: Timestamp,
+    },
+    /// `close` lies outside `[low, high]`.
+    CloseOutOfRange {
+        /// Open time of the offending bar.
+        ts: Timestamp,
+    },
+    /// `volume` is negative.
+    NegativeVolume {
+        /// Open time of the offending bar.
+        ts: Timestamp,
+    },
 }
 
 impl std::fmt::Display for BarError {

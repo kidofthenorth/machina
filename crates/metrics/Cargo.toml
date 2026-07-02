@@ -12,6 +12,9 @@ research-core = { workspace = true }
 rust_decimal = { workspace = true }
 
 [dev-dependencies]
+# Test-only: run the simulator end-to-end and compute metrics on its equity curve.
+# Metrics itself stays a pure function of an equity curve, with no simulator dependency.
+portfolio = { workspace = true }
 rust_decimal_macros = { workspace = true }
 
 [lints]

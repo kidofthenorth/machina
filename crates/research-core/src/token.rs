@@ -25,6 +25,7 @@ impl MintAddress {
         Ok(Self(s))
     }
 
+    /// The validated mint address as a base58 string slice.
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
@@ -94,8 +95,11 @@ impl TokenMeta {
 /// Errors constructing token primitives.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenError {
+    /// Mint address length (in chars) outside the plausible 32–44 range.
     InvalidMintLength(usize),
+    /// First non-base58 character found in the mint address.
     InvalidMintChar(char),
+    /// Token decimals outside Solana's `0..=18` range.
     InvalidDecimals(u32),
 }
 

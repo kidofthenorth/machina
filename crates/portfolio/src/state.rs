@@ -134,14 +134,26 @@ pub enum SimError {
     /// A trade amount was zero or negative.
     NonPositiveAmount,
     /// A buy would spend more USDC than is available.
-    UnaffordableBuy { needed: Decimal, available: Decimal },
+    UnaffordableBuy {
+        /// USDC the buy asked to spend.
+        needed: Decimal,
+        /// USDC actually held.
+        available: Decimal,
+    },
     /// A sell would dispose of more SOL than is held.
     Oversell {
+        /// SOL the sell asked to dispose of.
         requested: Decimal,
+        /// SOL actually held.
         available: Decimal,
     },
     /// Not enough SOL remains to cover network gas.
-    InsufficientSolForGas { gas: Decimal, available: Decimal },
+    InsufficientSolForGas {
+        /// Gas the trade requires, in SOL.
+        gas: Decimal,
+        /// SOL left to pay it after the trade's own SOL flow is applied.
+        available: Decimal,
+    },
     /// The simulator was given no bars.
     NoBars,
 }
