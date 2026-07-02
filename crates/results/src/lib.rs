@@ -235,7 +235,10 @@ mod tests {
     #[test]
     fn stat_formatting_is_fixed_ten_places_and_signed() {
         // Negative and rounding behavior of the `{:.10}` display format.
-        assert_eq!(stat_to_string(Some(-2.0)), Some("-2.0000000000".to_string()));
+        assert_eq!(
+            stat_to_string(Some(-2.0)),
+            Some("-2.0000000000".to_string())
+        );
         assert_eq!(
             stat_to_string(Some(f64::NEG_INFINITY)),
             None,
@@ -328,7 +331,11 @@ mod tests {
     #[test]
     fn build_maps_money_to_exact_decimal_strings() {
         let cost = sample_cost();
-        let rr = RunResult::build(&sample_inputs(&cost, false, None), &sample_output(), &sample_metrics());
+        let rr = RunResult::build(
+            &sample_inputs(&cost, false, None),
+            &sample_output(),
+            &sample_metrics(),
+        );
         assert_eq!(rr.schema_version, SCHEMA_VERSION);
         assert_eq!(rr.run_id, "unit-0001");
         assert_eq!(rr.mode, "research");
@@ -356,7 +363,11 @@ mod tests {
     #[test]
     fn build_formats_statistical_metrics_and_omits_none() {
         let cost = CostModel::zero();
-        let rr = RunResult::build(&sample_inputs(&cost, false, None), &sample_output(), &sample_metrics());
+        let rr = RunResult::build(
+            &sample_inputs(&cost, false, None),
+            &sample_output(),
+            &sample_metrics(),
+        );
         assert_eq!(rr.metrics.cagr.as_deref(), Some("0.5000000000"));
         assert_eq!(rr.metrics.volatility.as_deref(), Some("0.2500000000"));
         assert_eq!(rr.metrics.sharpe.as_deref(), Some("1.5000000000"));
@@ -368,7 +379,11 @@ mod tests {
     #[test]
     fn money_serializes_as_json_strings_never_numbers() {
         let cost = sample_cost();
-        let rr = RunResult::build(&sample_inputs(&cost, false, None), &sample_output(), &sample_metrics());
+        let rr = RunResult::build(
+            &sample_inputs(&cost, false, None),
+            &sample_output(),
+            &sample_metrics(),
+        );
         let v = rr.to_value();
         assert!(v["config"]["initial_cash_usdc"].is_string());
         assert!(v["final_balances"]["equity_quote"].is_string());
@@ -379,7 +394,11 @@ mod tests {
     #[test]
     fn include_series_false_omits_series_and_optional_json_keys() {
         let cost = CostModel::zero();
-        let rr = RunResult::build(&sample_inputs(&cost, false, None), &sample_output(), &sample_metrics());
+        let rr = RunResult::build(
+            &sample_inputs(&cost, false, None),
+            &sample_output(),
+            &sample_metrics(),
+        );
         assert!(rr.equity_curve.is_empty());
         assert!(rr.round_trips.is_empty());
         let v = rr.to_value();
@@ -429,9 +448,16 @@ mod tests {
     #[test]
     fn to_json_is_pretty_printed() {
         let cost = CostModel::zero();
-        let rr = RunResult::build(&sample_inputs(&cost, false, None), &sample_output(), &sample_metrics());
+        let rr = RunResult::build(
+            &sample_inputs(&cost, false, None),
+            &sample_output(),
+            &sample_metrics(),
+        );
         let json = rr.to_json();
         assert!(json.starts_with("{\n"), "pretty JSON opens with a newline");
-        assert!(json.contains("\n  \"run_id\""), "top-level keys are indented");
+        assert!(
+            json.contains("\n  \"run_id\""),
+            "top-level keys are indented"
+        );
     }
 }

@@ -320,9 +320,12 @@ mod tests {
         }
         .to_string()
         .contains("out of order"));
-        assert!(DataError::DuplicateTimestamp { index: 1, unix: 100 }
-            .to_string()
-            .contains("duplicate"));
+        assert!(DataError::DuplicateTimestamp {
+            index: 1,
+            unix: 100
+        }
+        .to_string()
+        .contains("duplicate"));
         assert!(DataError::Gap {
             index: 2,
             expected_secs: 100,

@@ -217,7 +217,11 @@ mod tests {
             priority_fee_lamports: 0,
         };
         let f = c.fill_buy(dec!(1000), dec!(100));
-        assert!(f.net_base < dec!(10) && f.net_base > dec!(9), "net_base={}", f.net_base);
+        assert!(
+            f.net_base < dec!(10) && f.net_base > dec!(9),
+            "net_base={}",
+            f.net_base
+        );
         assert!(f.slippage_quote > dec!(0));
         assert_eq!(f.dex_fee_quote, dec!(0));
     }

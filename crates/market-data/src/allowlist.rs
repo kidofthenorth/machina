@@ -421,7 +421,9 @@ min_liquidity_usdc = "not-a-number"
 
     #[test]
     fn allowlist_error_display_reasons() {
-        assert!(AllowlistError::MissingVersion.to_string().contains("version"));
+        assert!(AllowlistError::MissingVersion
+            .to_string()
+            .contains("version"));
         assert!(AllowlistError::Empty.to_string().contains("no tokens"));
         assert!(AllowlistError::DuplicateToken("X".into())
             .to_string()

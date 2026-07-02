@@ -157,7 +157,10 @@ mod tests {
             .check_ohlc()
             .unwrap_err()
             .to_string();
-        assert!(msg.contains("2021-01-01"), "renders the offending ts: {msg}");
+        assert!(
+            msg.contains("2021-01-01"),
+            "renders the offending ts: {msg}"
+        );
         assert!(msg.contains("high < low"), "states the reason: {msg}");
     }
 

@@ -149,9 +149,15 @@ mod tests {
             weight_below: dec!(0),
         };
         // A huge early close is outside the 3-bar window: tail 10,11,15 → SMA 12, last 15 > 12.
-        assert_eq!(s.target_weight(&series(&[1000, 1, 10, 11, 15]), dec!(0)), dec!(1));
+        assert_eq!(
+            s.target_weight(&series(&[1000, 1, 10, 11, 15]), dec!(0)),
+            dec!(1)
+        );
         // Same leading noise, tail ends below its own SMA → defensive.
-        assert_eq!(s.target_weight(&series(&[1, 1000, 15, 12, 9]), dec!(0)), dec!(0));
+        assert_eq!(
+            s.target_weight(&series(&[1, 1000, 15, 12, 9]), dec!(0)),
+            dec!(0)
+        );
     }
 
     #[test]

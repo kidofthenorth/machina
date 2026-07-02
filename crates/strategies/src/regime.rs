@@ -100,7 +100,10 @@ mod tests {
     #[test]
     fn zero_mean_is_unknown() {
         // All-zero closes → mean 0 → no deviation ratio is definable → Unknown (not a divide).
-        assert_eq!(classify(&series(&[0, 0, 0]), 3, dec!(0.05)), Regime::Unknown);
+        assert_eq!(
+            classify(&series(&[0, 0, 0]), 3, dec!(0.05)),
+            Regime::Unknown
+        );
     }
 
     #[test]

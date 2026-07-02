@@ -260,9 +260,18 @@ mod tests {
         assert_eq!(
             folds,
             vec![
-                Window { train: 0..3, test: 3..5 },
-                Window { train: 2..5, test: 5..7 },
-                Window { train: 4..7, test: 7..9 },
+                Window {
+                    train: 0..3,
+                    test: 3..5
+                },
+                Window {
+                    train: 2..5,
+                    test: 5..7
+                },
+                Window {
+                    train: 4..7,
+                    test: 7..9
+                },
             ]
         );
         assert_wellformed(&folds, 0);
@@ -273,7 +282,13 @@ mod tests {
         let wf = WalkForward::new(WindowKind::Rolling, 3, 2, 2, 1).unwrap();
         let folds = wf.windows(10);
         assert!(!folds.is_empty());
-        assert_eq!(folds[0], Window { train: 0..3, test: 4..6 });
+        assert_eq!(
+            folds[0],
+            Window {
+                train: 0..3,
+                test: 4..6
+            }
+        );
         assert_wellformed(&folds, 1);
     }
 
@@ -318,8 +333,11 @@ mod tests {
         assert!(WindowError::ZeroTrainLen.to_string().contains("train_len"));
         assert!(WindowError::ZeroTestLen.to_string().contains("test_len"));
         assert!(WindowError::ZeroStep.to_string().contains("step"));
-        assert!(WindowError::TestsOverlap { step: 1, test_len: 2 }
-            .to_string()
-            .contains("overlap"));
+        assert!(WindowError::TestsOverlap {
+            step: 1,
+            test_len: 2
+        }
+        .to_string()
+        .contains("overlap"));
     }
 }

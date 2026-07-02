@@ -210,7 +210,10 @@ mod tests {
     #[test]
     fn pre_epoch_timestamps_render_correctly() {
         // Negative Unix seconds rely on Euclidean div/rem for the right civil date AND time-of-day.
-        assert_eq!(Timestamp::from_unix(-1).to_rfc3339(), "1969-12-31T23:59:59Z");
+        assert_eq!(
+            Timestamp::from_unix(-1).to_rfc3339(),
+            "1969-12-31T23:59:59Z"
+        );
         assert_eq!(
             Timestamp::from_unix(-86_400).to_rfc3339(),
             "1969-12-31T00:00:00Z"
