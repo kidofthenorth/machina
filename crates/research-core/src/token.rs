@@ -64,6 +64,33 @@ pub struct TokenMeta {
     pub decimals: u32,
 }
 
+impl TokenMeta {
+    /// Validate and construct token metadata.
+    ///
+    /// Rejects `decimals` outside Solana's `0..=18` range so a malformed decimals value can never
+    /// silently distort quantization or accounting. Callers that build a [`TokenMeta`] from
+    /// untrusted metadata should prefer this over the struct literal.
+    ///
+    /// # Errors
+    /// Returns [`TokenError::InvalidDecimals`] if `decimals > 18`.
+    pub fn new(
+        token_id: impl Into<String>,
+        symbol: impl Into<String>,
+        mint: MintAddress,
+        decimals: u32,
+    ) -> Result<Self, TokenError> {
+        if decimals > 18 {
+            return Err(TokenError::InvalidDecimals(decimals));
+        }
+        Ok(Self {
+            token_id: token_id.into(),
+            symbol: symbol.into(),
+            mint,
+            decimals,
+        })
+    }
+}
+
 /// Errors constructing token primitives.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenError {
@@ -144,5 +171,59 @@ mod tests {
         assert_eq!(back, m);
         // Deserialization rejects an invalid mint.
         assert!(serde_json::from_str::<MintAddress>("\"nope\"").is_err());
+    }
+
+    #[test]
+    fn accepts_inclusive_length_bounds() {
+        // 32 and 44 are the inclusive plausible-length bounds; 31 and 45 are not.
+        assert!(MintAddress::new("1".repeat(32)).is_ok());
+        assert!(MintAddress::new("1".repeat(44)).is_ok());
+        assert_eq!(
+            MintAddress::new("1".repeat(31)).unwrap_err(),
+            TokenError::InvalidMintLength(31)
+        );
+    }
+
+    #[test]
+    fn as_str_and_display_agree() {
+        let m = MintAddress::new(USDC).unwrap();
+        assert_eq!(m.as_str(), USDC);
+        assert_eq!(m.to_string(), USDC);
+    }
+
+    #[test]
+    fn token_errors_display_reasons() {
+        assert!(TokenError::InvalidMintLength(8)
+            .to_string()
+            .contains("implausible length 8"));
+        assert!(TokenError::InvalidMintChar('0')
+            .to_string()
+            .contains("non-base58"));
+        assert!(TokenError::InvalidDecimals(30)
+            .to_string()
+            .contains("out of range"));
+    }
+
+    #[test]
+    fn token_meta_new_validates_decimals() {
+        let mint = MintAddress::new(WSOL).unwrap();
+        let meta = TokenMeta::new("SOL", "SOL", mint.clone(), 9).unwrap();
+        assert_eq!(meta.token_id, "SOL");
+        assert_eq!(meta.decimals, 9);
+        // 0 and 18 are the inclusive bounds; 19 is rejected.
+        assert!(TokenMeta::new("X", "X", mint.clone(), 0).is_ok());
+        assert!(TokenMeta::new("X", "X", mint.clone(), 18).is_ok());
+        assert_eq!(
+            TokenMeta::new("X", "X", mint, 19).unwrap_err(),
+            TokenError::InvalidDecimals(19)
+        );
+    }
+
+    #[test]
+    fn token_meta_serde_round_trips() {
+        let meta = TokenMeta::new("SOL", "SOL", MintAddress::new(WSOL).unwrap(), 9).unwrap();
+        let json = serde_json::to_string(&meta).unwrap();
+        let back: TokenMeta = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, meta);
     }
 }

@@ -206,4 +206,66 @@ mod tests {
         v.sort();
         assert_eq!(v, vec![a, b]);
     }
+
+    #[test]
+    fn pre_epoch_timestamps_render_correctly() {
+        // Negative Unix seconds rely on Euclidean div/rem for the right civil date AND time-of-day.
+        assert_eq!(Timestamp::from_unix(-1).to_rfc3339(), "1969-12-31T23:59:59Z");
+        assert_eq!(
+            Timestamp::from_unix(-86_400).to_rfc3339(),
+            "1969-12-31T00:00:00Z"
+        );
+        // 1960-01-01T00:00:00Z = -315_619_200 (10 years, 3 leap days, before epoch).
+        assert_eq!(
+            Timestamp::from_unix(-315_619_200).to_rfc3339(),
+            "1960-01-01T00:00:00Z"
+        );
+    }
+
+    #[test]
+    fn far_future_and_pre_epoch_dates_round_trip() {
+        for s in ["1900-01-01", "9999-12-31", "1969-12-31", "2000-02-29"] {
+            let ts = parse_ymd(s).unwrap();
+            assert_eq!(ts.to_rfc3339(), format!("{s}T00:00:00Z"));
+        }
+    }
+
+    #[test]
+    fn civil_date_to_unix_handles_pre_epoch() {
+        assert_eq!(civil_date_to_unix(1970, 1, 1), 0);
+        assert_eq!(civil_date_to_unix(1969, 12, 31), -86_400);
+    }
+
+    #[test]
+    fn parse_ymd_applies_gregorian_leap_rules() {
+        // Divisible by 400 → leap; divisible by 100 (not 400) → common; ordinary common year.
+        assert!(parse_ymd("2000-02-29").is_ok());
+        assert!(matches!(
+            parse_ymd("1900-02-29"),
+            Err(DateParseError::OutOfRange(_))
+        ));
+        assert!(matches!(
+            parse_ymd("2023-02-29"),
+            Err(DateParseError::OutOfRange(_))
+        ));
+    }
+
+    #[test]
+    fn date_parse_error_displays_reason() {
+        assert!(parse_ymd("nope")
+            .unwrap_err()
+            .to_string()
+            .contains("malformed"));
+        assert!(parse_ymd("2025-02-30")
+            .unwrap_err()
+            .to_string()
+            .contains("not a real calendar date"));
+    }
+
+    #[test]
+    fn as_unix_round_trips_from_unix() {
+        for s in [-1_000_000_i64, -1, 0, 1, 1_609_459_200, i64::from(u32::MAX)] {
+            assert_eq!(Timestamp::from_unix(s).as_unix(), s);
+        }
+    }
 }

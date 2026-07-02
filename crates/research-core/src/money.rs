@@ -73,4 +73,41 @@ mod tests {
         assert_eq!(apply_bps(dec!(100), 5), dec!(0.05));
         assert_eq!(apply_bps(dec!(100), 0), dec!(0));
     }
+
+    #[test]
+    fn quantize_truncates_negatives_toward_zero() {
+        // Truncation toward zero (NOT floor): -1.2399999 → -1.239999, not -1.240000.
+        assert_eq!(quantize_floor(dec!(-1.2399999), 6), dec!(-1.239999));
+        assert_eq!(
+            quantize_floor(dec!(-0.9999999999), SOL_DECIMALS),
+            dec!(-0.999999999)
+        );
+        // Zero and already-short values are unchanged.
+        assert_eq!(quantize_floor(dec!(0), USDC_DECIMALS), dec!(0));
+        assert_eq!(quantize_floor(dec!(-5), USDC_DECIMALS), dec!(-5));
+    }
+
+    #[test]
+    fn quantize_to_zero_decimals_drops_fraction() {
+        assert_eq!(quantize_floor(dec!(9.999999), 0), dec!(9));
+        assert_eq!(quantize_floor(dec!(-9.999999), 0), dec!(-9));
+    }
+
+    #[test]
+    fn lamports_convert_zero_and_negative() {
+        assert_eq!(lamports_to_sol(0), dec!(0));
+        assert_eq!(lamports_to_sol(-5_000), dec!(-0.000005));
+        // One lamport is exactly 1e-9 SOL.
+        assert_eq!(lamports_to_sol(1), dec!(0.000000001));
+    }
+
+    #[test]
+    fn bps_application_edge_values() {
+        // 10_000 bps = 100% → the value itself; above 100% scales linearly (no cap here).
+        assert_eq!(apply_bps(dec!(250), 10_000), dec!(250));
+        assert_eq!(apply_bps(dec!(100), 20_000), dec!(200));
+        // Exactness on a sub-cent result: 1 bp of 1 = 0.0001.
+        assert_eq!(apply_bps(dec!(1), 1), dec!(0.0001));
+        assert_eq!(apply_bps(dec!(0), 20), dec!(0));
+    }
 }

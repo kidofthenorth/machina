@@ -126,4 +126,46 @@ mod tests {
             BarError::NegativeVolume { .. }
         ));
     }
+
+    #[test]
+    fn open_and_close_exactly_at_bounds_are_valid() {
+        // open == low and close == high (and the mirror) are in range — the checks use ≤/≥.
+        assert!(bar(dec!(9), dec!(12), dec!(9), dec!(12), dec!(1))
+            .check_ohlc()
+            .is_ok());
+        assert!(bar(dec!(12), dec!(12), dec!(9), dec!(9), dec!(1))
+            .check_ohlc()
+            .is_ok());
+    }
+
+    #[test]
+    fn zero_volume_ok_but_tiny_negative_rejected() {
+        assert!(bar(dec!(10), dec!(10), dec!(10), dec!(10), dec!(0))
+            .check_ohlc()
+            .is_ok());
+        assert!(matches!(
+            bar(dec!(10), dec!(10), dec!(10), dec!(10), dec!(-0.000000001))
+                .check_ohlc()
+                .unwrap_err(),
+            BarError::NegativeVolume { .. }
+        ));
+    }
+
+    #[test]
+    fn bar_error_display_includes_timestamp_and_reason() {
+        let msg = bar(dec!(10), dec!(8), dec!(9), dec!(9), dec!(1))
+            .check_ohlc()
+            .unwrap_err()
+            .to_string();
+        assert!(msg.contains("2021-01-01"), "renders the offending ts: {msg}");
+        assert!(msg.contains("high < low"), "states the reason: {msg}");
+    }
+
+    #[test]
+    fn bar_serde_round_trips() {
+        let b = bar(dec!(10), dec!(12), dec!(9), dec!(11), dec!(100));
+        let json = serde_json::to_string(&b).unwrap();
+        let back: Bar = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, b);
+    }
 }
