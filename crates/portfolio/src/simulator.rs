@@ -423,4 +423,68 @@ mod tests {
             SimError::NoBars
         );
     }
+
+    #[test]
+    fn time_in_market_is_fraction_of_bars_held() {
+        // 5 bars, full deploy from bar 1: SOL is held at the closes of bars 1..=4 → 4/5.
+        let bars = series(&[100, 100, 100, 100, 100]);
+        let out = run(&bars, dec!(1000), &CostModel::zero(), |_h, _w| dec!(1)).unwrap();
+        assert_eq!(out.bars_in_market, 4);
+        assert_eq!(out.time_in_market(), dec!(0.8));
+    }
+
+    #[test]
+    fn no_trade_run_has_zero_time_in_market() {
+        let bars = series(&[100, 110, 90]);
+        let out = run(&bars, dec!(1000), &CostModel::zero(), |_h, _w| dec!(0)).unwrap();
+        assert_eq!(out.bars_in_market, 0);
+        assert_eq!(out.time_in_market(), dec!(0));
+    }
+
+    #[test]
+    fn dust_sized_rebalance_is_skipped() {
+        // A target so tiny the move is below the 0.01 USDC min-notional → the run never trades.
+        let bars = series(&[100, 100, 100]);
+        let tiny = Decimal::new(1, 6); // 0.000001 weight
+        let out = run(&bars, dec!(1000), &CostModel::zero(), |_h, _w| tiny).unwrap();
+        assert_eq!(out.n_trades, 0);
+        assert_eq!(out.traded_notional_quote, dec!(0));
+    }
+
+    #[test]
+    fn out_of_range_targets_are_clamped() {
+        let bars = series(&[100, 100, 100]);
+        // target 2 clamps to 1 → identical outcome to a full deploy.
+        let hot = run(&bars, dec!(1000), &CostModel::zero(), |_h, _w| dec!(2)).unwrap();
+        let full = run(&bars, dec!(1000), &CostModel::zero(), |_h, _w| dec!(1)).unwrap();
+        assert_eq!(hot.final_state, full.final_state);
+        assert_eq!(hot.n_trades, full.n_trades);
+        // target -1 clamps to 0 → stays flat, never trades.
+        let cold = run(&bars, dec!(1000), &CostModel::zero(), |_h, _w| dec!(-1)).unwrap();
+        assert_eq!(cold.n_trades, 0);
+    }
+
+    #[test]
+    fn priority_fees_scale_with_trade_count() {
+        // Deploy then exit = 2 trades; 50_000 priority lamports = 0.00005 SOL each → 0.0001 total.
+        let bars = series(&[100, 100, 100, 100]);
+        let cost = CostModel {
+            dex_fee_bps: 0,
+            slippage_bps: 0,
+            base_fee_lamports: 5_000,
+            priority_fee_lamports: 50_000,
+        };
+        let mut step = 0;
+        let out = run(&bars, dec!(1000), &cost, |_h, _w| {
+            step += 1;
+            if step >= 3 {
+                dec!(0)
+            } else {
+                dec!(1)
+            }
+        })
+        .unwrap();
+        assert_eq!(out.n_trades, 2);
+        assert_eq!(out.priority_fees_paid_sol, dec!(0.0001));
+    }
 }

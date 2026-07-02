@@ -241,4 +241,98 @@ mod tests {
             "equity should fall after a costed buy: {before} -> {after}"
         );
     }
+
+    #[test]
+    fn non_positive_amounts_are_rejected_both_sides() {
+        let mut s = PortfolioState {
+            quote_balance: dec!(1000),
+            base_balance: dec!(10),
+        };
+        for amt in [dec!(0), dec!(-5)] {
+            assert_eq!(
+                s.apply_buy(amt, dec!(100), &zero_cost()).unwrap_err(),
+                SimError::NonPositiveAmount
+            );
+            assert_eq!(
+                s.apply_sell(amt, dec!(100), &zero_cost()).unwrap_err(),
+                SimError::NonPositiveAmount
+            );
+        }
+        // State untouched by any rejected trade.
+        assert_eq!(s.quote_balance, dec!(1000));
+        assert_eq!(s.base_balance, dec!(10));
+    }
+
+    #[test]
+    fn buy_too_small_to_cover_gas_is_rejected() {
+        // Gas ~0.011 SOL, but buying 1 USDC of SOL yields only ~0.01 SOL — cannot cover gas.
+        let cost = CostModel {
+            dex_fee_bps: 0,
+            slippage_bps: 0,
+            base_fee_lamports: 1_000_000,
+            priority_fee_lamports: 10_000_000,
+        };
+        let mut s = PortfolioState::new(dec!(1000));
+        assert!(matches!(
+            s.apply_buy(dec!(1), dec!(100), &cost).unwrap_err(),
+            SimError::InsufficientSolForGas { .. }
+        ));
+        assert_eq!(s.quote_balance, dec!(1000)); // unchanged
+        assert_eq!(s.base_balance, dec!(0));
+    }
+
+    #[test]
+    fn selling_everything_without_leaving_gas_is_rejected() {
+        // Hold exactly 10 SOL; selling all 10 leaves nothing for the 0.000055 SOL gas leg.
+        let cost = CostModel {
+            dex_fee_bps: 0,
+            slippage_bps: 0,
+            base_fee_lamports: 5_000,
+            priority_fee_lamports: 50_000,
+        };
+        let mut s = PortfolioState {
+            quote_balance: dec!(0),
+            base_balance: dec!(10),
+        };
+        assert!(matches!(
+            s.apply_sell(dec!(10), dec!(100), &cost).unwrap_err(),
+            SimError::InsufficientSolForGas { .. }
+        ));
+        assert_eq!(s.base_balance, dec!(10)); // unchanged
+        assert_eq!(s.quote_balance, dec!(0));
+    }
+
+    #[test]
+    fn equity_marks_to_market() {
+        let s = PortfolioState {
+            quote_balance: dec!(250),
+            base_balance: dec!(3),
+        };
+        assert_eq!(s.equity(dec!(100)), dec!(550)); // 250 + 3*100
+        assert_eq!(s.equity(dec!(0)), dec!(250)); // price 0 → only cash counts
+    }
+
+    #[test]
+    fn sim_error_display_covers_all_variants() {
+        assert!(SimError::NonPositiveAmount.to_string().contains("positive"));
+        assert!(SimError::UnaffordableBuy {
+            needed: dec!(10),
+            available: dec!(5)
+        }
+        .to_string()
+        .contains("unaffordable"));
+        assert!(SimError::Oversell {
+            requested: dec!(10),
+            available: dec!(5)
+        }
+        .to_string()
+        .contains("oversell"));
+        assert!(SimError::InsufficientSolForGas {
+            gas: dec!(1),
+            available: dec!(0)
+        }
+        .to_string()
+        .contains("gas"));
+        assert!(SimError::NoBars.to_string().contains("at least one bar"));
+    }
 }

@@ -175,4 +175,80 @@ mod tests {
         // USDC output is floored to 6 decimals.
         assert!(f.net_quote.scale() <= USDC_DECIMALS);
     }
+
+    #[test]
+    fn zero_model_and_gas_helpers() {
+        let z = CostModel::zero();
+        assert_eq!(z.gas_sol(), dec!(0));
+        assert_eq!(z.priority_sol(), dec!(0));
+        let c = CostModel {
+            dex_fee_bps: 0,
+            slippage_bps: 0,
+            base_fee_lamports: 5_000,
+            priority_fee_lamports: 50_000,
+        };
+        assert_eq!(c.gas_sol(), dec!(0.000055)); // (5_000 + 50_000) / 1e9
+        assert_eq!(c.priority_sol(), dec!(0.00005)); // 50_000 / 1e9
+    }
+
+    #[test]
+    fn dex_fee_only_reduces_output_exactly() {
+        // 100 bps = 1% fee, no slippage: 1000 USDC / 100 = 10 gross SOL, minus 1% = 9.9 net.
+        let c = CostModel {
+            dex_fee_bps: 100,
+            slippage_bps: 0,
+            base_fee_lamports: 0,
+            priority_fee_lamports: 0,
+        };
+        let f = c.fill_buy(dec!(1000), dec!(100));
+        assert_eq!(f.net_base, dec!(9.9));
+        assert_eq!(f.slippage_quote, dec!(0)); // no slippage
+        assert_eq!(f.dex_fee_quote, dec!(10)); // 0.1 SOL * 100 USDC/SOL
+        assert_eq!(f.gas_sol, dec!(0));
+    }
+
+    #[test]
+    fn slippage_only_worsens_effective_price() {
+        // 10% slippage, no fee: effective buy price 110 → fewer than 10 SOL and a slippage charge.
+        let c = CostModel {
+            dex_fee_bps: 0,
+            slippage_bps: 1_000,
+            base_fee_lamports: 0,
+            priority_fee_lamports: 0,
+        };
+        let f = c.fill_buy(dec!(1000), dec!(100));
+        assert!(f.net_base < dec!(10) && f.net_base > dec!(9), "net_base={}", f.net_base);
+        assert!(f.slippage_quote > dec!(0));
+        assert_eq!(f.dex_fee_quote, dec!(0));
+    }
+
+    #[test]
+    fn zero_input_fills_credit_nothing_but_still_report_gas() {
+        let c = CostModel {
+            dex_fee_bps: 5,
+            slippage_bps: 20,
+            base_fee_lamports: 5_000,
+            priority_fee_lamports: 50_000,
+        };
+        let b = c.fill_buy(dec!(0), dec!(100));
+        assert_eq!(b.net_base, dec!(0));
+        assert_eq!(b.gas_sol, dec!(0.000055));
+        let s = c.fill_sell(dec!(0), dec!(100));
+        assert_eq!(s.net_quote, dec!(0));
+        assert_eq!(s.gas_sol, dec!(0.000055));
+    }
+
+    #[test]
+    fn gas_is_independent_of_trade_size() {
+        let c = CostModel {
+            dex_fee_bps: 5,
+            slippage_bps: 20,
+            base_fee_lamports: 5_000,
+            priority_fee_lamports: 50_000,
+        };
+        assert_eq!(
+            c.fill_buy(dec!(1), dec!(100)).gas_sol,
+            c.fill_buy(dec!(1_000_000), dec!(100)).gas_sol
+        );
+    }
 }
