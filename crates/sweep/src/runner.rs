@@ -9,7 +9,9 @@ use crate::parallel::{run_cells, Parallelism, SweepCell};
 use crate::param::{ParamGrid, ParamPoint};
 use crate::partition::{PartitionError, PartitionedBars, Sealed};
 use crate::report::SweepReport;
-use crate::sensitivity::{cost_scenarios, scale_cost_model, CostScenario, ScenarioId};
+use crate::sensitivity::{
+    cost_scenarios, scale_cost_model, CostScenario, FeeSensitivity, ScenarioId, ScenarioMetrics,
+};
 use crate::spec::SweepSpec;
 use crate::window::Window;
 use portfolio::{CostModel, SimError};
@@ -136,6 +138,76 @@ pub fn aggregate_evidence(
                 .unwrap_or(Decimal::ZERO)
                 .max(Decimal::ZERO),
             valid_windows,
+        })
+        .collect()
+}
+
+/// Per-candidate aggregated fee-sensitivity blocks, in candidate (point) order — the reportable
+/// projection of the sweep (m4-sweep.md §9). Aggregation across windows, all exact Decimal:
+/// total_return = mean (matching `aggregate_evidence`); turnover = max (worst window);
+/// n_trades / fees / slippage / priority fees = sums. `survives_floor` = mean of the per-window
+/// doubled-cost baseline floors — the same value `aggregate_evidence` records as
+/// `doubled_baseline_floor`, so `survives_doubled` cannot drift from the edge-vanishes verdict.
+#[must_use]
+pub fn aggregate_fee_sensitivity(
+    grids: &[ParamGrid],
+    keys: &[CellKey],
+    results: &[CellResult],
+    doubled_floors: &[Decimal],
+) -> Vec<FeeSensitivity> {
+    let n_points: usize = grids.iter().map(|g| g.points().len()).sum();
+
+    #[derive(Clone, Default)]
+    struct Acc {
+        returns: Vec<Decimal>,
+        turnover: Decimal,
+        n_trades: u32,
+        fees: Decimal,
+        slippage: Decimal,
+        priority: Decimal,
+    }
+    let mut acc: Vec<[Acc; 3]> = (0..n_points).map(|_| Default::default()).collect();
+    for (k, r) in keys.iter().zip(results) {
+        let slot = match k.scenario {
+            ScenarioId::BeforeCosts => 0,
+            ScenarioId::Base => 1,
+            ScenarioId::Doubled => 2,
+            _ => continue,
+        };
+        let a = &mut acc[k.point_index][slot];
+        a.returns.push(r.total_return);
+        a.turnover = a.turnover.max(r.turnover);
+        a.n_trades += r.n_trades;
+        a.fees += r.fees_paid_quote;
+        a.slippage += r.slippage_paid_quote;
+        a.priority += r.priority_fees_paid_sol;
+    }
+
+    let mean = |xs: &[Decimal]| {
+        if xs.is_empty() {
+            Decimal::ZERO
+        } else {
+            xs.iter().copied().sum::<Decimal>() / Decimal::from(xs.len() as u64)
+        }
+    };
+    let survives_floor = mean(doubled_floors);
+    let metrics = |scenario: ScenarioId, a: &Acc| ScenarioMetrics {
+        scenario,
+        total_return: mean(&a.returns),
+        turnover: a.turnover,
+        n_trades: a.n_trades,
+        fees_paid_quote: a.fees,
+        slippage_paid_quote: a.slippage,
+        priority_fees_paid_sol: a.priority,
+    };
+    acc.iter()
+        .map(|slots| {
+            FeeSensitivity::from_scenarios(
+                metrics(ScenarioId::BeforeCosts, &slots[0]),
+                metrics(ScenarioId::Base, &slots[1]),
+                metrics(ScenarioId::Doubled, &slots[2]),
+                survives_floor,
+            )
         })
         .collect()
 }
@@ -501,5 +573,102 @@ mod tests {
         assert_eq!(ev.fold_dispersion, Decimal::ZERO);
         assert_eq!(ev.neighbor_degradation, Decimal::ZERO);
         assert_eq!(ev.valid_windows, 0);
+    }
+
+    fn cell_result_full(
+        total_return: Decimal,
+        turnover: Decimal,
+        n_trades: u32,
+        fees: Decimal,
+    ) -> CellResult {
+        CellResult {
+            total_return,
+            max_drawdown: Decimal::ZERO,
+            turnover,
+            n_trades,
+            final_equity: Decimal::ZERO,
+            traded_notional_quote: Decimal::ZERO,
+            fees_paid_quote: fees,
+            slippage_paid_quote: Decimal::ZERO,
+            priority_fees_paid_sol: Decimal::ZERO,
+            time_in_market: Decimal::ZERO,
+            cagr: None,
+            volatility: None,
+            sharpe: None,
+            sortino: None,
+            calmar: None,
+        }
+    }
+
+    #[test]
+    fn fee_sensitivity_aggregation_is_exact() {
+        let grids = vec![ParamGrid::ThresholdRebalance {
+            target_sol_weights: vec![dec!(0.5)],
+            bands: vec![dec!(0.1)],
+        }];
+        let mut keys = Vec::new();
+        let mut results = Vec::new();
+        // Window 0: before_costs, base, doubled.
+        keys.push(CellKey {
+            window_index: 0,
+            scenario: ScenarioId::BeforeCosts,
+            point_index: 0,
+        });
+        results.push(cell_result_full(dec!(0.20), dec!(1), 2, dec!(0)));
+        keys.push(CellKey {
+            window_index: 0,
+            scenario: ScenarioId::Base,
+            point_index: 0,
+        });
+        results.push(cell_result_full(dec!(0.10), dec!(2), 2, dec!(1)));
+        keys.push(CellKey {
+            window_index: 0,
+            scenario: ScenarioId::Doubled,
+            point_index: 0,
+        });
+        results.push(cell_result_full(dec!(0.05), dec!(3), 2, dec!(2)));
+        // Window 1: before_costs, base, doubled.
+        keys.push(CellKey {
+            window_index: 1,
+            scenario: ScenarioId::BeforeCosts,
+            point_index: 0,
+        });
+        results.push(cell_result_full(dec!(0.40), dec!(4), 3, dec!(0)));
+        keys.push(CellKey {
+            window_index: 1,
+            scenario: ScenarioId::Base,
+            point_index: 0,
+        });
+        results.push(cell_result_full(dec!(0.30), dec!(1), 3, dec!(3)));
+        keys.push(CellKey {
+            window_index: 1,
+            scenario: ScenarioId::Doubled,
+            point_index: 0,
+        });
+        results.push(cell_result_full(dec!(0.15), dec!(2), 3, dec!(4)));
+
+        let doubled_floors = vec![dec!(0.05), dec!(0.05)];
+        let fee = aggregate_fee_sensitivity(&grids, &keys, &results, &doubled_floors);
+        assert_eq!(fee.len(), 1);
+        let fs = &fee[0];
+
+        assert_eq!(fs.before_costs.total_return, dec!(0.3));
+        assert_eq!(fs.before_costs.turnover, dec!(4));
+        assert_eq!(fs.before_costs.n_trades, 5);
+        assert_eq!(fs.before_costs.fees_paid_quote, dec!(0));
+
+        assert_eq!(fs.base.total_return, dec!(0.2));
+        assert_eq!(fs.base.turnover, dec!(2));
+        assert_eq!(fs.base.n_trades, 5);
+        assert_eq!(fs.base.fees_paid_quote, dec!(4));
+
+        assert_eq!(fs.doubled.total_return, dec!(0.1));
+        assert_eq!(fs.doubled.turnover, dec!(3));
+        assert_eq!(fs.doubled.n_trades, 5);
+        assert_eq!(fs.doubled.fees_paid_quote, dec!(6));
+
+        assert_eq!(fs.return_drag_doubled, dec!(0.1));
+        assert_eq!(fs.return_drag_costs, dec!(0.1));
+        assert_eq!(fs.survives_doubled, dec!(0.1) > dec!(0.05));
     }
 }

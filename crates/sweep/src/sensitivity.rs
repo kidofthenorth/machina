@@ -175,6 +175,31 @@ pub struct FeeSensitivity {
     pub survives_doubled: bool,
 }
 
+impl FeeSensitivity {
+    /// Assemble from already-aggregated per-scenario metrics. Single source of truth for the
+    /// drag and survival rules — the single-cell path [`fee_sensitivity`] delegates here, so
+    /// the report and the edge-vanishes criterion can never drift apart.
+    #[must_use]
+    pub fn from_scenarios(
+        before_costs: ScenarioMetrics,
+        base: ScenarioMetrics,
+        doubled: ScenarioMetrics,
+        survives_floor: Decimal,
+    ) -> Self {
+        let return_drag_doubled = base.total_return - doubled.total_return;
+        let return_drag_costs = before_costs.total_return - base.total_return;
+        let survives_doubled = doubled.total_return > survives_floor;
+        Self {
+            before_costs,
+            base,
+            doubled,
+            return_drag_doubled,
+            return_drag_costs,
+            survives_doubled,
+        }
+    }
+}
+
 /// Assemble a [`FeeSensitivity`] from the same candidate's cell results under the before-costs, base,
 /// and doubled scenarios, plus the cost-matched baseline return floor to beat under doubled costs.
 #[must_use]
@@ -184,14 +209,12 @@ pub fn fee_sensitivity(
     doubled: &CellResult,
     survives_floor: Decimal,
 ) -> FeeSensitivity {
-    FeeSensitivity {
-        before_costs: ScenarioMetrics::from_cell(ScenarioId::BeforeCosts, before_costs),
-        base: ScenarioMetrics::from_cell(ScenarioId::Base, base),
-        doubled: ScenarioMetrics::from_cell(ScenarioId::Doubled, doubled),
-        return_drag_doubled: base.total_return - doubled.total_return,
-        return_drag_costs: before_costs.total_return - base.total_return,
-        survives_doubled: doubled.total_return > survives_floor,
-    }
+    FeeSensitivity::from_scenarios(
+        ScenarioMetrics::from_cell(ScenarioId::BeforeCosts, before_costs),
+        ScenarioMetrics::from_cell(ScenarioId::Base, base),
+        ScenarioMetrics::from_cell(ScenarioId::Doubled, doubled),
+        survives_floor,
+    )
 }
 
 #[cfg(test)]
@@ -406,5 +429,30 @@ mod tests {
         let fs = fee_sensitivity(&before_c, &base_c, &doubled_c, dec!(0));
         assert!(fs.return_drag_doubled < dec!(0));
         assert_ne!(fs.base.n_trades, fs.doubled.n_trades);
+    }
+
+    #[test]
+    fn fee_sensitivity_delegates_to_from_scenarios() {
+        let bars = series(&[100, 108, 96, 112]);
+        let point = ParamPoint::ThresholdRebalance {
+            target_sol_weight: dec!(0.5),
+            band: dec!(0),
+        };
+        let base = base_cost();
+        let doubled = scale_cost_model(&base, 2, 1);
+        let a = eval_cell(&point, &bars, &CostModel::zero(), dec!(10_000), 365.0).unwrap();
+        let b = eval_cell(&point, &bars, &base, dec!(10_000), 365.0).unwrap();
+        let c = eval_cell(&point, &bars, &doubled, dec!(10_000), 365.0).unwrap();
+        let floor = dec!(0);
+
+        assert_eq!(
+            fee_sensitivity(&a, &b, &c, floor),
+            FeeSensitivity::from_scenarios(
+                ScenarioMetrics::from_cell(ScenarioId::BeforeCosts, &a),
+                ScenarioMetrics::from_cell(ScenarioId::Base, &b),
+                ScenarioMetrics::from_cell(ScenarioId::Doubled, &c),
+                floor,
+            )
+        );
     }
 }

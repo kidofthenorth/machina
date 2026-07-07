@@ -399,3 +399,18 @@ recorded inline (not full logs).
   sweep output hash will change at C8c (report grows) — byte-identity across runs/threads remains
   the invariant, and C8c's gate re-proves it via sweep-verify.
 - M4 gate remains UNDECLARED; C9 unchanged otherwise and still TODO.
+
+## 2026-07-07 — Card M4-C8b
+- `sensitivity.rs`: added `FeeSensitivity::from_scenarios` (sole owner of the drag/survival rules);
+  `fee_sensitivity` now delegates to it, unchanged signature/behavior.
+- `runner.rs`: added `aggregate_fee_sensitivity(grids, keys, results, doubled_floors) ->
+  Vec<FeeSensitivity>` — mean returns, worst-window turnover, summed trades/fees/slippage/priority
+  per scenario slot, `survives_floor = mean(doubled_floors)` (same value `aggregate_evidence`
+  records as `doubled_baseline_floor`). Re-exported from `lib.rs`. Nothing calls it yet (C8c wires it
+  into `SweepReport`).
+- Gate: `cargo fmt --all --check`, `cargo clippy --all-targets --all-features -- -D warnings`,
+  `cargo test --workspace --all-features` all green, 0 failed (sweep unit tests 70→72). `cargo run -p
+  cli -- sweep | shasum` unchanged at `7d385d59…` (twice, identical); `demo | shasum` unchanged at
+  `ae064f79…` — confirms no behavior change on this card.
+- Card flipped to DONE. Next: C8c (fresh session) wires `aggregate_fee_sensitivity` into
+  `SweepReport.candidates[]`, schema 1.1.0, D-0010.

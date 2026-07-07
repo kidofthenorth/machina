@@ -957,7 +957,7 @@ three files seems to need editing.
 
 ---
 
-### M4-C8b — Aggregate per-candidate fee sensitivity in the runner — `TODO`
+### M4-C8b — Aggregate per-candidate fee sensitivity in the runner — `DONE`
 
 *(C8b–C8d inserted 2026-07-07 after the pre-declaration adversarial review confirmed a major: the
 "turnover and fee-sensitivity reporting" deliverable never reaches the exported report —
