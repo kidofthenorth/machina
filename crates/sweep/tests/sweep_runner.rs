@@ -174,6 +174,33 @@ fn every_candidate_gets_exactly_one_verdict() {
 }
 
 #[test]
+fn trial_count_is_windows_times_three_scenarios_times_points() {
+    // Closes the C5 review gap: without this, narrowing the scenario set (ladder[..2]), counting
+    // points instead of cells, or a window-count regression would survive the other four tests.
+    let spec = spec();
+    let outcome = run_sweep(
+        &spec,
+        synthetic_series(160),
+        &cost(),
+        dec!(10000),
+        365.0,
+        Parallelism::Sequential,
+    )
+    .unwrap();
+
+    // Recompute the canonical cell count from the fixture itself: dev+val = 130 bars (the holdout
+    // starts at index 130), exactly three cost scenarios (before_costs/base/doubled), every point.
+    let n_windows = spec.walk_forward.windows(130).len();
+    let n_points: usize = spec.grids.iter().map(|g| g.points().len()).sum();
+    assert!(
+        n_windows > 0 && n_points == 4,
+        "fixture must be non-vacuous"
+    );
+    let expected = u32::try_from(n_windows * 3 * n_points).unwrap();
+    assert_eq!(outcome.report.trial_count, expected);
+}
+
+#[test]
 fn report_validates_against_schema() {
     let path = format!(
         "{}/../../schemas/sweep-report.schema.json",

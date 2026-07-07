@@ -306,3 +306,29 @@ recorded inline (not full logs).
   `cargo run -p cli -- demo` hash unchanged (`ae064f79…`, run twice). This closes the M4-C5 card and
   discharges all three M4 gate criteria (parallel==sequential, repeated-identical, holdout sealed)
   at the `run_sweep` orchestration level. Nothing committed (the operator commits).
+
+## 2026-07-07 — Operator direction decision recorded (Q7; plans/questions.md — no code)
+
+- The operator surfaced that the true ambition is a **high-volume autonomous Solana trading bot**
+  (small per-trade edges, thousands of trades/day) — a direction the plan's "Rejected or notes-only
+  directions" section had shelved. Decision (recorded as **Q7** in questions.md): **finish the
+  M4-C1…C10 queue unchanged**, then amend master-plan.md + the root plan file (in lockstep,
+  byte-identical) to add a **high-frequency research track** (intraday/tick data, latency-aware
+  adversarial fill model, HF strategy family). HF is now *deferred-then-planned*, not rejected.
+  The M4 executor queue, gate criteria, and M8/M9 approval gates are all unchanged.
+
+## 2026-07-07 — C5 adversarial review (5 lenses + per-finding skeptics, Sonnet subagents) → PASS
+- Reviewed the committed C5 diff (`721e21b`): orchestration / determinism / holdout-seal /
+  evidence-math / test-quality+card-conformance lenses, 2 skeptics per finding. Verdict: **no
+  blockers, no majors**; implementation matches card M4-C5 verbatim; ladder[..3] cost-matched to
+  the doubled floor path; no unordered iteration or f64 in decision paths; holdout lens re-run
+  standalone → all 5 seal checks PASS (Sealed unconsumed; audit hooks provably non-reading;
+  partition.rs untouched by the commit).
+- 1 confirmed minor (survived both skeptics): no test pinned `trial_count`/the scenario set — a
+  `ladder[..2]`, swapped-floor, or points-vs-cells mutant would survive the 4 tests. **Fixed**: added
+  `trial_count_is_windows_times_three_scenarios_times_points` to tests/sweep_runner.rs (expected
+  count recomputed from the fixture's own windows()/points() APIs, not hardcoded). Note: a
+  swapped-base/doubled-floors mutant is still not directly pinned (thresholds in this fixture are
+  deliberately loose); acceptable — the C9 gate declaration re-runs the full battery.
+- Re-gate: fmt clean; clippy -D warnings clean; **285 tests, 0 failed** (5/5 sweep_runner); demo
+  unchanged. Next: M4-C6 (CLI `machina sweep`).

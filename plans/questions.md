@@ -4,7 +4,7 @@ Only **real** operator decisions live here. Each has a safe default already appl
 block autonomous M0–M4 *engine* work. Format: Question · Why it matters · Safe default (applied) ·
 What's blocked.
 
-> Status: **0 blocking**, 5 non-blocking open, 1 resolved (Q6). The executor proceeded on safe defaults. Note: Q5's
+> Status: **0 blocking**, 5 non-blocking open, 2 resolved (Q6, Q7). The executor proceeded on safe defaults. Note: Q5's
 > walk-forward sizing + rejection thresholds must be **frozen by the operator before the M5 research
 > decision** (post-hoc choice = overfitting); they do not block the M4 engine.
 
@@ -76,6 +76,27 @@ What's blocked.
   header, and the handoff seed prompt — the structural safety language (invariant 11, M8/M9
   approval gates) is unchanged everywhere.
 - **Blocked:** nothing.
+
+## Q7 — DECIDED (2026-07-07): high-frequency direction — finish M4 first, then amend the plan
+- **What the operator decided.** The operator's actual ambition is a **high-volume autonomous
+  Solana trading bot** (small per-trade edges via intuitive math, thousands of trades/day) — a
+  direction master-plan.md's "Rejected or notes-only directions" section had shelved
+  (Arbitrage/XEMM/MEV, ~line 1755). Decision: **complete the M4 card queue (M4-C1…C10) unchanged
+  first** — the validation machinery (determinism, sealed holdout, walk-forward, cost ladder,
+  robustness battery) applies to any strategy class — **then formally amend `plans/master-plan.md`
+  to add a high-frequency research track**: intraday/tick-level data sourcing, a latency-aware +
+  adversarial-execution fill model, and an HF strategy family. The amendment is an operator-level
+  planning task, not an executor card; it must edit master-plan.md and the root
+  `solana-crypto-trader-plan.md` in lockstep (byte-identical pair — "edit both or neither", Q6).
+- **Why it matters.** Without this record, future sessions would keep treating low-frequency
+  SOL/USDC allocation as the terminal scope and HF as permanently rejected. HF is now
+  **deferred-then-planned**, not rejected. The plan's original economics warning stands and is why
+  the research layer ships first: at thousands of trades/day, per-trade edge must beat round-trip
+  costs against colocated/MEV counterparties — the S10 cost-sensitivity ladder is the instrument
+  that answers whether that edge is real before any capital moves.
+- **Blocked:** the HF plan amendment waits on the M4 gate declaration (card M4-C9). Nothing in the
+  current M4-C1…C10 queue changes. M8/M9 signing/submission gates are unaffected and still require
+  separate explicit human approval.
 
 ## Escalation policy
 A genuinely blocking decision (anything touching keys, signing, submission, real funds, paid
