@@ -34,6 +34,10 @@ sma_period = 50
 # Target SOL weight when price is above / below the SMA (allocation buckets).
 weight_above = "0.75"
 weight_below = "0.00"
+# M4 sweep grid axes (sets of values to sweep). Illustrative, NOT tuned (Q4/Q5).
+sma_periods = [20, 50]
+weights_above = ["0.75", "0.50"]
+weights_below = ["0.00"]
 
 # ── threshold_rebalance_v1 ───────────────────────────────────────────────────
 # Maintains a target SOL weight; only rebalances when drift exceeds the band.
@@ -42,3 +46,27 @@ weight_below = "0.00"
 enabled = true
 target_sol_weight = "0.50"
 rebalance_band = "0.10"             # rebalance only when |current − target| > band
+# M4 sweep grid axes (sets of values to sweep). Illustrative, NOT tuned (Q4/Q5).
+target_sol_weights = ["0.25", "0.50", "0.75"]
+rebalance_bands = ["0.05", "0.10"]
+
+# ── walk-forward schedule (M4) ───────────────────────────────────────────────
+# Illustrative defaults (Q5); the operator must FREEZE real values before M5.
+# kind = "rolling" (fixed-length train, de-weights stale regimes) or "anchored".
+[walk_forward]
+kind = "rolling"
+train_len = 365
+test_len = 90
+step = 90
+embargo = 5
+
+# ── advancement thresholds (M4 robustness battery) ───────────────────────────
+# Illustrative budgets, clearly NOT tuned (Q5); freeze before the M5 decision.
+# Decimal strings; turnover budget is against the UN-annualized ratio.
+[advancement]
+drawdown_budget = "0.35"
+turnover_budget = "12"
+baseline_margin = "0"
+dispersion_budget = "0.40"
+neighbor_tolerance = "0.15"
+min_windows = 3

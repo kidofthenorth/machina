@@ -237,3 +237,48 @@ recorded inline (not full logs).
 - Gate: no code/schema touched; `cmp plans/master-plan.md solana-crypto-trader-plan.md` → identical;
   repo grep confirms no "does not promise passive income" remains outside historical worklog/Q6
   records. Nothing committed (the operator commits).
+
+## 2026-07-07 — M4-C1: restored the missing `Sealed` no-forgery doctest canary
+- `crates/sweep/src/partition.rs`: added the `no_run` canary doc block (exercising
+  `holdout_read_count`/`holdout_digest`/`holdout_len`) right after `Sealed`'s `compile_fail` block, so
+  all three holdout no-forgery doctests now have their canary (matches the existing `DevValidation`
+  pattern). Gate: `cargo test -p sweep --doc` → 6 passed, 0 failed (was 5); full-workspace gate
+  (`cargo fmt --all --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test
+  --workspace --all-features`) green, **273 passed, 0 failed**. Nothing committed (the operator commits).
+
+## 2026-07-07 — M4-C2: `sweep::spec` parses the strategy-lab TOML
+- `config/strategies/strategy-lab.example.toml`: added grid axes to `[trend_alloc_v1]` and
+  `[threshold_rebalance_v1]`, plus new `[walk_forward]` (rolling, train 365 / test 90 / step 90 /
+  embargo 5) and `[advancement]` (illustrative budgets, NOT tuned — Q5) tables.
+- `crates/sweep/src/spec.rs` (new): `SweepSpec::from_toml_str` — pure TOML → `SweepSpec` (partition,
+  walk-forward, advancement thresholds, enabled param grids in fixed family order), `SpecError` for
+  parse/date/window/unknown-kind failures. `rust_decimal`'s `serde` feature deserializes the quoted
+  Decimal strings from TOML directly, no workaround needed. 3 new unit tests (example template
+  resolves; unknown `walk_forward.kind` rejected; disabled family omitted).
+- `crates/sweep/src/lib.rs`: `pub mod spec;` + `pub use spec::{SpecError, SweepSpec};`.
+- Gate: `cargo test -p sweep spec` → 3 new tests pass; full-workspace gate (fmt/clippy/test) green,
+  **276 passed, 0 failed**; `cargo run -q -p cli -- demo | shasum` twice → identical (`ae064f79…`,
+  unaffected — the demo doesn't read this template). Nothing committed (the operator commits).
+
+## 2026-07-07 — M4-C3: `sweep::runner` canonical cell enumeration
+- `crates/sweep/src/runner.rs` (new): `enumerate_cells(points, scenarios, windows) -> (Vec<SweepCell>,
+  Vec<CellKey>)` — canonical order window (outer) → scenario → point (inner), `cells[i].index == i`
+  assigned before any thread spawns. 1 new unit test asserting the exact 8-cell key sequence over 2
+  windows × 2 scenarios × 2 points, plus per-cell test-range/cost equality to its window/scenario.
+- `crates/sweep/src/lib.rs`: `pub mod runner;` + `pub use runner::{enumerate_cells, CellKey};`.
+- Gate: `cargo test -p sweep runner` → new test passes; full-workspace gate (fmt/clippy/test) green,
+  **277 passed, 0 failed**. Nothing committed (the operator commits).
+
+## 2026-07-07 — M4-C4: `sweep::runner` aggregates cell results into `CandidateEvidence`
+- `crates/sweep/src/runner.rs`: added `aggregate_evidence(grids, keys, results, n_windows,
+  base_floors, doubled_floors) -> Vec<CandidateEvidence>` — one pass over Base/Doubled cells per
+  point (means, worst-case max_drawdown/turnover), plus `neighbor_indices`/`in_grid_neighbors`
+  helpers reconstructing each point's row-major grid position (last axis fastest, matching
+  `ParamGrid::points()`) to find axis-neighbors for `neighbor_degradation` (floored at 0). Only
+  division is by window/floor count, exact Decimal throughout. 3 new unit tests: exact means/
+  dispersion/baseline-margin/doubled-floor over hand-built `CellResult`s; worst-axis-neighbor
+  degradation over a 3-point 1-D grid (middle point 0.4, edges floor at 0); empty-windows path
+  yields all-zero evidence with `valid_windows == 0`.
+- `crates/sweep/src/lib.rs`: added `aggregate_evidence` to the `pub use runner::…` line.
+- Gate: `cargo test -p sweep runner` → all 4 runner tests (C3 + C4) pass; full-workspace gate
+  (fmt/clippy/test) green, **280 passed, 0 failed**. Nothing committed (the operator commits).

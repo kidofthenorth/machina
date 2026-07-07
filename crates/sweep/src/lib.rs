@@ -33,7 +33,9 @@ pub mod parallel;
 pub mod param;
 pub mod partition;
 pub mod report;
+pub mod runner;
 pub mod sensitivity;
+pub mod spec;
 pub mod turnover;
 pub mod window;
 
@@ -48,9 +50,11 @@ pub use parallel::{run_cells, run_in_parallel, Parallelism, SweepCell};
 pub use param::{build_strategy, ParamGrid, ParamPoint};
 pub use partition::{evaluate_on_holdout, DevValidation, PartitionError, PartitionedBars, Sealed};
 pub use report::{SweepReport, ThresholdsDto, SWEEP_SCHEMA_VERSION};
+pub use runner::{aggregate_evidence, enumerate_cells, CellKey};
 pub use sensitivity::{
     cost_scenarios, fee_sensitivity, scale_cost_model, CostScenario, FeeSensitivity, ScenarioId,
     ScenarioMetrics,
 };
+pub use spec::{SpecError, SweepSpec};
 pub use turnover::turnover_ratio;
 pub use window::{WalkForward, Window, WindowError, WindowKind};

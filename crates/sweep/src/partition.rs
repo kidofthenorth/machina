@@ -356,6 +356,16 @@ impl DevValidation {
 /// ```compile_fail
 /// let _forged = sweep::Sealed { holdout: unimplemented!() }; // private field → does not compile
 /// ```
+///
+/// The audit hooks on a legitimately obtained seal compile and type-check (a canary proving the
+/// block above fails only on the private field, not on a naming error):
+///
+/// ```no_run
+/// let sealed: sweep::Sealed = unimplemented!();
+/// let _reads = sealed.holdout_read_count();
+/// let _digest = sealed.holdout_digest();
+/// let _len = sealed.holdout_len();
+/// ```
 pub struct Sealed {
     holdout: Holdout,
 }

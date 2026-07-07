@@ -66,7 +66,7 @@ source on 2026-07-06 at commit `df18267`** — if what you find differs, escalat
 
 ---
 
-### M4-C1 — Add the missing `no_run` canary to the `Sealed` no-forgery doctest — `TODO`
+### M4-C1 — Add the missing `no_run` canary to the `Sealed` no-forgery doctest — `DONE`
 
 **Goal.** Restore the S9-claimed property "every `compile_fail` doctest has a `no_run` canary proving
 it fails only for the intended reason" (serves M4 gate: *untouched holdout remains untouched* — keeps
@@ -124,7 +124,7 @@ doctest count is not 5 before / 6 after; any other test fails; anything else nee
 
 ---
 
-### M4-C2 — `sweep::spec`: parse the strategy-lab TOML + add its missing blocks — `TODO`
+### M4-C2 — `sweep::spec`: parse the strategy-lab TOML + add its missing blocks — `DONE`
 
 **Goal.** Give the sweep engine a config-file front door: add the `[walk_forward]`, `[advancement]`,
 and grid-array keys to the strategy-lab template, and a `SweepSpec` that parses them (serves M4
@@ -327,7 +327,7 @@ NOT switch weights to bare numbers — stop and report); any pre-existing test f
 
 ---
 
-### M4-C3 — `sweep::runner` part 1: canonical cell enumeration — `TODO`
+### M4-C3 — `sweep::runner` part 1: canonical cell enumeration — `DONE`
 
 **Goal.** One fixed, documented enumeration of the whole sweep — window (outer) → cost scenario →
 param point (inner), index preassigned before any thread spawns (serves M4 gate: *parallel and
@@ -424,7 +424,7 @@ any pre-existing test fails.
 
 ---
 
-### M4-C4 — `sweep::runner` part 2: aggregate cell results into `CandidateEvidence` — `TODO`
+### M4-C4 — `sweep::runner` part 2: aggregate cell results into `CandidateEvidence` — `DONE`
 
 **Goal.** Turn raw per-cell results into the exact evidence `evaluate_candidate` consumes — means,
 fold dispersion, worst drawdown/turnover, per-window baseline floors, neighbor degradation — all
