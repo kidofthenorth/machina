@@ -577,7 +577,7 @@ the formula note is wrong — stop, don't guess); any pre-existing test fails.
 
 ---
 
-### M4-C5 — `sweep::runner` part 3: `run_sweep` end-to-end + report-level determinism test — `TODO`
+### M4-C5 — `sweep::runner` part 3: `run_sweep` end-to-end + report-level determinism test — `DONE`
 
 **Goal.** The single orchestration entry point: spec + bars → sealed partitions → windows → cells →
 parallel evaluation → evidence → verdicts → `SweepReport` (serves ALL THREE M4 gate criteria:

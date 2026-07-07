@@ -2,13 +2,18 @@
 //! evidence aggregation → SweepReport. Deterministic by construction: the cell order is fixed
 //! before any thread spawns (m4-sweep.md §5: window → cost-scenario → param order).
 
-use crate::advance::CandidateEvidence;
+use crate::advance::{evaluate_candidate, CandidateEvidence};
+use crate::baseline::{best_baseline_return, eval_all_baselines};
 use crate::cell::CellResult;
-use crate::parallel::SweepCell;
+use crate::parallel::{run_cells, Parallelism, SweepCell};
 use crate::param::{ParamGrid, ParamPoint};
-use crate::sensitivity::{CostScenario, ScenarioId};
+use crate::partition::{PartitionError, PartitionedBars, Sealed};
+use crate::report::SweepReport;
+use crate::sensitivity::{cost_scenarios, scale_cost_model, CostScenario, ScenarioId};
+use crate::spec::SweepSpec;
 use crate::window::Window;
-use research_core::Decimal;
+use portfolio::{CostModel, SimError};
+use research_core::{Bar, Decimal};
 
 /// Where a cell sits in the canonical enumeration. `point_index` indexes the caller's
 /// concatenated `points` list (grids in fixed family order).
@@ -189,6 +194,111 @@ fn in_grid_neighbors(grid: &ParamGrid, local: usize) -> Vec<usize> {
         }
     }
     out
+}
+
+/// Everything a sweep produces. The seal is returned UNCONSUMED so callers can PROVE the holdout
+/// was never read (`sealed.holdout_read_count() == 0`). M4 code must never consume it.
+#[derive(Debug)]
+pub struct SweepOutcome {
+    pub report: SweepReport,
+    pub sealed: Sealed,
+}
+
+/// Why a sweep failed.
+#[derive(Debug)]
+pub enum SweepError {
+    Partition(PartitionError),
+    Sim(SimError),
+}
+
+impl std::fmt::Display for SweepError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Partition(e) => write!(f, "sweep partitioning failed: {e}"),
+            Self::Sim(e) => write!(f, "sweep simulation failed: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for SweepError {}
+
+impl From<PartitionError> for SweepError {
+    fn from(e: PartitionError) -> Self {
+        Self::Partition(e)
+    }
+}
+
+impl From<SimError> for SweepError {
+    fn from(e: SimError) -> Self {
+        Self::Sim(e)
+    }
+}
+
+/// Run the full deterministic sweep. Scenario set = the first three rungs of the cost ladder:
+/// BeforeCosts, Base, Doubled (m4-sweep.md §13). `trial_count` = total cells evaluated.
+///
+/// # Errors
+/// Returns [`SweepError`] if partitioning or any cell/baseline simulation fails.
+pub fn run_sweep(
+    spec: &SweepSpec,
+    bars: Vec<Bar>,
+    base_cost: &CostModel,
+    initial_cash_usdc: Decimal,
+    periods_per_year: f64,
+    parallelism: Parallelism,
+) -> Result<SweepOutcome, SweepError> {
+    let (dev, sealed) = PartitionedBars::from_spec(bars, &spec.partition)?.seal_holdout();
+    let windows = dev.walk_forward_windows(&spec.walk_forward);
+    let ladder = cost_scenarios(base_cost);
+    // BeforeCosts, Base, Doubled — ladder order is test-pinned. BeforeCosts cells are evaluated
+    // and counted in trial_count but not read by aggregate_evidence: they are the "same strategy
+    // before costs" sensitivity rung m4-sweep.md §13 mandates, kept for M5's FeeSensitivity use
+    // and honest multiple-testing accounting. Deliberate — do not narrow to [1..3].
+    let scenarios = &ladder[..3];
+    let points: Vec<ParamPoint> = spec.grids.iter().flat_map(|g| g.points()).collect();
+    let (cells, keys) = enumerate_cells(&points, scenarios, &windows);
+    let results = run_cells(
+        &cells,
+        dev.dev_validation(),
+        initial_cash_usdc,
+        periods_per_year,
+        parallelism,
+    )?;
+    let doubled = scale_cost_model(base_cost, 2, 1);
+    let mut base_floors = Vec::with_capacity(windows.len());
+    let mut doubled_floors = Vec::with_capacity(windows.len());
+    for w in &windows {
+        let slice = &dev.dev_validation()[w.test.clone()];
+        base_floors.push(best_baseline_return(&eval_all_baselines(
+            slice,
+            base_cost,
+            initial_cash_usdc,
+            periods_per_year,
+        )?));
+        doubled_floors.push(best_baseline_return(&eval_all_baselines(
+            slice,
+            &doubled,
+            initial_cash_usdc,
+            periods_per_year,
+        )?));
+    }
+    let evidence = aggregate_evidence(
+        &spec.grids,
+        &keys,
+        &results,
+        windows.len(),
+        &base_floors,
+        &doubled_floors,
+    );
+    let verdicts = evidence
+        .iter()
+        .map(|ev| evaluate_candidate(ev, &spec.thresholds))
+        .collect();
+    let trial_count = u32::try_from(cells.len()).unwrap_or(u32::MAX);
+    Ok(SweepOutcome {
+        report: SweepReport::new(&spec.thresholds, trial_count, verdicts),
+        sealed,
+    })
 }
 
 #[cfg(test)]

@@ -282,3 +282,27 @@ recorded inline (not full logs).
 - `crates/sweep/src/lib.rs`: added `aggregate_evidence` to the `pub use runner::…` line.
 - Gate: `cargo test -p sweep runner` → all 4 runner tests (C3 + C4) pass; full-workspace gate
   (fmt/clippy/test) green, **280 passed, 0 failed**. Nothing committed (the operator commits).
+
+## 2026-07-07 — M4-C5: `run_sweep` end-to-end + report-level determinism test (M4 gate)
+- `crates/sweep/src/runner.rs`: added `run_sweep(spec, bars, base_cost, initial_cash_usdc,
+  periods_per_year, parallelism) -> Result<SweepOutcome, SweepError>` — the single orchestration
+  entry point: `PartitionedBars::from_spec` → `seal_holdout` → `walk_forward_windows` →
+  `cost_scenarios` (first 3 rungs: BeforeCosts/Base/Doubled) → `enumerate_cells` → `run_cells` →
+  per-window baseline floors (base + doubled cost) → `aggregate_evidence` → `evaluate_candidate` →
+  `SweepReport::new`. Returns `SweepOutcome { report, sealed }` with the seal unconsumed;
+  `evaluate_on_holdout` is never called or referenced (grepped clean). `SweepError` wraps
+  `PartitionError`/`SimError` via `From`.
+- `crates/sweep/src/lib.rs`: added `run_sweep`, `SweepError`, `SweepOutcome` to the
+  `pub use runner::…` line.
+- `crates/sweep/tests/sweep_runner.rs` (new): 4 tests on a 160-bar sawtooth series (same fixture
+  family as `holdout_sealing.rs`), 2-family grid (TrendAlloc × ThresholdRebalance, 4 points total) —
+  (a) report `to_json()` byte-identical across Sequential (×2), Threads(2), Threads(8); (b) all four
+  runs have `holdout_read_count() == 0`, `holdout_len() == 30`, matching `holdout_digest()`; (c)
+  exactly 4 verdicts, labels sorted+unique; (d) `report.to_value()` validates against
+  `schemas/sweep-report.schema.json`.
+- Gate: `cargo test -p sweep --test sweep_runner` → 4/4 pass; `cargo test -p sweep` → all sweep
+  tests (unit+determinism+holdout_sealing+walk_forward+schema_validation+sweep_runner+doctests)
+  pass; full-workspace gate (fmt/clippy -D warnings/test) green, **284 passed, 0 failed**;
+  `cargo run -p cli -- demo` hash unchanged (`ae064f79…`, run twice). This closes the M4-C5 card and
+  discharges all three M4 gate criteria (parallel==sequential, repeated-identical, holdout sealed)
+  at the `run_sweep` orchestration level. Nothing committed (the operator commits).

@@ -50,7 +50,9 @@ pub use parallel::{run_cells, run_in_parallel, Parallelism, SweepCell};
 pub use param::{build_strategy, ParamGrid, ParamPoint};
 pub use partition::{evaluate_on_holdout, DevValidation, PartitionError, PartitionedBars, Sealed};
 pub use report::{SweepReport, ThresholdsDto, SWEEP_SCHEMA_VERSION};
-pub use runner::{aggregate_evidence, enumerate_cells, CellKey};
+pub use runner::{
+    aggregate_evidence, enumerate_cells, run_sweep, CellKey, SweepError, SweepOutcome,
+};
 pub use sensitivity::{
     cost_scenarios, fee_sensitivity, scale_cost_model, CostScenario, FeeSensitivity, ScenarioId,
     ScenarioMetrics,
