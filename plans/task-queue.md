@@ -837,7 +837,7 @@ any pre-existing test fails.
 
 ---
 
-### M4-C7 — CLI `machina sweep-verify` — `TODO`
+### M4-C7 — CLI `machina sweep-verify` — `DONE`
 
 **Goal.** A local, operator-runnable mirror of the CI determinism gate: run the sweep Sequential,
 Threads(2), and Threads(8); exit 0 iff all three reports are byte-identical and the holdout was never

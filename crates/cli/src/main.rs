@@ -33,6 +33,7 @@ fn main() {
     match args.next().as_deref() {
         Some("demo") => demo(),
         Some("sweep") => sweep_cmd(args),
+        Some("sweep-verify") => sweep_verify(),
         Some("--help" | "-h" | "help") | None => usage(),
         Some(other) => {
             eprintln!("unknown command: {other}\n");
@@ -46,7 +47,8 @@ fn usage() {
     println!(
         "machina — paper-first Solana research platform (research mode only)\n\n\
          USAGE:\n  machina demo    Run the deterministic demo (no network, no keys)\n  \
-         machina sweep [--threads N] [--out PATH]    Deterministic parameter sweep (research only)\n\n\
+         machina sweep [--threads N] [--out PATH]    Deterministic parameter sweep (research only)\n  \
+         machina sweep-verify    Assert parallel == sequential byte-identical (CI-gate mirror)\n\n\
          This binary has no key, RPC, or transaction-submission path. See docs/invariants.md."
     );
 }
@@ -94,6 +96,29 @@ fn sweep_cmd(mut args: impl Iterator<Item = String>) {
         }
         None => println!("{json}"),
     }
+}
+
+/// Local mirror of the CI determinism gate: the canonical sweep must be byte-identical across
+/// Sequential and explicit thread counts. Exits non-zero on any mismatch.
+fn sweep_verify() {
+    let sequential = sweep_report_json(Parallelism::Sequential);
+    for n in [2usize, 8] {
+        let parallel =
+            sweep_report_json(Parallelism::Threads(NonZeroUsize::new(n).expect("n >= 1")));
+        if parallel != sequential {
+            eprintln!("sweep-verify: MISMATCH at {n} threads (parallel output != sequential)");
+            std::process::exit(1);
+        }
+    }
+    let repeat = sweep_report_json(Parallelism::Sequential);
+    if repeat != sequential {
+        eprintln!("sweep-verify: MISMATCH on repeated sequential run");
+        std::process::exit(1);
+    }
+    println!(
+        "sweep-verify: OK — byte-identical across sequential, 2 and 8 threads, and repeat ({} bytes)",
+        sequential.len()
+    );
 }
 
 /// Run the canonical M4 sweep on the embedded templates + synthetic series; return report JSON.
@@ -386,6 +411,15 @@ mod tests {
         let c = sweep_report_json(Parallelism::Threads(NonZeroUsize::new(2).unwrap()));
         assert_eq!(a, b);
         assert_eq!(a, c);
+    }
+
+    #[test]
+    fn sweep_verify_inputs_agree() {
+        let sequential = sweep_report_json(Parallelism::Sequential);
+        let threads_2 = sweep_report_json(Parallelism::Threads(NonZeroUsize::new(2).unwrap()));
+        let threads_8 = sweep_report_json(Parallelism::Threads(NonZeroUsize::new(8).unwrap()));
+        assert_eq!(sequential, threads_2);
+        assert_eq!(sequential, threads_8);
     }
 
     #[test]
