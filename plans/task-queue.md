@@ -957,6 +957,411 @@ three files seems to need editing.
 
 ---
 
+### M4-C8b — Aggregate per-candidate fee sensitivity in the runner — `TODO`
+
+*(C8b–C8d inserted 2026-07-07 after the pre-declaration adversarial review confirmed a major: the
+"turnover and fee-sensitivity reporting" deliverable never reaches the exported report —
+`FeeSensitivity` had zero production callers. C8b builds the aggregation; C8c wires it into
+`SweepReport` + schema; C8d closes the review's two confirmed minors. Operator approved this scope
+2026-07-07 — see worklog.)*
+
+**Goal.** Give `FeeSensitivity` a production path: aggregate each candidate's BeforeCosts/Base/Doubled
+cells into one `FeeSensitivity` per candidate (serves M4 deliverable *turnover and fee-sensitivity
+reporting*).
+
+**Files.**
+1. `crates/sweep/src/sensitivity.rs`
+2. `crates/sweep/src/runner.rs`
+3. `crates/sweep/src/lib.rs`
+
+**Current state (verbatim, sensitivity.rs:181-195).**
+```rust
+pub fn fee_sensitivity(
+    before_costs: &CellResult,
+    base: &CellResult,
+    doubled: &CellResult,
+    survives_floor: Decimal,
+) -> FeeSensitivity {
+    FeeSensitivity {
+        before_costs: ScenarioMetrics::from_cell(ScenarioId::BeforeCosts, before_costs),
+        base: ScenarioMetrics::from_cell(ScenarioId::Base, base),
+        doubled: ScenarioMetrics::from_cell(ScenarioId::Doubled, doubled),
+        return_drag_doubled: base.total_return - doubled.total_return,
+        return_drag_costs: before_costs.total_return - base.total_return,
+        survives_doubled: doubled.total_return > survives_floor,
+    }
+}
+```
+`ScenarioMetrics` (sensitivity.rs:128-137): `scenario: ScenarioId, total_return: Decimal, turnover:
+Decimal, n_trades: u32, fees_paid_quote: Decimal, slippage_paid_quote: Decimal,
+priority_fees_paid_sol: Decimal`. `runner.rs` already has `CellKey { window_index, scenario:
+ScenarioId, point_index }` (:20-25), `aggregate_evidence` (:70-141, `mean` closure at :98-104), and
+run_sweep's `doubled_floors: Vec<Decimal>` (one entry per window). `Decimal` implements `Default`
+(ZERO), `Ord`, `Sum`.
+
+**Steps.**
+1. In `sensitivity.rs`, add directly after the `FeeSensitivity` struct (before `pub fn
+   fee_sensitivity`):
+   ```rust
+   impl FeeSensitivity {
+       /// Assemble from already-aggregated per-scenario metrics. Single source of truth for the
+       /// drag and survival rules — the single-cell path [`fee_sensitivity`] delegates here, so
+       /// the report and the edge-vanishes criterion can never drift apart.
+       #[must_use]
+       pub fn from_scenarios(
+           before_costs: ScenarioMetrics,
+           base: ScenarioMetrics,
+           doubled: ScenarioMetrics,
+           survives_floor: Decimal,
+       ) -> Self {
+           let return_drag_doubled = base.total_return - doubled.total_return;
+           let return_drag_costs = before_costs.total_return - base.total_return;
+           let survives_doubled = doubled.total_return > survives_floor;
+           Self {
+               before_costs,
+               base,
+               doubled,
+               return_drag_doubled,
+               return_drag_costs,
+               survives_doubled,
+           }
+       }
+   }
+   ```
+2. Replace `fee_sensitivity`'s body so it delegates (signature and doc comment unchanged):
+   ```rust
+   FeeSensitivity::from_scenarios(
+       ScenarioMetrics::from_cell(ScenarioId::BeforeCosts, before_costs),
+       ScenarioMetrics::from_cell(ScenarioId::Base, base),
+       ScenarioMetrics::from_cell(ScenarioId::Doubled, doubled),
+       survives_floor,
+   )
+   ```
+3. In `runner.rs`, extend the `use crate::sensitivity::…` line with `FeeSensitivity,
+   ScenarioMetrics`, and add after `aggregate_evidence` (before `neighbor_indices`):
+   ```rust
+   /// Per-candidate aggregated fee-sensitivity blocks, in candidate (point) order — the reportable
+   /// projection of the sweep (m4-sweep.md §9). Aggregation across windows, all exact Decimal:
+   /// total_return = mean (matching `aggregate_evidence`); turnover = max (worst window);
+   /// n_trades / fees / slippage / priority fees = sums. `survives_floor` = mean of the per-window
+   /// doubled-cost baseline floors — the same value `aggregate_evidence` records as
+   /// `doubled_baseline_floor`, so `survives_doubled` cannot drift from the edge-vanishes verdict.
+   #[must_use]
+   pub fn aggregate_fee_sensitivity(
+       grids: &[ParamGrid],
+       keys: &[CellKey],
+       results: &[CellResult],
+       doubled_floors: &[Decimal],
+   ) -> Vec<FeeSensitivity> {
+       let n_points: usize = grids.iter().map(|g| g.points().len()).sum();
+
+       #[derive(Clone, Default)]
+       struct Acc {
+           returns: Vec<Decimal>,
+           turnover: Decimal,
+           n_trades: u32,
+           fees: Decimal,
+           slippage: Decimal,
+           priority: Decimal,
+       }
+       let mut acc: Vec<[Acc; 3]> = (0..n_points).map(|_| Default::default()).collect();
+       for (k, r) in keys.iter().zip(results) {
+           let slot = match k.scenario {
+               ScenarioId::BeforeCosts => 0,
+               ScenarioId::Base => 1,
+               ScenarioId::Doubled => 2,
+               _ => continue,
+           };
+           let a = &mut acc[k.point_index][slot];
+           a.returns.push(r.total_return);
+           a.turnover = a.turnover.max(r.turnover);
+           a.n_trades += r.n_trades;
+           a.fees += r.fees_paid_quote;
+           a.slippage += r.slippage_paid_quote;
+           a.priority += r.priority_fees_paid_sol;
+       }
+
+       let mean = |xs: &[Decimal]| {
+           if xs.is_empty() {
+               Decimal::ZERO
+           } else {
+               xs.iter().copied().sum::<Decimal>() / Decimal::from(xs.len() as u64)
+           }
+       };
+       let survives_floor = mean(doubled_floors);
+       let metrics = |scenario: ScenarioId, a: &Acc| ScenarioMetrics {
+           scenario,
+           total_return: mean(&a.returns),
+           turnover: a.turnover,
+           n_trades: a.n_trades,
+           fees_paid_quote: a.fees,
+           slippage_paid_quote: a.slippage,
+           priority_fees_paid_sol: a.priority,
+       };
+       acc.iter()
+           .map(|slots| {
+               FeeSensitivity::from_scenarios(
+                   metrics(ScenarioId::BeforeCosts, &slots[0]),
+                   metrics(ScenarioId::Base, &slots[1]),
+                   metrics(ScenarioId::Doubled, &slots[2]),
+                   survives_floor,
+               )
+           })
+           .collect()
+   }
+   ```
+4. In `lib.rs`, add `aggregate_fee_sensitivity` to the `pub use runner::{…}` list.
+5. Tests. In `sensitivity.rs`'s `mod tests`: `fee_sensitivity_delegates_to_from_scenarios` — build
+   three `CellResult`s with the module's existing test helpers and assert
+   `fee_sensitivity(&a, &b, &c, floor) == FeeSensitivity::from_scenarios(ScenarioMetrics::from_cell(
+   ScenarioId::BeforeCosts, &a), ScenarioMetrics::from_cell(ScenarioId::Base, &b),
+   ScenarioMetrics::from_cell(ScenarioId::Doubled, &c), floor)`. In `runner.rs`'s `mod tests`:
+   `fee_sensitivity_aggregation_is_exact` — 1-point grid, 2 windows, all three scenarios per window,
+   hand-built `CellResult` literals with non-zero returns/turnover/n_trades/fees; assert per-scenario
+   mean return, max turnover, summed n_trades/fees, both drags, and `survives_doubled` against
+   `mean(doubled_floors)` — every value with `dec!`.
+6. `cargo fmt --all`, then the gate.
+
+**Gate.**
+- `cargo test -p sweep` → all green including the two new tests.
+- `cargo run -q -p cli -- sweep | shasum` → **unchanged** (nothing calls the new fn yet; the report
+  changes in C8c). Demo unchanged. Full-workspace gate green, 0 failed.
+
+**Guardrails.** Decimal/integer only — the ONLY division is by window count, in Decimal; no f64; no
+new dependencies; deterministic iteration only (Vec + fixed slots — no HashMap); no execution/RPC
+code; holdout untouched (`evaluate_on_holdout` never called); **no schema edits on this card**
+(schema is C8c's, with recorded cause); no master-plan edits.
+
+**Escalate-if.** `fee_sensitivity`'s current body differs from the verbatim block above;
+`ScenarioMetrics` fields differ; the sweep shasum changes; any pre-existing test fails.
+
+---
+
+### M4-C8c — Export per-candidate turnover + fee sensitivity in SweepReport (schema 1.1.0, D-0010) — `TODO`
+
+**Goal.** Make turnover and fee sensitivity **first-class outputs of the exported artifact** — the
+deliverable the pre-declaration review found unmet. `SweepReport` gains a required `candidates`
+array; the schema moves to 1.1.0; D-0010 records why. **Sanctioned exception to the 3-file budget
+(6 files): report code, schema, and validation tests must land in one green diff.**
+
+**Files.**
+1. `crates/sweep/src/report.rs`
+2. `crates/sweep/src/runner.rs` (run_sweep wiring only)
+3. `schemas/sweep-report.schema.json` — **deliberate contract change (D-0001); cause = the
+   2026-07-07 pre-declaration review major, operator-approved**
+4. `crates/sweep/tests/schema_validation.rs`
+5. `crates/sweep/tests/sweep_runner.rs`
+6. `DECISIONS.md` (D-0010, verbatim text in step 7)
+
+**Current state (verbatim).** `report.rs:17`: `pub const SWEEP_SCHEMA_VERSION: &str = "1.0.0";`.
+`report.rs:48-55`: `SweepReport { schema_version: String, note: String, trial_count: u32,
+thresholds: ThresholdsDto, verdicts: Vec<CandidateVerdict> }`. `report.rs:63-67`:
+`pub fn new(thresholds: &AdvancementThresholds, trial_count: u32, mut verdicts:
+Vec<CandidateVerdict>) -> Self` (does `verdicts.sort()`). Schema top-level `required` is
+`["schema_version", "note", "trial_count", "thresholds", "verdicts"]`; `$defs` currently
+`decimalString`, `Thresholds`, `CandidateVerdict`, `RejectionReason`; `schema_version` is
+pattern-checked (`^[0-9]+\.[0-9]+\.[0-9]+$`), not a const. run_sweep currently ends
+(runner.rs:293-301) with `verdicts` → `SweepReport::new(&spec.thresholds, trial_count, verdicts)`.
+C8b provides `aggregate_fee_sensitivity` and `FeeSensitivity::from_scenarios`.
+
+**Steps.**
+1. `report.rs`: bump `SWEEP_SCHEMA_VERSION` to `"1.1.0"`. Add these DTOs (import
+   `crate::sensitivity::{FeeSensitivity, ScenarioMetrics}` and `research_core::Decimal`):
+   ```rust
+   /// One scenario's reportable metrics, decimal-string encoded. The parent key
+   /// (before_costs/base/doubled) is the scenario discriminator — no separate field carried.
+   #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+   pub struct ScenarioMetricsDto {
+       pub total_return: String,
+       pub turnover: String,
+       pub n_trades: u32,
+       pub fees_paid_quote: String,
+       pub slippage_paid_quote: String,
+       pub priority_fees_paid_sol: String,
+   }
+
+   /// A candidate's fee-sensitivity block (m4-sweep.md §9), decimal-string encoded. Robustness
+   /// reporting only — never a profitability claim (invariant 11).
+   #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+   pub struct FeeSensitivityDto {
+       pub before_costs: ScenarioMetricsDto,
+       pub base: ScenarioMetricsDto,
+       pub doubled: ScenarioMetricsDto,
+       pub return_drag_costs: String,
+       pub return_drag_doubled: String,
+       pub survives_doubled: bool,
+   }
+
+   /// One candidate's first-class reported metrics (M4 deliverable: turnover and fee-sensitivity
+   /// reporting). `Ord` keys on `candidate_label` first — total canonical order, like verdicts.
+   #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+   pub struct CandidateMetricsDto {
+       pub candidate_label: String,
+       pub max_drawdown: String,
+       pub turnover: String,
+       pub fee_sensitivity: FeeSensitivityDto,
+   }
+   ```
+   with private `ScenarioMetricsDto::from_metrics(&ScenarioMetrics)` and
+   `FeeSensitivityDto::from_sensitivity(&FeeSensitivity)` helpers (field-by-field `.to_string()` on
+   every Decimal; copy `n_trades`/`survives_doubled` as-is), and one public constructor:
+   ```rust
+   impl CandidateMetricsDto {
+       /// Stringify one candidate's worst-window drawdown/turnover + fee-sensitivity block.
+       #[must_use]
+       pub fn new(
+           candidate_label: String,
+           max_drawdown: Decimal,
+           turnover: Decimal,
+           fee_sensitivity: &FeeSensitivity,
+       ) -> Self {
+           Self {
+               candidate_label,
+               max_drawdown: max_drawdown.to_string(),
+               turnover: turnover.to_string(),
+               fee_sensitivity: FeeSensitivityDto::from_sensitivity(fee_sensitivity),
+           }
+       }
+   }
+   ```
+2. `SweepReport`: add `pub candidates: Vec<CandidateMetricsDto>,` between `thresholds` and
+   `verdicts` (field order = serialization order). `SweepReport::new` gains a fourth parameter
+   `mut candidates: Vec<CandidateMetricsDto>`, does `candidates.sort();` next to `verdicts.sort();`,
+   stores it. Update report.rs's own unit tests to pass `vec![]` (an empty array is schema-valid).
+3. `runner.rs` — in run_sweep after the `evidence` binding:
+   ```rust
+   let fee = aggregate_fee_sensitivity(&spec.grids, &keys, &results, &doubled_floors);
+   let candidates = evidence
+       .iter()
+       .zip(&fee)
+       .map(|(ev, fs)| {
+           CandidateMetricsDto::new(ev.candidate_label.clone(), ev.max_drawdown, ev.turnover, fs)
+       })
+       .collect();
+   ```
+   change the construction to `SweepReport::new(&spec.thresholds, trial_count, verdicts,
+   candidates)`; import `crate::report::CandidateMetricsDto`. Reword run_sweep's BeforeCosts comment
+   (runner.rs:253-256): BeforeCosts cells now have a production consumer —
+   "consumed by `aggregate_fee_sensitivity` for the reported before-costs rung" (drop
+   "kept for M5's FeeSensitivity use").
+4. `schemas/sweep-report.schema.json`: add `"candidates"` to the top-level `required`; add under
+   `properties`:
+   ```json
+   "candidates": {
+     "description": "Per-candidate first-class metrics: worst-window drawdown/turnover and the fee-sensitivity block (before/base/doubled). Robustness reporting only (invariant 11).",
+     "type": "array",
+     "items": { "$ref": "#/$defs/CandidateMetrics" }
+   }
+   ```
+   and three new `$defs`, each `"additionalProperties": false`:
+   - `CandidateMetrics`: required `["candidate_label", "max_drawdown", "turnover",
+     "fee_sensitivity"]`; `candidate_label` string minLength 1; `max_drawdown`/`turnover` →
+     `#/$defs/decimalString`; `fee_sensitivity` → `#/$defs/FeeSensitivity`.
+   - `FeeSensitivity`: required `["before_costs", "base", "doubled", "return_drag_costs",
+     "return_drag_doubled", "survives_doubled"]`; the three scenario keys → `#/$defs/ScenarioMetrics`;
+     both drags → `#/$defs/decimalString`; `survives_doubled` `{ "type": "boolean" }`.
+   - `ScenarioMetrics`: required `["total_return", "turnover", "n_trades", "fees_paid_quote",
+     "slippage_paid_quote", "priority_fees_paid_sol"]`; `n_trades` `{ "type": "integer",
+     "minimum": 0 }`; all others → `#/$defs/decimalString`.
+5. `tests/schema_validation.rs`: the real-report builder now also passes a non-empty `candidates`
+   vec (build one `CandidateMetricsDto::new(...)` from a `FeeSensitivity::from_scenarios(...)` over
+   hand-built `ScenarioMetrics`). Add two rejection tests in the existing style: an extra property
+   inside a candidates object → invalid; a numeric (non-string) `total_return` → invalid. The
+   f64-audit test must stay green (introduce no `f64` token into advance.rs/report.rs).
+6. `tests/sweep_runner.rs`: add `fee_sensitivity_is_reported_first_class_per_candidate` — run_sweep
+   sequential on the existing fixture; assert `report.candidates.len() == 4`; candidate labels equal
+   verdict labels pairwise (both are label-sorted); every `before_costs` block has
+   `fees_paid_quote == "0"`, `slippage_paid_quote == "0"`, `priority_fees_paid_sol == "0"`; and for
+   every candidate, `fee_sensitivity.survives_doubled == false` **iff** the same-label verdict's
+   `failed_criteria` contains `kind == RejectionKind::EdgeVanishesUnderDoubledCosts`
+   (report⇔verdict single-source coupling; import `RejectionKind` from `sweep`).
+7. `DECISIONS.md` — insert directly under the `---` separator (above `## D-0009 …`), verbatim:
+   ```markdown
+   ## D-0010 — SweepReport carries first-class per-candidate turnover + fee-sensitivity (M4)
+   **Context.** The pre-declaration adversarial review of the M4 surface (2026-07-07, 11 agents)
+   confirmed a major: the "turnover and fee-sensitivity reporting" deliverable never reached the
+   EXPORTED artifact — `sensitivity::FeeSensitivity` had zero production callers and `SweepReport`
+   surfaced turnover only inside failure reasons. Plan §25 requires both as first-class outputs.
+   **Decision.** `SweepReport` (schema_version 1.0.0 → 1.1.0) gains a required `candidates` array:
+   per candidate, worst-window `max_drawdown`/`turnover` plus a `fee_sensitivity` block
+   (before_costs/base/doubled aggregated ScenarioMetrics, both return drags, baseline-grounded
+   `survives_doubled`). Aggregation matches the evidence rules (mean returns, worst-window
+   turnover/drawdown, summed costs); `survives_doubled` shares its floor and comparison with the
+   edge-vanishes criterion via the single constructor `FeeSensitivity::from_scenarios`, so report
+   and verdict cannot drift. The schema edit is a deliberate, reviewed contract change (D-0001);
+   the review finding is its recorded cause.
+   **Consequences.** The M4 deliverable is satisfied in the artifact itself; BeforeCosts cells have
+   a production consumer; reports stay byte-deterministic (candidates sorted by label; exact
+   decimal strings; no f64).
+   ```
+8. `cargo fmt --all`, then the gate.
+
+**Gate.**
+- `cargo test -p sweep` → all green, including the new schema-rejection and first-class tests.
+- `cargo run -q -p cli -- sweep | shasum` twice → identical to each other AND to `--threads 8`
+  (the hash **will** differ from `7d385d59…` — the report grew; byte-identity across runs/threads
+  is the invariant, not the old hash value).
+- `cargo run -q -p cli -- sweep-verify; echo $?` → OK, exit 0.
+- Full-workspace gate green, 0 failed. Demo hash unchanged (`ae064f79…`).
+- `git status` shows NO schema file modified other than `sweep-report.schema.json`.
+
+**Guardrails.** Decimal strings only in the JSON (never numbers for money); `survives_doubled` is
+computed ONLY via `from_scenarios` — never recomputed inline; candidates sorted for total-order
+byte-identity; no new dependencies; no execution/RPC code; holdout untouched; the ONLY schema
+touched is sweep-report; no master-plan edits.
+
+**Escalate-if.** Any quoted current-state line differs; `sweep-verify` reports MISMATCH
+(determinism regression — stop); the f64-audit fails; any other schema shows as modified; the
+report⇔verdict coupling test fails in a way you'd "fix" by weakening either side.
+
+---
+
+### M4-C8d — Close the review's two minor test gaps — `TODO`
+
+**Goal.** (1) Exercise the InsufficientData path end-to-end through `run_sweep` (not just hand-built
+evidence); (2) put the CLI `--threads`/`--out` parser under test — the pre-declaration review's two
+confirmed minors.
+
+**Files.**
+1. `crates/sweep/tests/sweep_runner.rs`
+2. `crates/cli/src/main.rs`
+
+**Steps.**
+1. `tests/sweep_runner.rs` — add
+   `under_populated_schedule_is_rejected_as_insufficient_data_end_to_end`: clone the fixture
+   `spec()` but set `thresholds.min_windows: 99`; run_sweep sequential; assert every verdict has
+   `status == Verdict::Rejected` and `failed_criteria.len() == 1` with
+   `failed_criteria[0].kind == RejectionKind::InsufficientData` (import `Verdict`, `RejectionKind`
+   from `sweep`).
+2. `crates/cli/src/main.rs` — extract `sweep_cmd`'s option loop into a pure, unit-testable helper
+   (behavior identical — same messages, same decisions):
+   ```rust
+   /// Parse `sweep` options. Pure so it is unit-testable; `sweep_cmd` maps Err to exit(2).
+   fn parse_sweep_args(
+       args: impl Iterator<Item = String>,
+   ) -> Result<(Parallelism, Option<String>), String>
+   ```
+   `Err(message)` for: missing `--threads`/`--out` value, non-integer or `0` threads, unknown
+   option; `Ok((Parallelism::Sequential, None))` with no args. `sweep_cmd` becomes: parse → on Err
+   `eprintln!` + `exit(2)` → run as before. Unit tests: no args → Sequential/None;
+   `--threads 2 --out x.json` → Threads(2)/Some("x.json"); `--threads 0`, `--threads abc`,
+   `--out` (no value), `--bogus` → all Err.
+3. `cargo fmt --all`, then the gate.
+
+**Gate.**
+- `cargo test -p sweep --test sweep_runner` and `cargo test -p cli` → new tests green.
+- `cargo run -q -p cli -- sweep | shasum` twice → identical, and the hash equals C8c's recorded
+  value (the parser refactor must not change output); `sweep-verify` exit 0; demo unchanged.
+- Full-workspace gate green, 0 failed.
+
+**Guardrails.** Behavior-preserving refactor only in the CLI; no new dependencies; no execution/RPC
+code; holdout untouched; no schema/master-plan edits.
+
+**Escalate-if.** `sweep_cmd`'s current shape doesn't match what C6 built; the sweep hash changes;
+any pre-existing test fails.
+
+---
+
 ### M4-C9 — M4 gate declaration (evidence checklist against master-plan.md) — `TODO`
 
 **Goal.** Run the full battery, check every M4 deliverable and gate criterion against
@@ -995,7 +1400,7 @@ collapsed — your checklist):**
    e. `cargo run -q -p cli -- sweep | shasum` twice → identical; `cargo run -q -p cli -- sweep --threads 8 | shasum` → same hash.
    f. `cargo run -q -p cli -- sweep-verify; echo $?` → prints OK, exit 0.
    g. the no-execution-deps scan from handoff.md §Verified state → prints OK.
-2. Evidence checklist — confirm each maps to a real artifact (all should exist if C1–C8 are DONE):
+2. Evidence checklist — confirm each maps to a real artifact (all should exist if C1–C8d are DONE):
    | Master-plan item | Evidence |
    |---|---|
    | Parameter sweeps, MVP families | `sweep::param` grids (both families) + `SweepSpec.grids` + CLI sweep over the template grids |
@@ -1003,7 +1408,7 @@ collapsed — your checklist):**
    | Canonical result export | `SweepReport::to_json` + `schemas/sweep-report.schema.json` validation tests (schema_validation.rs, sweep_runner.rs) |
    | Walk-forward windows | `sweep::window` + `DevValidation::walk_forward_windows` + walk_forward.rs |
    | Strategy-family comparison | one report covering both families' candidates, scored via the shared `eval_strategy` core against the same 4 cost-matched baselines |
-   | Turnover & fee-sensitivity reporting | `RunOutput.traded_notional_quote` → `CellResult.turnover` (+ budget criterion); `sensitivity` ladder + doubled-costs criterion with recorded observed/threshold |
+   | Turnover & fee-sensitivity reporting | **first-class in the exported artifact**: `SweepReport.candidates[]` per-candidate `turnover`, `max_drawdown`, and `fee_sensitivity` block (C8b/C8c, schema 1.1.0, D-0010) + `RunOutput.traded_notional_quote` → `CellResult.turnover` + budget/doubled-costs criteria with recorded observed/threshold |
    | Rejection report | `advance` (7 criteria) + `report` verdicts, schema-validated |
    | Gate: parallel==sequential | determinism.rs + sweep_runner.rs test (a) + step 1e/1f above |
    | Gate: repeated identical | same three, plus step 1d |
@@ -1011,7 +1416,7 @@ collapsed — your checklist):**
 3. In `plans/m4-sweep.md`: set the S12 row Status to `✅ DONE (as cards M4-C1…C10)`; add one line to
    the §1 goal section: `**GATE DECLARED <today's date>** — evidence in worklog + task-queue M4 cards.`
 4. In `plans/current-state.md`: Milestone section — move M4 to **DONE** (one line: engine S1–S11 +
-   cards C1–C8, gate declared, N tests green); set "DOING" to `— (between milestones; M5 requires
+   cards C1–C8d, gate declared, N tests green); set "DOING" to `— (between milestones; M5 requires
    operator decisions — see handoff)`; update the "Gates run" date/counts with step-1 results.
 5. In this file: flip this card to DONE; update the `M4·S1–S11` row Notes with "GATE DECLARED".
 6. Append the worklog line with the step-1 results.
@@ -1023,7 +1428,7 @@ master-plan.md; determinism evidence must come from freshly run commands (step 1
 card's text; no new dependencies; holdout stays sealed.
 
 **Escalate-if.** ANY step-1 command fails (M4 is NOT complete — stop, report, do not declare); any
-checklist row lacks its artifact; cards C1–C8 are not all DONE in this file.
+checklist row lacks its artifact; cards C1–C8 **and C8b/C8c/C8d** are not all DONE in this file.
 
 ---
 

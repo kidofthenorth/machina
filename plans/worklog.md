@@ -336,3 +336,66 @@ recorded inline (not full logs).
 - 2026-07-07: M4-C6 done — `machina sweep [--threads N] [--out PATH]` (added `sweep = { workspace = true }` to crates/cli/Cargo.toml; embedded strategy-lab template; `sweep_report_json` asserts `holdout_read_count() == 0`). Gate: `cargo test -p cli` 8/8; `sweep` shasum ×2 and `--threads 8` all byte-identical (`7d385d59…`); `demo` shasum unchanged (`ae064f79…`); fmt/clippy clean; full workspace **0 failed**; no-execution-deps scan OK. Next: M4-C7 (`sweep-verify`).
 - 2026-07-07: M4-C7 done — `machina sweep-verify` (local mirror of the CI determinism gate: Sequential vs Threads(2)/Threads(8) vs repeat, raw-string comparison, no re-parsing). Gate: `cargo run -q -p cli -- sweep-verify` → `sweep-verify: OK — byte-identical across sequential, 2 and 8 threads, and repeat (5446 bytes)`, exit 0; `cargo test -p cli` 9/9 (new `sweep_verify_inputs_agree`); fmt/clippy clean; full workspace `cargo test --workspace --all-features` **0 failed**; `sweep` shasum unchanged (`7d385d59…`). Next: M4-C8 (DECISIONS D-0009 + docs refresh).
 - 2026-07-07: M4-C8 done — docs-only: recorded DECISIONS D-0009 (thread::scope parallelism/zero new deps, traded-notional turnover, sweep-report schema, sealed holdout — M5-only `evaluate_on_holdout`); updated docs/architecture-index.md's `cli` row (dependency cell → "all of the above"; responsibility cell now lists demo/sweep/sweep-verify subcommands); added the sweep/sweep-verify commands to AGENTS.md Commands. No code/schema/plan-structure changes. Gate: `grep D-0009 DECISIONS.md` and `grep sweep-verify docs/architecture-index.md AGENTS.md` all hit; fmt clean; clippy `-D warnings` clean; full workspace `cargo test --workspace --all-features` **0 failed**. Next: M4-C9 (M4 gate declaration).
+
+## 2026-07-07 — M4-C9 pre-declaration adversarial review → STOP, gate NOT declared (1 confirmed major)
+- Per operator addendum, ran a pre-declaration adversarial-review workflow (Sonnet subagents,
+  `model: 'sonnet'` on every agent call) BEFORE running the C9 evidence battery: 5 parallel lenses
+  (determinism, holdout-seal, evidence-math, invariant-sweep, master-plan-conformance) over
+  `crates/sweep/src/*.rs`, `crates/sweep/tests/*.rs`, the sweep parts of `crates/cli/src/main.rs`,
+  and `schemas/sweep-report.schema.json` (read-only), then 2 skeptic agents per raised finding
+  (refute with file:line evidence; a finding survives unless BOTH skeptics refute it). 11 agents
+  total; 3 findings raised, 0 refuted — all 3 confirmed.
+- **Confirmed MAJOR** (master-plan-conformance lens): the "Turnover and fee-sensitivity reporting"
+  M4 deliverable (master-plan.md:873-889; m4-sweep.md §9 specifies a per-candidate `fee_sensitivity`
+  block — total_return/turnover/n_trades/fees_paid_usdc/slippage_paid_usdc/priority_fees_paid_sol
+  under base vs doubled, `return_drag_doubled`, `survives_doubled`) is only enforced as an internal
+  pass/fail gate. `sensitivity::fee_sensitivity()`/`FeeSensitivity`/`ScenarioMetrics` are re-exported
+  from `sweep::lib.rs` (lib.rs:57-58) but have ZERO production callers — confirmed independently via
+  `grep -rn "fee_sensitivity\|FeeSensitivity\|ScenarioMetrics" crates/`, whose only call sites outside
+  `sensitivity.rs` are doc-comment mentions in `runner.rs`/`advance.rs`; `run_sweep` never calls
+  `fee_sensitivity`. `SweepReport`/`CandidateVerdict` (report.rs:48-54, advance.rs:116-120) and
+  `schemas/sweep-report.schema.json` carry no fee-sensitivity/scenario-metrics field — verified
+  directly by reading both. `machina sweep`'s exported JSON therefore has no candidate-level
+  fee-sensitivity reporting, only the single worst-case `turnover: Decimal` feeding the
+  `turnover_implausible` rejection criterion. Real gap between the shipped artifact and the
+  master-plan Deliver bullet, not a refuted false positive.
+- 2 confirmed MINORs (survived both skeptics):
+  (1) evidence-math: `InsufficientData` (`valid_windows < min_windows`) is wired and unit-tested via
+  hand-built `CandidateEvidence`, but never exercised end-to-end through `run_sweep` with a real
+  under-populated walk-forward schedule (the only `run_sweep`-based fixture, `sweep_runner::spec()`,
+  sets `min_windows: 1`, below its realized window count, so the hard-stop can't fire there).
+  (2) master-plan-conformance: `cli::sweep_cmd` (the `--threads`/`--out` argument parser and file-write
+  path — the CLI half of "canonical result export") has no automated test; the test module calls
+  `sweep_report_json` directly and never exercises `sweep_cmd`'s arg loop, error branches, or the
+  `--out` file write.
+- **Decision (operator's decision rule): STOP — M4 gate NOT declared.** A confirmed major means the
+  evidence-checklist row for "Turnover and fee-sensitivity reporting" lacks a real artifact for its
+  reporting half (only the gating half is real). Per the rule, a confirmed major/blocker overrides the
+  minors-handling branch, so the minors' ≤10-line test-fix allowance was intentionally NOT used this
+  pass. No code changed (review was read-only); no plan files flipped beyond this entry —
+  `m4-sweep.md`/`current-state.md`/`task-queue.md` are untouched and **M4-C9 remains `TODO`**. Step-1
+  gate commands were not re-run as "declaration evidence" since the review already established the
+  gate cannot be declared this pass.
+- Escalating to the operator / next session: either (a) wire `fee_sensitivity` into `SweepReport` +
+  `schemas/sweep-report.schema.json` (code + schema change, out of C9's plan-files-only file scope —
+  needs its own card) so the deliverable is real before re-attempting C9, or (b) the operator
+  explicitly accepts the internal-gate-only scope as satisfying "reporting" and directs the executor to
+  proceed with C9 as-is. This is a scope call reserved for escalation, not an executor decision.
+
+## 2026-07-07 — Scope decision on the pre-declaration review major: wire fee sensitivity into the report
+- Operator decision (option a): the review's confirmed major is accepted as real — "turnover and
+  fee-sensitivity reporting" must be satisfied IN THE EXPORTED ARTIFACT, not by an internal-gate
+  technicality. Declaring M4 as-is would be the self-deception the battery exists to prevent.
+- Queue expanded: cards **M4-C8b** (runner-side `aggregate_fee_sensitivity` + single-source
+  `FeeSensitivity::from_scenarios`), **M4-C8c** (`SweepReport.candidates[]` with per-candidate
+  worst-window drawdown/turnover + fee-sensitivity block; `sweep-report.schema.json` 1.0.0→1.1.0 —
+  a deliberate D-0001 contract change with this review as recorded cause; DECISIONS **D-0010**),
+  **M4-C8d** (the review's two minors: InsufficientData end-to-end via run_sweep; CLI
+  `--threads/--out` parser extracted pure + tested). C9's evidence table and preconditions updated
+  to require C8b–C8d.
+- Design pins: aggregation matches evidence rules (mean returns / worst-window turnover+drawdown /
+  summed costs); `survives_doubled` shares floor and comparison with the edge-vanishes criterion via
+  one constructor so report and verdict cannot drift; candidates label-sorted for byte-identity; the
+  sweep output hash will change at C8c (report grows) — byte-identity across runs/threads remains
+  the invariant, and C8c's gate re-proves it via sweep-verify.
+- M4 gate remains UNDECLARED; C9 unchanged otherwise and still TODO.
