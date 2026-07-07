@@ -332,3 +332,5 @@ recorded inline (not full logs).
   deliberately loose); acceptable — the C9 gate declaration re-runs the full battery.
 - Re-gate: fmt clean; clippy -D warnings clean; **285 tests, 0 failed** (5/5 sweep_runner); demo
   unchanged. Next: M4-C6 (CLI `machina sweep`).
+- 2026-07-07: Drafted plans/hf-track.md (Q7 HF research-track amendment draft: 7-family candidate survey, execution-realism requirements, M-HF-C1…C10 card draft ending at a research gate). Operator review pending; no plan-pair or code edits.
+- 2026-07-07: M4-C6 done — `machina sweep [--threads N] [--out PATH]` (added `sweep = { workspace = true }` to crates/cli/Cargo.toml; embedded strategy-lab template; `sweep_report_json` asserts `holdout_read_count() == 0`). Gate: `cargo test -p cli` 8/8; `sweep` shasum ×2 and `--threads 8` all byte-identical (`7d385d59…`); `demo` shasum unchanged (`ae064f79…`); fmt/clippy clean; full workspace **0 failed**; no-execution-deps scan OK. Next: M4-C7 (`sweep-verify`).

@@ -180,6 +180,7 @@ dependencies = [
  "results",
  "rust_decimal",
  "strategies",
+ "sweep",
 ]
 
 [[package]]

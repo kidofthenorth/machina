@@ -18,6 +18,7 @@ portfolio = { workspace = true }
 metrics = { workspace = true }
 strategies = { workspace = true }
 results = { workspace = true }
+sweep = { workspace = true }
 rust_decimal = { workspace = true }
 
 [lints]

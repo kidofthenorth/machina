@@ -708,7 +708,7 @@ ladder test — if the order changed, stop); any pre-existing test fails.
 
 ---
 
-### M4-C6 — CLI `machina sweep [--threads N] [--out PATH]` — `TODO`
+### M4-C6 — CLI `machina sweep [--threads N] [--out PATH]` — `DONE`
 
 **Goal.** The user-facing sweep runner: embedded templates → `SweepSpec` → `run_sweep` → canonical
 `SweepReport` JSON on stdout or `--out` (serves M4 deliverables *parallel execution* and *canonical

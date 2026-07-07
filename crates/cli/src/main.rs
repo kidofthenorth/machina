@@ -12,12 +12,18 @@ use metrics::Metrics;
 use portfolio::{run, CostModel};
 use research_core::{Bar, Decimal, Timestamp};
 use results::{RunInputs, RunResult};
+use std::num::NonZeroUsize;
 use strategies::{
     BuyAndHoldSol, DcaIntoSol, HoldUsdc, Static5050, Strategy, ThresholdRebalanceV1, TrendAllocV1,
 };
+use sweep::{run_sweep, Parallelism, SweepSpec};
 
 /// The allowlist template is embedded at compile time so the demo needs no runtime files.
 const ALLOWLIST_TEMPLATE: &str = include_str!("../../../config/tokens/allowlist.example.toml");
+
+/// The strategy-lab template is embedded at compile time so `sweep` needs no runtime files.
+const STRATEGY_LAB_TEMPLATE: &str =
+    include_str!("../../../config/strategies/strategy-lab.example.toml");
 
 /// Bars per year for annualizing daily-bar statistics.
 const PERIODS_PER_YEAR: f64 = 365.0;
@@ -26,6 +32,7 @@ fn main() {
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
         Some("demo") => demo(),
+        Some("sweep") => sweep_cmd(args),
         Some("--help" | "-h" | "help") | None => usage(),
         Some(other) => {
             eprintln!("unknown command: {other}\n");
@@ -38,9 +45,110 @@ fn main() {
 fn usage() {
     println!(
         "machina — paper-first Solana research platform (research mode only)\n\n\
-         USAGE:\n  machina demo    Run the deterministic demo (no network, no keys)\n\n\
+         USAGE:\n  machina demo    Run the deterministic demo (no network, no keys)\n  \
+         machina sweep [--threads N] [--out PATH]    Deterministic parameter sweep (research only)\n\n\
          This binary has no key, RPC, or transaction-submission path. See docs/invariants.md."
     );
+}
+
+fn sweep_cmd(mut args: impl Iterator<Item = String>) {
+    let mut threads: Option<usize> = None;
+    let mut out: Option<String> = None;
+    while let Some(a) = args.next() {
+        match a.as_str() {
+            "--threads" => {
+                let v = args.next().unwrap_or_else(|| {
+                    eprintln!("--threads needs a value");
+                    std::process::exit(2)
+                });
+                threads = Some(v.parse().unwrap_or_else(|_| {
+                    eprintln!("--threads must be a positive integer");
+                    std::process::exit(2)
+                }));
+            }
+            "--out" => {
+                out = Some(args.next().unwrap_or_else(|| {
+                    eprintln!("--out needs a path");
+                    std::process::exit(2)
+                }))
+            }
+            other => {
+                eprintln!("unknown sweep option: {other}");
+                std::process::exit(2);
+            }
+        }
+    }
+    let parallelism = match threads {
+        None => Parallelism::Sequential,
+        Some(0) => {
+            eprintln!("--threads must be >= 1");
+            std::process::exit(2);
+        }
+        Some(n) => Parallelism::Threads(NonZeroUsize::new(n).expect("n >= 1")),
+    };
+    let json = sweep_report_json(parallelism);
+    match out {
+        Some(p) => {
+            std::fs::write(&p, &json).expect("write report file");
+            eprintln!("wrote {p}");
+        }
+        None => println!("{json}"),
+    }
+}
+
+/// Run the canonical M4 sweep on the embedded templates + synthetic series; return report JSON.
+/// Proves the holdout stayed sealed before returning. NEVER calls evaluate_on_holdout (M5-only).
+fn sweep_report_json(parallelism: Parallelism) -> String {
+    let allowlist =
+        Allowlist::from_toml_str(ALLOWLIST_TEMPLATE).expect("allowlist template parses");
+    allowlist.require("SOL").expect("SOL allowlisted");
+    allowlist.require("USDC").expect("USDC allowlisted");
+    let spec =
+        SweepSpec::from_toml_str(STRATEGY_LAB_TEMPLATE).expect("strategy-lab template parses");
+    let bars = sweep_series();
+    validate_series_spacing(&bars, 86_400).expect("sweep series is valid and gap-free");
+    let cost = CostModel {
+        dex_fee_bps: 5,
+        slippage_bps: 20,
+        base_fee_lamports: 5_000,
+        priority_fee_lamports: 50_000,
+    };
+    let outcome = run_sweep(
+        &spec,
+        bars,
+        &cost,
+        Decimal::from(10_000),
+        PERIODS_PER_YEAR,
+        parallelism,
+    )
+    .expect("sweep runs");
+    assert_eq!(
+        outcome.sealed.holdout_read_count(),
+        0,
+        "M4 must never read the holdout"
+    );
+    outcome.report.to_json()
+}
+
+/// Deterministic synthetic daily series spanning the template's [partitions] dates
+/// (2021-01-01..2025-12-31 = 1826 bars). Same sawtooth family as the sweep test fixtures.
+/// NOT real market data (research demo only; real ingestion is the M5 data question, Q3).
+fn sweep_series() -> Vec<Bar> {
+    const DAY: i64 = 86_400;
+    const START: i64 = 1_609_459_200; // 2021-01-01T00:00:00Z
+    (0..1826)
+        .map(|i| {
+            let p = Decimal::from(100 + (i as i64 % 7) * 3 + (i as i64 / 7) * 2);
+            Bar {
+                ts: Timestamp::from_unix(START + i as i64 * DAY),
+                open: p,
+                high: p,
+                low: p,
+                close: p,
+                volume: Decimal::from(1_000),
+            }
+        })
+        .collect()
 }
 
 fn demo() {
@@ -261,6 +369,23 @@ mod tests {
         assert_eq!(rr.final_balances.base, "0");
         assert_eq!(rr.final_balances.equity_quote, "10000");
         assert_eq!(rr.metrics.total_return, "0");
+    }
+
+    #[test]
+    fn sweep_series_is_valid_and_spans_the_partitions() {
+        let bars = sweep_series();
+        assert_eq!(bars.len(), 1826);
+        validate_series_spacing(&bars, 86_400).expect("uniform daily spacing");
+        assert_eq!(bars[0].ts, Timestamp::from_unix(1_609_459_200));
+    }
+
+    #[test]
+    fn sweep_report_is_deterministic_and_parallel_equal() {
+        let a = sweep_report_json(Parallelism::Sequential);
+        let b = sweep_report_json(Parallelism::Sequential);
+        let c = sweep_report_json(Parallelism::Threads(NonZeroUsize::new(2).unwrap()));
+        assert_eq!(a, b);
+        assert_eq!(a, c);
     }
 
     #[test]
