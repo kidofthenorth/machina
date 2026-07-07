@@ -35,7 +35,7 @@ param grids × cost scenarios × walk-forward windows (sweep)   ← M4, wraps th
 | `strategies` | `crates/strategies` | `Strategy` trait (history → target weights, intent only), baselines (incl. `dca_sol`), `regime::classify` scaffold, `trend_alloc_v1` / `threshold_rebalance_v1` scaffolds. | research-core, rust_decimal (dev: portfolio) |
 | `results` | `crates/results` | `RunResult`/`RunConfig` DTOs (money as exact decimal strings) + JSON-schema validation tests. | research-core, portfolio, metrics, serde, serde_json, (dev) jsonschema |
 | `sweep` | `crates/sweep` | M4 sweep engine: `param` (grids/points), `cell` + `turnover` (pure cell eval, Decimal keys), `parallel` (`std::thread::scope` determinism gate), `window` (walk-forward), `config` + `partition` (sealed holdout, call-once `evaluate_on_holdout` — M5-only), `sensitivity` + `baseline` (cost ladder, cost-matched baselines), `advance` + `report` (robustness verdicts → `SweepReport`, validates `sweep-report.schema.json`). | research-core, market-data, portfolio, metrics, strategies, results, rust_decimal, serde, serde_json, toml, (dev) jsonschema + rust_decimal_macros |
-| `cli` | `crates/cli` | Deterministic demo runner: load fixtures → run a strategy → metrics → RunResult JSON. No network, no keys. | all of the above except sweep (sweep dep arrives with the M4 CLI cards) |
+| `cli` | `crates/cli` | Deterministic demo runner: load fixtures → run a strategy → metrics → RunResult JSON. No network, no keys. Subcommands: demo, sweep [--threads N] [--out PATH] (canonical SweepReport JSON), sweep-verify (parallel==sequential byte-check). | all of the above |
 
 ## Crates deferred (named in the plan, NOT yet created)
 

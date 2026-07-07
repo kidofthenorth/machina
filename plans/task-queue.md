@@ -895,7 +895,7 @@ immediately; do not debug by weakening); C6's helpers are missing; any pre-exist
 
 ---
 
-### M4-C8 — Record DECISIONS D-0009 + refresh docs for the sweep CLI — `TODO`
+### M4-C8 — Record DECISIONS D-0009 + refresh docs for the sweep CLI — `DONE`
 
 **Goal.** Persist the M4 decisions the code already embodies and point the context files at the new
 CLI surface (serves the M4 deliverable *canonical result export* being discoverable; closes the

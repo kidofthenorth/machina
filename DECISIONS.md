@@ -7,6 +7,26 @@ do not authorize any new capability (no signing, no submission — see
 
 ---
 
+## D-0009 — M4 sweep: std::thread::scope parallelism (zero new deps); traded-notional turnover; sweep-report schema; sealed holdout (M4)
+**Context.** M4 needs a deterministic parallel sweep (plan §19) whose parallel output is
+byte-identical to sequential, a turnover base that rebalancers cannot undercount, a canonical
+report artifact, and a holdout that selection cannot touch.
+**Decision.** (a) Parallelism is `std::thread::scope` over contiguous index chunks with disjoint
+writes — **zero new dependencies; rayon rejected** (D-0002 minimalism; a work-stealing scheduler
+buys nothing for a precomputed `Vec` of independent cells). The gate
+(`crates/sweep/tests/determinism.rs`) pins explicit thread counts {1,2,3,7,8}, never
+`available_parallelism`. (b) Turnover derives from the additive
+`portfolio::RunOutput.traded_notional_quote` (`Decimal`; buy = USDC spent, sell = mid value of SOL
+sold, gas excluded) — round-trip-based turnover reads ~0 for rebalancers that never go flat.
+(c) The sweep exports `SweepReport` validating against the additive
+`schemas/sweep-report.schema.json` (Draft 2020-12; D-0001); `run-result.schema.json` is unchanged.
+(d) The holdout is physically partitioned and sealed (`seal_holdout`); the single reader
+`evaluate_on_holdout` consumes the seal by value and is **M5-only — never wired into the M4 CLI**,
+which instead asserts `holdout_read_count() == 0` on every run.
+**Consequences.** Sweep results are reproducible across thread counts and runs (`machina
+sweep-verify` mirrors the CI gate locally); turnover is exact and shape-independent; the report
+contract evolves additively; selection code is structurally unable to read the holdout.
+
 ## D-0008 — `.gitignore` replaced with a project secret-safe gitignore (M0)
 **Context.** The repo root previously held the cadence-kit's *payload* `.gitignore` (it ignored
 `AGENTS.md`, `CLAUDE.md`, and the plan; its own comment noted "the repo root may also have its own
