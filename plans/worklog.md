@@ -147,3 +147,93 @@ recorded inline (not full logs).
   normalized to None at `CellResult`). +1 test.
 - Re-gate after S11: fmt clean; clippy -D warnings clean; **169 tests pass**; demo byte-identical; no-execution-deps
   OK; run-result.schema.json unchanged. Report + schema complete. Next: S12 (CLI + DECISIONS D-0009 + docs — last M4).
+
+## 2026-07-01 — Operator committed through S11; post-S11 test hardening (logged retroactively 2026-07-06)
+- Operator committed the M0–M4 tree: S1–S7 = `311aedb`, S8 = `08d5647`, S9 = `632fdad`, S10 = `9f591bb`,
+  S11 = `5e5b0ba` (advance/report + sweep-report schema + plans refresh). Repo is no longer BASE=EMPTY.
+- 9 further commits (`375288b..df18267`), all **pure test hardening** — +103 tests, 0 removed, no behavior,
+  schema, config, plan, or CLI-logic change: metrics +13; cli +6; results +8; research-core +19 (incl.
+  validated TokenMeta constructor); strategies +14; portfolio +15; market-data +14; sweep +14
+  (walk-forward/advancement/parallel); `df18267` rustfmt-only. HEAD = `df18267`; working tree clean.
+
+## 2026-07-06 — Plan/context reconciliation audit + S12 task-card expansion (plan/context edits only, no code)
+- Ran an 8-agent read-only audit (Sonnet subagents): per-claim verification of S1–S11 against source with
+  verbatim signature capture; full gate; stale-pointer sweep; git-vs-worklog diff.
+- Gate from this tree (2026-07-06): `cargo fmt --all --check` clean; `cargo clippy --all-targets
+  --all-features -- -D warnings` clean; `cargo test --workspace --all-features` → **272 passed, 0 failed**
+  (169 at S11 + 103 hardening); `cargo run -q -p cli -- demo | shasum` byte-identical twice (`ae064f79…`);
+  no-execution-deps scan OK.
+- **Drift table** (claim → verified reality → action):
+
+| # | Claim / pointer (where) | Verified reality | Status | Action |
+|---|--------------------------|------------------|--------|--------|
+| 1 | S1–S8, S10, S11 DONE (m4-sweep.md §14; current-state.md) | Every named module/type/test exists and passes; signatures matched verbatim | CONFIRMED | none |
+| 2 | S9 DONE: "3 `compile_fail` doctests **each with a `no_run` canary**" (m4-sweep S9 row; current-state; handoff; worklog 2026-06-29) | 3 `compile_fail` exist (partition.rs:288, :356, :427) but only 2 have `no_run` canaries — the `Sealed` no-forgery doctest has none. Seal itself sound; counter/digest/overlap gates green | PARTIAL (doc overstatement) | wording corrected; missing canary queued as card **M4-C1** |
+| 3 | "169 tests" (current-state; task-queue; handoff) and "85 tests" (AGENTS.md) | 272 pass at `df18267` | STALE | updated everywhere |
+| 4 | "committed through S10 (`9f591bb`); S11 uncommitted" (handoff.md); "no commits — BASE=EMPTY" (current-state; review-packet) | S11 committed (`5e5b0ba`) + 9 test commits; tree clean | STALE | updated |
+| 5 | Worklog had no 2026-07-01 entries | 9 unlogged commits | GAP | logged above |
+| 6 | CLAUDE.md "M4 … not started"; AGENTS.md "M1–M2 complete with M3 scaffolds", "7 research crates", `sweep` listed **Deferred** | M4 S1–S11 built; 8 crates; `crates/sweep` has 12 modules + 4 test targets | STALE | updated |
+| 7 | README status "Milestone M2, with M3 scaffolds"; crate table omits `sweep`; deferred list says `sweep` "not yet created" | as row 6 | STALE | updated |
+| 8 | docs/architecture-index.md: "Crates that exist (M0–M3)" omits `sweep`; deferred table lists `sweep`; schemas line omits `sweep-report.schema.json` | sweep crate + schema exist | STALE | updated |
+| 9 | questions.md Q5 "safe default (applied): `[walk_forward]`/`[advancement]` illustrative defaults in strategy-lab.example.toml; the engine reads them from config" | Template has NO `[walk_forward]`, NO `[advancement]`, NO grid arrays; sweep crate has NO `Deserialize` anywhere (`toml` dep declared but unused) | STALE (aspirational) | Q5 reworded; work queued as card **M4-C2** |
+| 10 | m4-sweep §13 / handoff: CLI loads "embedded `strategy-lab.example.toml` + `allowlist.example.toml`" | Real paths: `config/strategies/strategy-lab.example.toml`, `config/tokens/allowlist.example.toml` | IMPRECISE | exact paths pinned on cards |
+| 11 | m4-sweep §13 "builds a `SweepSpec` … runs `run_sweep`" | No `SweepSpec`, no `run_sweep`, no orchestrator anywhere in the tree — the CLI must compose ~12 primitives; evidence aggregation (fold dispersion, neighbor degradation, per-window baseline floors) exists nowhere | S12 UNDERSPECIFIED | S12 expanded into cards **M4-C1…M4-C10** in task-queue.md |
+| 12 | review-packet.md header/gates (BASE=EMPTY; 85 tests; STEP=M2+M3) | Historical snapshot of the M0–M3 review, superseded | STALE (historical) | supersession banner added; body kept as record |
+| 13 | docs/invariants.md:70 "full validation battery … out of scope until M4–M5" | Battery engine now exists (S1–S11); the invariant's intent (no profit claims before the M5 decision) still holds | ACCEPTED | no action |
+
+- Refreshed in this pass: current-state.md, task-queue.md (S12 → cards M4-C1…C10), handoff.md, CLAUDE.md,
+  AGENTS.md, README.md, docs/architecture-index.md, m4-sweep.md (S9 wording; §13 paths + orchestration note),
+  questions.md (Q5), review-packet.md (banner). **master-plan.md untouched** (authoritative roadmap).
+- M4 remaining work now lives as small-model task cards **M4-C1…M4-C10** in task-queue.md, each sized
+  ≤3 files / ~150 lines with inline signatures, exact steps, gates, guardrails, and escalate-ifs.
+  Queue ends at the M4 gate declaration + M5 handoff pointer; **no M5 implementation is queued** (M5 needs
+  real data — Q3 — and its own explicit go decision).
+
+## 2026-07-06 — Mission-language sharpening + operator-chat handoff (plan/context edits only, no code)
+
+- Operator feedback: the earlier reconciliation pass had preserved "it does not promise passive
+  income, and live trading is never automatic" verbatim. The operator corrected this: machina is a
+  private system for the operator's own capital, not a public product — the real goal is **genuine
+  autonomous passive income**, and it's critical the goal itself not be stigmatized in the project's
+  own language. The actual safety mechanism is structural (the milestone-gate + explicit-approval
+  requirements in `AGENTS.md`'s "Never do" section), not the framing — naming the goal plainly
+  doesn't loosen those gates.
+- Sharpened the mission paragraph (identical sentence, three places) in `AGENTS.md`, `README.md`,
+  and `plans/handoff.md`'s 30-second orientation: "it does not promise passive income, and live
+  trading is never automatic" → "built toward one goal: genuine autonomous passive income … no
+  strategy is guaranteed to clear that bar, and live trading starts only once its own milestone gate
+  is explicitly approved." The uncertainty hedge now attaches to *whether a strategy proves out*,
+  not to the goal. The gate-mechanism paragraph immediately below (money-moving capability gated by
+  milestone + explicit approval) was left verbatim — that's the real mechanism, not framing.
+- **`plans/master-plan.md` line 18 and the root `solana-crypto-trader-plan.md` (declared
+  byte-identical to each other, confirmed via `diff`) still carry the old sentence — flagged as
+  **Q6** in `plans/questions.md` rather than edited**, since master-plan.md is elsewhere marked
+  "authoritative roadmap, don't reword" and the pair would need lockstep edits to stay identical.
+- Gate: no code/schema touched this pass — `cargo test`/`clippy`/`fmt` unaffected, still green at the
+  272-test baseline. `git status` after this pass: `AGENTS.md`, `CLAUDE.md`, `README.md`,
+  `docs/architecture-index.md`, `plans/{current-state,handoff,m4-sweep,questions,review-packet,
+  task-queue,worklog}.md` modified; nothing committed (the operator commits).
+
+## 2026-07-06 — Q6 resolved: goal stated plainly in the authoritative plan pair (plan edits only, no code)
+
+- Operator affirmed Q6: the new statement IS the true goal — "autonomous passive income. truly
+  autonomous so its truly passive income." Swept the last old-framing sentence out of the
+  authoritative pair: `plans/master-plan.md` §1 Mission and the root `solana-crypto-trader-plan.md`
+  edited **identically** ("This plan does not promise passive income. It creates the machine…" →
+  "The goal is genuine autonomous passive income — truly autonomous operation, so the income is
+  truly passive. This plan builds the machine that earns that autonomy… advances toward live trading
+  only through the explicit milestone gates below. No strategy is guaranteed to clear that bar.").
+  Pair re-verified **byte-identical** via `cmp`. Milestone definitions/gate criteria untouched;
+  line 1764 (goal used as a rejection criterion) untouched.
+- Carried the goal into the working files so it isn't hedged out of status/queue language:
+  one goal line each in `plans/current-state.md` (header), `plans/task-queue.md` (header), and the
+  handoff seed prompt. Structural safety language unchanged everywhere (invariant 11 robustness-only
+  wording, M8/M9 explicit-approval gates, holdout seal).
+- `AGENTS.md` provenance note updated: the root plan is "kept byte-identical" to master-plan.md —
+  the rule is now **edit both or neither** (Q6). Also fixed a duplicate pointer in
+  `plans/handoff.md`'s read-first list (item 4 now points at m4-sweep.md, not task-queue twice).
+- `plans/questions.md`: Q6 marked RESOLVED with the resolution recorded; status line now
+  "0 blocking, 5 non-blocking open, 1 resolved".
+- Gate: no code/schema touched; `cmp plans/master-plan.md solana-crypto-trader-plan.md` → identical;
+  repo grep confirms no "does not promise passive income" remains outside historical worklog/Q6
+  records. Nothing committed (the operator commits).

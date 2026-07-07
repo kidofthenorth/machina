@@ -1,7 +1,9 @@
 # Current state
 
-Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-06-29.
+Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-06.
 **New chat? Start at [plans/handoff.md](handoff.md).**
+Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
+through the milestone gates (money-moving capability stays gated by explicit human approval).
 
 ## Milestone
 - **DONE:** M0 (bootstrap), M1 (data foundation), M2 (deterministic spot simulator).
@@ -41,13 +43,17 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
   Draft-2020-12 schema (additive contract, D-0001). Gate: real report validates; each criterion→reason;
   f64-audit; two serializations byte-identical; run-result schema UNCHANGED. Adversarially reviewed
   (3 lenses + skeptics): schema fidelity clean; 3 nit fixes (single-source edge-vanishes, total-order
-  sort, coupling-code-enforced note). **Next diff: S12** — CLI `sweep`/`sweep-verify` + DECISIONS
-  D-0009 + final plans/docs refresh (the last M4 subtask). Remaining: S12 CLI.
+  sort, coupling-code-enforced note). **Remaining: S12, expanded into task cards M4-C1…M4-C10 in
+  [task-queue.md](task-queue.md)** (a 2026-07-06 audit found S12 underspecified: no `SweepSpec`/`run_sweep`
+  orchestrator or TOML `Deserialize` exists in `crates/sweep` yet, and `strategy-lab.example.toml` has no
+  `[walk_forward]`/`[advancement]`/grid blocks — the cards add spec parsing, the runner, the two CLI
+  subcommands, D-0009 + docs, then the M4 gate declaration). One S9 nuance corrected: 3 `compile_fail`
+  doctests exist but only 2 have `no_run` canaries (the `Sealed` no-forgery one lacks it — queued as M4-C1).
 - **NEXT after M4:** M5 research-decision gate. M6 needs plan §22 source re-check; M8/M9
   (signing/submit) need **separate explicit human approval**.
 
 ## Completed artifacts
-- Workspace: 7 crates — research-core, market-data, portfolio, metrics, strategies, results, cli.
+- Workspace: 8 crates — research-core, market-data, portfolio, metrics, strategies, results, sweep, cli.
 - Money: `rust_decimal::Decimal` everywhere; f64 only in metrics stats (display-only).
 - Determinism: next-bar execution; ordered collections; no RNG/clock in canonical runs.
 - M0: README, DECISIONS, AGENTS, CLAUDE, master-plan, 4 config templates, 4 JSON schemas,
@@ -61,11 +67,12 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
 - results: RunResult/RunConfig DTOs (money as decimal strings) validating run-result.schema.json.
 - cli: `machina demo` — deterministic, schema-valid RunResult; no network, no keys.
 
-## Gates run (2026-06-29, all from this tree)
+## Gates run (2026-07-06, all from this tree at `df18267`)
 - `cargo fmt --all --check` → clean (exit 0).
 - `cargo clippy --all-targets --all-features -- -D warnings` → clean (exit 0).
-- `cargo test --workspace --all-features` → **169 passed, 0 failed** (85 baseline + 84 from M4 S1–S11).
-- `cargo run -p cli -- demo` → byte-identical across runs (determinism verified).
+- `cargo test --workspace --all-features` → **272 passed, 0 failed** (169 at S11 + 103 from the
+  2026-07-01 test-hardening commits `375288b..df18267`; per-target counts in worklog).
+- `cargo run -p cli -- demo` → byte-identical across runs (determinism verified, shasum `ae064f79…`).
 - no-execution-deps grep gate → pass (comments ignored). Dep tree = rust_decimal/serde/serde_json/
   toml (+ dev jsonschema); **no Solana/Jupiter/HTTP/wallet/signing crate anywhere**.
 - Adversarial verification workflow (6 lenses) → **PASS, no blockers**; 14 findings, all resolved or
@@ -88,23 +95,25 @@ Optimized for fast agent parsing. Source of truth for "where are we." Updated 20
 - No secrets; `*.example.toml` templates only; RPC config holds env-var NAMES, never values.
 - Allowlist-gated; next-bar execution (final-bar signal cannot open a position); strategies = intent.
 
-## Staged paths
-- Nothing committed (fresh repo, no commits — BASE=EMPTY). Operator commits only.
-- Explicit paths to stage (NOT `.claude/`): see plans/review-packet.md "Staged paths".
+## Commit state
+- Operator committed through S11 (`5e5b0ba`) plus 9 test-hardening commits; **HEAD = `df18267`
+  (2026-07-01), working tree clean**. Operator commits only — executors never commit/push; stage
+  explicit paths only, never `.claude/`, never `git add -A`.
 
 ## Known blockers / open items
 - **0 blocking.** Operator questions (all non-blocking, safe defaults applied): plans/questions.md.
 - Accepted nit (no action): CostModelDto lamports are `i64` vs schema `minimum:0` — latent only, no
   negative-producing path (audit JS-1).
-- Deferred to later milestones: real OHLCV ingestion (needs operator data-source choice, Q3); M4
-  sweep crate; M6 route/shadow crates; M7 wallet-state; M8/M9 gated execution.
+- Deferred to later milestones: real OHLCV ingestion (needs operator data-source choice, Q3); M6
+  route/shadow crates; M7 wallet-state; M8/M9 gated execution. (The M4 sweep crate exists; only its
+  CLI wiring + gate declaration remain — cards M4-C1…C10.)
 
 ## Next recommended command
-- Continue M4 per [m4-sweep.md](m4-sweep.md): S1–S11 are DONE (deterministic sweep core + walk-forward
-  windows + sealed holdout + cost/fee sensitivity + advancement/rejection report & schema). Next — and
-  **last for M4** — is **S12**: CLI `machina sweep` / `machina sweep-verify` (hand-rolled args, no clap,
-  D-0002; add `sweep` dep to `crates/cli/Cargo.toml`; **holdout stays M5-only — never call
-  `evaluate_on_holdout`**), plus record **DECISIONS D-0009** (sweep determinism, rayon rejection, the
-  additive `RunOutput` field, the new schema) and a final `plans/*` + `docs/architecture-index.md`
-  refresh. Each subtask is a small diff that keeps the workspace green. Do NOT start execution (M8/M9)
-  without separate human approval.
+- Execute the **task cards M4-C1…M4-C10 in [task-queue.md](task-queue.md), in order, one card per fresh
+  session**. Each card is self-contained (goal, exact files + signatures, numbered steps, runnable gate,
+  guardrails, escalate-ifs) and sized for a small model with zero exploration. The queue covers: the S9
+  `no_run` canary (C1), `SweepSpec` TOML parsing + config-template blocks (C2), the sweep runner
+  (C3–C5), CLI `machina sweep` / `machina sweep-verify` (C6–C7), DECISIONS D-0009 + docs (C8), the
+  **M4 gate declaration** (C9), and the M5 handoff pointer (C10). **The holdout stays M5-only — never
+  call or wire `evaluate_on_holdout`.** Do NOT start M5 implementation (needs Q3 data + explicit go) or
+  execution work (M8/M9 — separate human approval).

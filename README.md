@@ -1,10 +1,10 @@
 # machina — solana-crypto-trader
 
-A **paper-first, Solana-focused crypto trading research platform**. machina is a Rust system to
-research, simulate, and (much later, behind explicit human-approved gates) shadow- and live-trade
-on-chain spot strategies. It exists to discover whether a strategy has a *robust edge after costs,
-latency, slippage, and operational failure* — **it does not promise passive income, and live trading
-is never automatic.**
+A **paper-first, Solana-focused crypto trading research platform** built toward one goal: **genuine
+autonomous passive income** — low-touch, hands-off on-chain spot trading for a solo operator, once a
+strategy has earned that trust. Getting there means first proving a strategy has a *robust edge after
+costs, latency, slippage, and operational failure*; **no strategy is guaranteed to clear that bar,
+and live trading starts only once its own milestone gate is explicitly approved.**
 
 > ⚠️ **This software is research infrastructure.** Nothing here is investment advice or a profit
 > claim. In-sample backtest results are not evidence of future returns.
@@ -18,9 +18,10 @@ See [docs/invariants.md](docs/invariants.md).
 
 ## Status
 
-**Milestone M2 (deterministic spot simulator), with M3 strategy scaffolds.** This is research-only
-code: there is **no** key handling, **no** RPC client, **no** Jupiter client, **no** signing path,
-and **no** transaction-submission path anywhere in the workspace. The roadmap (M0–M11) lives in
+**Milestone M4 (sweep / walk-forward) in progress: the deterministic sweep engine (S1–S11) is built
+and green; only the CLI wiring + gate declaration remain.** This is research-only code: there is
+**no** key handling, **no** RPC client, **no** Jupiter client, **no** signing path, and **no**
+transaction-submission path anywhere in the workspace. The roadmap (M0–M11) lives in
 [plans/master-plan.md](plans/master-plan.md).
 
 Current build state for agents/operators: [plans/current-state.md](plans/current-state.md).
@@ -35,9 +36,10 @@ Current build state for agents/operators: [plans/current-state.md](plans/current
 | [`metrics`](crates/metrics) | Performance metrics from an equity curve (return, drawdown, Sharpe, Sortino, …) | M2/M3 |
 | [`strategies`](crates/strategies) | Strategy trait + baselines + `trend_alloc_v1` / `threshold_rebalance_v1` scaffolds | M3 |
 | [`results`](crates/results) | `RunConfig` / `RunResult` models + JSON-schema validation | M0/M2 |
+| [`sweep`](crates/sweep) | Deterministic parameter sweeps: parallel execution (`std::thread::scope`), walk-forward windows, sealed holdout, cost/fee sensitivity, advancement/rejection report | M4 |
 | [`cli`](crates/cli) | Deterministic demo runner that wires the above end-to-end | M2/M3 |
 
-Deferred crates (named in the plan, **not yet created**): `sweep` (M4), `route-model` (M6),
+Deferred crates (named in the plan, **not yet created**): `route-model` (M6),
 `solana-execution` (M6/M8), `wallet-state` (M7), `risk` (M6). See
 [docs/architecture-index.md](docs/architecture-index.md).
 

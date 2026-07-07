@@ -15,8 +15,10 @@ The system is optimized for:
 - A path from backtest -> shadow mode -> tiny-capital canary -> larger deployment only after
   objective gates pass.
 
-This plan does not promise passive income. It creates the machine for discovering whether a
-strategy has a robust edge after costs, latency, slippage, and operational failures.
+The goal is genuine autonomous passive income — truly autonomous operation, so the income is truly
+passive. This plan builds the machine that earns that autonomy: it discovers whether a strategy has
+a robust edge after costs, latency, slippage, and operational failures, and it advances toward live
+trading only through the explicit milestone gates below. No strategy is guaranteed to clear that bar.
 
 ## 2. Strategic Position
 

@@ -1,33 +1,36 @@
 ## Project
-**machina** is a paper-first, Solana-focused crypto **trading research platform** — a Rust system to
-research, simulate, and (much later, behind explicit gates) shadow- and live-trade on-chain spot
-strategies. It serves a solo operator who wants low-touch operation *after* a strategy is proven. It
-is a machine for discovering whether a strategy has a robust edge after costs, latency, slippage, and
-operational failure — **it does not promise passive income, and live trading is never automatic.**
+**machina** is a paper-first, Solana-focused crypto **trading research platform** built toward one
+goal: **genuine autonomous passive income** — low-touch, hands-off on-chain spot trading for a solo
+operator, once a strategy has earned that trust. Getting there means first proving a strategy has a
+robust edge after costs, latency, slippage, and operational failure; **no strategy is guaranteed to
+clear that bar, and live trading starts only once its own milestone gate is explicitly approved.**
 
 The one thing not to get wrong: **money-moving capability is gated by milestone and by explicit human
 approval.** No key loading, transaction signing, or submission exists — or may be added — before the
 research phase (M0–M5) is complete and separately approved. Building the software never authorizes
 trading.
 
-**Status: M0 done; M1–M2 complete with M3 strategy scaffolds.** The authoritative roadmap is
-`plans/master-plan.md` (the full M0–M11 plan; `solana-crypto-trader-plan.md` at the repo root is the
-original, byte-identical source). Live build state is `plans/current-state.md`. A Cargo workspace of
-7 research crates builds and tests green; there are **zero execution paths** (no keys/signing/submit
-/RPC). Next gated milestones (M4 sweep → M5 research decision → M6 Jupiter shadow) require their own
-approval; M8/M9 signing+submission require **separate explicit human approval**.
+**Status: M0–M2 complete; M3 scaffolds in place; M4 sweep/walk-forward in progress — subtasks S1–S11
+built and green in `crates/sweep`; only the S12 tail remains (task cards M4-C1…C10 in
+`plans/task-queue.md`).** The authoritative roadmap is `plans/master-plan.md` (the full M0–M11 plan;
+`solana-crypto-trader-plan.md` at the repo root is kept byte-identical to it — edit both or neither,
+per Q6). Live build
+state is `plans/current-state.md`. A Cargo workspace of 8 research crates builds and tests green;
+there are **zero execution paths** (no keys/signing/submit/RPC). Next gated milestones (M4 gate →
+M5 research decision → M6 Jupiter shadow) require their own approval; M8/M9 signing+submission
+require **separate explicit human approval**.
 
 ## Commands
 These run today (established in M0; CI runs the same from a clean checkout):
 - Build: `cargo build`
-- Test: `cargo test` *(deterministic and repeatable — 85 tests)*
+- Test: `cargo test` *(deterministic and repeatable — 272 tests as of 2026-07-06)*
 - Run / dev: `cargo run -p cli -- demo` *(deterministic research demo; no network, no keys)*
 - Lint / typecheck: `cargo clippy --all-targets --all-features -- -D warnings` + `cargo fmt --check`
 
 ## Map
 A Cargo workspace. **Existing** crates (`crates/`): `research-core`, `market-data`, `portfolio`,
-`metrics`, `strategies`, `results`, `cli`. **Deferred** (named in the plan, not yet created):
-`sweep` (M4), `route-model` (M6), `solana-execution` (M6/M8), `wallet-state` (M7), `risk` (M6) —
+`metrics`, `strategies`, `results`, `sweep`, `cli`. **Deferred** (named in the plan, not yet
+created): `route-model` (M6), `solana-execution` (M6/M8), `wallet-state` (M7), `risk` (M6) —
 built in **milestone order**, not all at once.
 - `docs/architecture-index.md` — the module map (read first); `docs/invariants.md` — hard invariants.
 - `plans/master-plan.md` — the authoritative roadmap (M0–M11); `plans/current-state.md` — live state.

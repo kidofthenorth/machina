@@ -7,8 +7,8 @@ source of truth across resets.
 - **Active plan / live state:** `plans/current-state.md` (per-milestone status); `plans/task-queue.md`
   (actionable queue). The authoritative roadmap is `plans/master-plan.md` (M0–M11). ← update the
   current-state pointer when you start/finish a change.
-  *(Done: M0 bootstrap; M1 data foundation; M2 simulator. M3 strategy scaffolds in place. Next gate:
-  M4 sweep/walk-forward — not started.)*
+  *(Done: M0 bootstrap; M1 data foundation; M2 simulator; M3 strategy scaffolds. M4 sweep/walk-forward:
+  S1–S11 built and green in `crates/sweep`; the remainder is task cards M4-C1…C10 in `plans/task-queue.md`.)*
 
 ## Agent guidance
 - Search/exploration → an **Explore** subagent, so the main window stays clean.

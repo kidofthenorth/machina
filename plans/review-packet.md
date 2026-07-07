@@ -1,5 +1,11 @@
 # Review packet — WORKER → REVIEWER
 
+> **HISTORICAL SNAPSHOT (2026-06-29) — SUPERSEDED.** This packet records the M0–M3 review as it stood
+> before the M4 build. Its `BASE=EMPTY` / "no commits yet" / "85 tests" claims no longer hold: the
+> operator has committed through `df18267` (M4 S1–S11 + test hardening; 272 tests green as of
+> 2026-07-06). For live state see [current-state.md](current-state.md); for the reconciliation audit
+> see the 2026-07-06 entry in [worklog.md](worklog.md). The body below is kept verbatim as a record.
+
 ```
 REPO=solana-crypto-trader | STEP=M2-DETERMINISTIC-SPOT-SIMULATOR (+M3 scaffolds) | LENS=architecture+correctness | BASE=EMPTY
 ```

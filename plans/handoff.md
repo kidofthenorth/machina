@@ -1,6 +1,6 @@
 # Handoff — for a new chat continuing machina
 
-You are picking up an in-progress build. This is the single entry point. Read the four pointer files
+You are picking up an in-progress build. This is the single entry point. Read the five pointer files
 below, confirm the gates are green, then continue in milestone order. **Do not commit or push — the
 operator commits.**
 
@@ -9,9 +9,11 @@ operator commits.**
 ## 30-second orientation
 
 **machina** (codename `solana-crypto-trader`) is a paper-first, Solana-focused crypto **trading
-research platform** in Rust. It exists to discover whether a strategy has a robust edge after costs,
-latency, slippage, and operational failure. It does **not** promise income, and **live trading is
-never automatic**.
+research platform** in Rust, built toward one goal: **genuine autonomous passive income** —
+low-touch, hands-off on-chain spot trading for a solo operator, once a strategy has earned that
+trust. Getting there means first proving a strategy has a robust edge after costs, latency,
+slippage, and operational failure; no strategy is guaranteed to clear that bar, and **live trading
+starts only once its own milestone gate is explicitly approved**.
 
 **The one rule that cannot be broken:** money-moving capability is gated by milestone **and** by
 explicit human approval. No key loading, signing, or transaction submission exists — or may be added
@@ -21,10 +23,11 @@ authorizes trading. Full invariants: [docs/invariants.md](../docs/invariants.md)
 ## Read these first (source of truth)
 
 1. [plans/current-state.md](current-state.md) — live per-milestone status, gates, blockers, next command.
-2. **[plans/m4-sweep.md](m4-sweep.md) — the ACTIVE milestone plan (M4). 12 subtasks S1–S12; S1–S11 DONE,
-   next is S12 (CLI `sweep`/`sweep-verify` + DECISIONS D-0009 + docs — the LAST M4 subtask).** Your working source of truth.
+2. **[plans/task-queue.md](task-queue.md) — the ACTIVE work queue: task cards M4-C1…M4-C10** (the former
+   S12, expanded by the 2026-07-06 audit). Execute in order, one card per fresh session; each card is
+   self-contained. Design rationale lives in [plans/m4-sweep.md](m4-sweep.md) (S1–S11 DONE).
 3. [plans/master-plan.md](master-plan.md) — authoritative M0–M11 roadmap & architecture.
-4. [plans/task-queue.md](task-queue.md) — actionable status table (TODO/DOING/DONE/DEFERRED/BLOCKED).
+4. [plans/m4-sweep.md](m4-sweep.md) — the M4 design record (S1–S11 rationale the cards build on).
 5. [docs/architecture-index.md](../docs/architecture-index.md) + [docs/invariants.md](../docs/invariants.md) — module map + hard invariants.
 
 Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronological log:
@@ -77,8 +80,9 @@ Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronolo
     incapable of reaching the holdout. `evaluate_on_holdout(sealed: Sealed, …)` consumes the seal **by
     value** (call-once; M5-only — the M4 CLI never calls it); the single read passes a `Cell<u32>`
     counter gateway. Gate green: read-counter==0 + digest unchanged after the full sweep+selection
-    pipeline; 3 `compile_fail` doctests (no selection→holdout path, no seal fabrication, call-once) each
-    with a `no_run` canary; overlap rejected. **Zero new deps.** Adversarially reviewed (6-lens +
+    pipeline; 3 `compile_fail` doctests (no selection→holdout path, no seal fabrication, call-once) —
+    2 of 3 carry `no_run` canaries; the `Sealed` one is queued as card M4-C1 (2026-07-06 audit);
+    overlap rejected. **Zero new deps.** Adversarially reviewed (6-lens +
     skeptics, 12 agents): **seal sound, no blockers**; 3 minor/nit fixes applied (delegate to
     `validate_series` → duplicate-ts rejection; real post-split structural assert; within-process-only
     digest doc).
@@ -115,39 +119,34 @@ Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronolo
 ```bash
 cargo fmt --all --check                                  # clean
 cargo clippy --all-targets --all-features -- -D warnings # clean
-cargo test --workspace --all-features                    # 169 passed, 0 failed (85 baseline + 84 from M4 S1–S11)
-cargo run -p cli -- demo                                 # deterministic, schema-valid RunResult
+cargo test --workspace --all-features                    # 272 passed, 0 failed (2026-07-06; 169 at S11 + 103 test-hardening)
+cargo run -p cli -- demo                                 # deterministic, schema-valid RunResult (shasum-identical on repeat)
 # no-execution-deps scan (CI parity) — must print OK:
 pattern='solana-sdk|solana-client|solana-program|solana-rpc|jupiter|jito|ed25519-dalek|keypair|bip39|tiny-bip39|secp256k1'
 grep -REn --include='Cargo.toml' "$pattern" . | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || echo OK
 ```
 
-Repo state: the operator commits between turns (committed through **S10** — `9f591bb`). **S11 is
-uncommitted**: new `crates/sweep/src/{advance,report}.rs`, new `schemas/sweep-report.schema.json` +
-`crates/sweep/tests/schema_validation.rs`, modified `crates/sweep/src/lib.rs`, and `plans/*`. **Never**
-`git add -A`; **never** stage `.claude/`. Stage explicit paths only. (Run `git status` to confirm — the
-operator may have committed more since this was written.)
+Repo state (2026-07-06): the operator has committed **everything through S11 plus 9 test-hardening
+commits — HEAD = `df18267`, working tree clean**. **Never** `git add -A`; **never** stage `.claude/`.
+Stage explicit paths only. (Run `git status` to confirm — the operator may have committed more since
+this was written.)
 
-## What's next — continue M4 from S12, the LAST subtask (see [m4-sweep.md](m4-sweep.md) §13/§14)
+## What's next — execute the M4 task cards (see [task-queue.md](task-queue.md))
 
-S1–S11 are done; **only S12 remains to complete M4.** It is a small diff that must keep the workspace
-green (fmt + clippy `-D warnings` + test).
+S1–S11 are done. The former S12 was **expanded on 2026-07-06 into ten self-contained task cards
+M4-C1…M4-C10** after an audit found it underspecified (no `SweepSpec`/`run_sweep` orchestrator or TOML
+`Deserialize` existed in `crates/sweep`, and `strategy-lab.example.toml` lacked the
+`[walk_forward]`/`[advancement]`/grid blocks the CLI design assumed). Execute the cards **in order,
+one per fresh session**; each carries its own files, verbatim signatures, steps, gate, guardrails, and
+escalate-ifs — a session should never need to open a file its card doesn't name.
 
-- **S9 — Holdout gate — ✅ DONE.** Physical seal; call-once `evaluate_on_holdout` (M5-only). Reviewed → sound.
-- **S10 — Cost/fee sensitivity ladder — ✅ DONE.** `sweep::{sensitivity, baseline}`; conditional cost
-  monotonicity documented + regression-tested. Reviewed → no code defects.
-- **S11 — Advancement/rejection report + new schema — ✅ DONE.** `sweep::{advance, report}` +
-  `schemas/sweep-report.schema.json` (D-0001); Decimal-only `evaluate_candidate`, robustness-only report,
-  total-order verdict sort. Reviewed → schema fidelity clean, 3 nit fixes.
-- **S12 — CLI `sweep`/`sweep-verify` + DECISIONS + docs (next, LAST).** Add to `crates/cli/src/main.rs`
-  (hand-rolled `args.next()` match, **no clap**, D-0002) + `sweep = { workspace = true }` to
-  `crates/cli/Cargo.toml`. `machina sweep [--threads N] [--out PATH]` builds a spec from the embedded
-  `strategy-lab.example.toml` + `allowlist.example.toml` (**config key `rebalance_band` → struct field
-  `band`**), runs the sweep, prints/writes the canonical `SweepReport`. `machina sweep-verify` runs it
-  Sequential vs Threads(N) and asserts byte-identical (local mirror of the CI gate). **Holdout is NOT
-  reachable from any CLI path — `evaluate_on_holdout` is M5-only.** Record **DECISIONS D-0009** (sweep
-  determinism, rayon rejection, the additive `RunOutput.traded_notional_quote`, the new schema) and do a
-  final `plans/*` + `docs/architecture-index.md` refresh. See plan §13. Depends on S11 (done).
+- **M4-C1** — add the missing `no_run` canary to the `Sealed` no-forgery doctest (S9 nuance).
+- **M4-C2** — `sweep::spec`: `SweepSpec::from_toml_str` + the template's `[walk_forward]`/`[advancement]`/grid blocks.
+- **M4-C3…C5** — `sweep::runner`: canonical enumeration → evidence aggregation → `run_sweep` + report-level determinism test.
+- **M4-C6…C7** — CLI `machina sweep [--threads N] [--out PATH]` and `machina sweep-verify` (no clap, D-0002; holdout never reachable).
+- **M4-C8** — DECISIONS **D-0009** + docs/AGENTS refresh.
+- **M4-C9** — **M4 gate declaration**: run the full battery, check the evidence table against master-plan.md:873-889, declare M4 complete.
+- **M4-C10** — point current-state/handoff at the **M5 operator decision** and STOP.
 
 Beyond M4: **M5** research-decision gate (needs the operator to FREEZE walk-forward sizing + rejection
 thresholds first — questions.md Q5); **M6** Jupiter shadow (re-verify plan §22 sources; no signing).
@@ -195,52 +194,32 @@ tiny synthetic checked-in fixtures only.
 
 ---
 
-## Seed prompt for the new chat — S12, the CLI + DECISIONS + docs (LAST M4 subtask) (paste this)
+## Seed prompt for the new chat — execute ONE M4 task card (paste this, filling in the card ID)
 
 > You are the EXECUTOR continuing the **machina** (`solana-crypto-trader`) repo — a paper-first,
-> Solana-focused crypto trading-**research** platform in Rust (no keys/signing/RPC/network anywhere).
-> Read `plans/handoff.md`, then `plans/current-state.md`, **`plans/m4-sweep.md` — the active milestone
-> plan, especially §13 "CLI wiring" and §14 row S12**, then `plans/task-queue.md` and
-> `docs/invariants.md`.
+> Solana-focused crypto trading-**research** platform in Rust built toward **genuine autonomous
+> passive income** (truly autonomous, so truly passive), earned through milestone gates. The current
+> phase is research: no keys/signing/RPC/network anywhere.
 >
-> **State:** M0–M2 complete, M3 scaffolds in place, and **M4 subtasks S1–S11 are DONE and green** —
-> the deterministic sweep core (S1–S7), walk-forward windows (S8), the sealed holdout gate (S9), the
-> cost/fee sensitivity ladder (S10), and the advancement/rejection report + new schema (S11). `cargo fmt
-> --all --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test --workspace
-> --all-features` = **169 passing**, `cargo run -p cli -- demo` byte-identical, no-execution-deps scan
-> clean. The repo has commits through S9; S10/S11 are uncommitted. **Do not commit or push; the operator
-> commits** (stage explicit paths only, never `.claude/`, never `git add -A`).
+> Your entire task this session is **one card: M4-C\<N\>** in `plans/task-queue.md` (the first card
+> whose Status is TODO, taken in order). Open `plans/task-queue.md`, read the card queue's common
+> rules ("How to execute a card", "Guardrails", "Escalate and STOP"), then your card. **The card is
+> self-contained** — its files, verbatim current signatures, numbered steps, and runnable gate are all
+> inline. Do not open files the card doesn't name; do not do more than the card says.
 >
-> **First** re-confirm the gates on a fresh checkout. **Then implement S12 — the CLI + DECISIONS + docs,
-> the LAST M4 subtask — in small green diffs** (each keeps fmt + clippy `-D warnings` + test green), per
-> `m4-sweep.md` §13/§14. Touch: `crates/cli/src/main.rs`, `crates/cli/Cargo.toml`, `DECISIONS.md`,
-> `docs/architecture-index.md`, `plans/*`. The design:
-> - Add `sweep = { workspace = true }` to `crates/cli/Cargo.toml`. Extend the existing hand-rolled
->   `args.next()` match in `main.rs` (**no clap** — D-0002) alongside `demo`.
-> - `machina sweep [--threads N] [--out PATH]`: load the embedded `strategy-lab.example.toml` +
->   `allowlist.example.toml`, build a spec (families from the `[trend_alloc_v1]` / `[threshold_rebalance_v1]`
->   grids — **config key `rebalance_band` maps to struct field `band`**; cost scenarios before/base/doubled
->   via `sweep::cost_scenarios`; walk-forward over the development partition), run with `Parallelism::Threads(N)`
->   (default `Sequential`), and print / write the canonical `SweepReport` JSON. `available_parallelism()` is
->   allowed here (values are count-invariant) but NOT in the determinism gate.
-> - `machina sweep-verify`: run the sweep both `Sequential` and `Threads(N)`, assert byte-identical output,
->   exit non-zero on mismatch (local mirror of the CI determinism gate).
-> - **The holdout is NOT reachable from any CLI path — `evaluate_on_holdout` is M5-only. Never call it.**
->   No keys/signing/RPC/network; the CLI loads `*.example.toml` templates only.
+> **State:** M0–M3 done; M4 engine S1–S11 built and green (272 tests at `df18267`, 2026-07-06); the
+> cards are the remainder of M4. **Do not commit or push; the operator commits** (stage explicit paths
+> only, never `.claude/`, never `git add -A`).
 >
-> **S12 gate:** `machina sweep` prints a deterministic, schema-valid `SweepReport`; `machina sweep-verify`
-> exits 0; the full workspace stays green (fmt + clippy `-D warnings` + test + demo byte-identical +
-> no-execution-deps). Record **DECISIONS D-0009** (sweep determinism via `std::thread::scope`, rayon
-> rejection, the additive `RunOutput.traded_notional_quote`, the new `sweep-report.schema.json`) and refresh
-> `docs/architecture-index.md` (the `sweep` crate + new schema) and the current-state M4 pointer to
-> **M4 COMPLETE**.
+> When the card's gate passes: flip the card's Status to DONE in `plans/task-queue.md` and append one
+> line to `plans/worklog.md`. If ANY escalate-if condition triggers — a signature doesn't match the
+> card, an unrelated test fails, you need an unlisted file, or anything ambiguous touches money,
+> determinism, the holdout, or schemas — **STOP, record the mismatch in `plans/worklog.md`, and
+> report** instead of improvising.
 >
-> Honor the operating contract in `plans/handoff.md`, incl. the **M4-specific rules**: parallelism is
-> `std::thread::scope` (zero new deps; rayon rejected, D-0009); turnover from
-> `RunOutput.traded_notional_quote`, never `round_trips`; all sort/threshold/selection keys are `Decimal`;
-> cost monotonicity is **not** a runtime invariant (S10 §9); the holdout stays sealed. Update
-> `plans/current-state.md`, `plans/m4-sweep.md` (S12 status → M4 complete), `plans/task-queue.md`, and
-> `plans/worklog.md` as part of "done", and consider a fresh-session/subagent review before declaring M4
-> complete. **After M4, STOP for the M5 gate** — M5 needs the operator to FREEZE walk-forward sizing +
-> rejection thresholds first (questions.md Q5). **Do NOT start M8/M9** (signing/submit) — separate explicit
-> human approval required.
+> Non-negotiables (restated on every card): `Decimal`/integer only for money — never f64; parallel
+> output byte-identical to sequential; no new dependencies; no execution/signing/RPC code; the holdout
+> stays sealed — **never call `evaluate_on_holdout`**; never edit `schemas/*.json` or
+> `plans/master-plan.md`. After card M4-C10, **STOP — M5 is an operator decision** (freeze
+> questions.md Q5 thresholds; choose the Q3 data source; explicit go). **Never start M8/M9**
+> (signing/submit) — separate explicit human approval required.
