@@ -414,3 +414,99 @@ recorded inline (not full logs).
   `ae064f79…` — confirms no behavior change on this card.
 - Card flipped to DONE. Next: C8c (fresh session) wires `aggregate_fee_sensitivity` into
   `SweepReport.candidates[]`, schema 1.1.0, D-0010.
+
+## 2026-07-07 — Card M4-C8c → ESCALATED (BLOCKED): zero-cost scenario reports nonzero slippage (1 ulp)
+- **Built per card (all 6 files, diff left in working tree, uncommitted):** `report.rs`
+  (SWEEP_SCHEMA_VERSION 1.1.0; ScenarioMetricsDto/FeeSensitivityDto/CandidateMetricsDto;
+  `SweepReport.candidates` sorted beside verdicts), `runner.rs` (run_sweep wires
+  `aggregate_fee_sensitivity` → `candidates`; BeforeCosts comment reworded), schema 1.1.0
+  (`candidates` required + 3 `$defs`, additionalProperties:false), schema_validation.rs (builder passes
+  a real candidate; 2 new rejection tests), sweep_runner.rs (first-class test), DECISIONS.md (D-0010).
+- **Blocker — card step 6's assert "every before_costs block reports zero costs" is false for the sim
+  as built.** `portfolio::cost::fill_buy` computes the reporting-only figure
+  `slippage_quote = quote_in − (quote_in · price / eff)` (cost.rs:77). With `slippage_bps = 0`,
+  `eff == price`, so it is mathematically zero — but `rust_decimal` rounds `quote_in · price` at 28
+  significant digits when `quote_in` carries high scale (balances do mid-run), leaving a ±1-ulp
+  residue: the 160-bar test fixture reports `slippage_paid_quote = 0.0000000000000000000000001` on the
+  BeforeCosts rung. Fees/priority are exact zeros (their identities multiply by 0; no division). The
+  CLI template fixture happens to produce value-zero blocks, so the exported artifact doesn't show it
+  today — but the property is fixture-dependent, not guaranteed. Pre-existing M2 behavior; C8c is
+  merely the first card to EXPORT these fields.
+- Secondary card nit found on the way: zero Decimals stringify with inherited scale
+  (`"0.0000000000000000000000000"`), so step 6's literal `== "0"` string assert can't hold with the
+  card-mandated `.to_string()` DTO encoding (house style — verdicts already export full-scale strings).
+  Adapted the assert to value-equality (`parse::<Decimal>() == ZERO`), which is what then exposed the
+  real residue above.
+- **Why escalated, not adapted:** the honest fix is in `crates/portfolio/src/cost.rs` — a file the
+  card doesn't list — and every in-scope alternative either weakens the carded zero-cost assertion or
+  masks exported money values (rounding/normalizing in the DTO). Queue rule: escalate, don't improvise.
+  Suggested resolution for a follow-up card: compute buy slippage exactly (e.g. return `Decimal::ZERO`
+  when `eff == price`, mirroring the sell side's exact `base_in · (price − eff)`); demo hash unaffected
+  (demo runs 20 bps slippage), sweep hash would change again (BeforeCosts slippage fields).
+- **State left:** fmt + clippy green; full workspace test run has exactly ONE failure — the new
+  `fee_sensitivity_is_reported_first_class_per_candidate` zero-cost assert. The report⇔verdict
+  coupling assert (survives_doubled ⇔ edge-vanishes) PASSES unweakened. Determinism green: sweep
+  `e94e10c0f25b40675cd9d3523b4d07c0f9caf39f` twice and `--threads 8` identical (report grew as
+  expected); `sweep-verify` OK exit 0 (19456 bytes); demo unchanged `ae064f79…`; `git status` shows
+  only the six carded files modified (no other schema touched).
+
+## 2026-07-07 — HF track (Q7 follow-on): entry-condition check, plan audit, wave-1 cards (Fable)
+- **Step 0 — entry conditions: NONE of the three met.** (a) M4 gate undeclared (queue was mid
+  C8b–C8d); (b) highfrequency-algo-plan.md is DRAFT, untracked, unapproved; no master-plan
+  amendment exists (pair verified byte-identical via `cmp` — invariant holds, amendment absent);
+  (c) HF-Q1/Q2/Q3 absent from questions.md. Stopped and asked per instruction; **operator chose:
+  audit now + draft wave 1 marked BLOCKED** rather than wait.
+- **Step 1 — audit of the HF plan vs the tree** (Sonnet workflow: 7 readers + adversarial refuters;
+  3 of 7 areas completed before a session limit killed the rest; market-data findings re-verified
+  first-hand by the drafting session). Confirmed: the plan's "gap-scenario config from M1" does not
+  exist (the only override is choosing `validate_series` over `validate_series_spacing` —
+  validation.rs:114-115); "(venue, slot, seq)" is a brand-new key (nothing carries venue/slot/seq);
+  §2.2's "simulator becomes latency = 1 bar" is a new abstraction, not an existing knob (delay is
+  structural in simulator.rs:89-94). Verified: all four prior review folds present in the plan
+  text; zero HF/intraday/latency code in crates/. Findings + the coverage gap (sweep-ladder,
+  strategies-trait, invariants-config areas NOT audited — **re-run before wave-2 expansion**) are
+  recorded in highfrequency-algo-plan.md's new Appendix.
+- **Step 2 — wave-1 cards drafted BLOCKED.** task-queue.md gained §"M-HF wave 1" with the three
+  entry conditions as hard preconditions, a per-card baseline-gate Step 0, the shared
+  escalate-and-STOP list, and cards **M-HF-C1** (intraday types + hygiene: TradePrint/SlotSnapshot
+  in research-core, validators + 6 new fixtures in market-data, 1s-bars-are-plain-Bars pinned by
+  test) and **M-HF-C2** (deterministic synthetic microstructure generator: OU + impact-decay +
+  regime congestion; SplitMix64 noise table seeded from the spec — no RNG, no new deps; output
+  self-identifies `synthetic: true`). C3–C10 deliberately not drafted (each wave expands against
+  what landed; adversarial checkpoint after C5). current-state.md pointer updated.
+- **Card review (3 Sonnet agents): worktree execution rehearsal PASSED** — both cards executed
+  verbatim by a fresh agent in an isolated worktree; every card gate green (research-core 40
+  passed; market-data 36+7 unit / 7+6 integration; fmt+clippy clean; demo `ae064f79…` unchanged
+  twice; no Cargo.toml/lock changes). Verbatim-fidelity + contract-fidelity reviewers: 8 findings
+  (1 major — a stale "see worklog" pointer — plus minor/nits incl. all six fixture JSONs now pasted
+  verbatim, C2 thread-count set restated, invariant-11 citation reworded); **all 8 applied** to the
+  card text.
+- **Repo bug found by the rehearsal (operator action needed):** `schemas/wallet-snapshot.schema.json`
+  was never tracked — `.gitignore` line `wallet*.json` (D-0008 secret pattern) silently caught it,
+  so a **clean checkout fails** `crates/results/tests/schema_validation.rs` (2 tests: missing
+  file). This would fail CI from a clean clone and block M4-C9's evidence run on any fresh tree.
+  Fix in working tree: `.gitignore` negation `!schemas/wallet-snapshot.schema.json` (wallet-file
+  patterns untouched). **Operator: stage `.gitignore` + `schemas/wallet-snapshot.schema.json`.**
+  (Unrelated to, and discovered independently of, the C8c 1-ulp escalation above.)
+- HF track next actions, in order: operator reviews/approves highfrequency-algo-plan.md (read its
+  Appendix first) → M4 queue finishes through C9 (incl. resolving the C8c escalation) → operator
+  makes the lockstep amendment + records HF-Q1/Q2/Q3 in questions.md → flip M-HF-C1/C2 from
+  BLOCKED and execute, one per fresh session → re-run the three unfinished audit areas before
+  expanding wave 2.
+
+## 2026-07-08 — Ruling on the C8c escalation: fix the accounting (card M4-C8e), never weaken the assert
+- The C8c executor's stop was correct. Verified the root cause first-hand: cost.rs:77 buy-side
+  `slippage_quote = quote_in - (quote_in * price / eff)` carries a ±1-ulp Decimal residue when
+  `eff == price` (28-digit division), while the sell side (`base_in * (price - eff)`, cost.rs:94)
+  is structurally exact. Pre-existing M2 reporting behavior, first made visible by C8c's
+  first-class export — and fixture-dependent, which makes it worse, not better.
+- Operator ruling: a zero-cost scenario reporting nonzero slippage in exported money values is a
+  real defect (invariant 7). Amending the assertion would mask it. Inserted card **M4-C8e**:
+  exact-zero guard in `fill_buy` (reporting-only field — balances/fees/gas untouched) + high-scale
+  regression test, then re-gate C8c in the same session and flip both.
+- Two C8c deviations blessed: (1) the executor's value-equality form of the zero asserts (Decimal
+  zeros stringify with inherited scale — the card's literal `== "0"` was the imprecision, not the
+  code); (2) C8e additionally amends C8c's DTO helpers to `.normalize().to_string()` (scale-canonical
+  export strings, matching `param_id`'s convention — zeros export as "0").
+- C9's preconditions now include C8e. M4 gate remains UNDECLARED. Sweep hash will change again at
+  C8e/C8c re-gate (recorded there); demo hash must stay `ae064f79…`.

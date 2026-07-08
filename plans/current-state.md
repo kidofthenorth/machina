@@ -102,6 +102,13 @@ through the milestone gates (money-moving capability stays gated by explicit hum
 
 ## Known blockers / open items
 - **0 blocking.** Operator questions (all non-blocking, safe defaults applied): plans/questions.md.
+- **HF research track (Q7 follow-on): wave-1 cards drafted, BLOCKED.** 2026-07-07: the entry-condition
+  check found none of the three conditions met (M4 gate undeclared; HF doc unapproved + no amendment;
+  HF-Q1/Q2/Q3 unrecorded), so on operator instruction M-HF-C1/C2 were drafted **ahead of the gate**
+  into [task-queue.md](task-queue.md) §"M-HF wave 1" with the entry conditions restated as a hard
+  precondition. Audit notes appended to [highfrequency-algo-plan.md](highfrequency-algo-plan.md)
+  (read before approving). Waves 2+ (C3–C10) are deliberately not drafted; the sweep/strategies/
+  invariants audit areas must be re-run before wave-2 expansion (see worklog 2026-07-07).
 - Accepted nit (no action): CostModelDto lamports are `i64` vs schema `minimum:0` — latent only, no
   negative-producing path (audit JS-1).
 - Deferred to later milestones: real OHLCV ingestion (needs operator data-source choice, Q3); M6

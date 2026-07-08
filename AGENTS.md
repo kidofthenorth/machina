@@ -67,6 +67,11 @@ no slash commands — follow the same steps by hand. The discipline is portable;
 - Strategy naming: `<family>_v<n>` (e.g. `trend_alloc_v1`, `threshold_rebalance_v1`).
 - Secrets only via `*.example.toml` templates; all real keys, RPC credentials, and generated
   data/exports are gitignored.
+- **When a piece of work is complete** (gates green, plan files updated): `git add` the explicit
+  paths belonging to that work — never `git add -A`, never `.claude/`, never another session's
+  in-flight files — and output a suggested commit message for the operator. Agents never run
+  `git commit` or `git push` (the operator commits), and suggested messages carry no
+  Co-Authored-By or AI-attribution trailers.
 
 ## Never do (without explicit approval)
 - **Never commit private keys, seed phrases, or wallet files** — in any form, ever.

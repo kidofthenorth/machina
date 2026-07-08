@@ -1137,7 +1137,7 @@ code; holdout untouched (`evaluate_on_holdout` never called); **no schema edits 
 
 ---
 
-### M4-C8c — Export per-candidate turnover + fee sensitivity in SweepReport (schema 1.1.0, D-0010) — `TODO`
+### M4-C8c — Export per-candidate turnover + fee sensitivity in SweepReport (schema 1.1.0, D-0010) — `BLOCKED` *(2026-07-07: escalated — zero-cost scenario reports a 1-ulp nonzero slippage; fix needs `portfolio/src/cost.rs`, off-card. See worklog. All 6 card files are edited and in the working tree; only step 6's zero-cost assert fails.)*
 
 **Goal.** Make turnover and fee sensitivity **first-class outputs of the exported artifact** — the
 deliverable the pre-declaration review found unmet. `SweepReport` gains a required `candidates`
@@ -1316,6 +1316,108 @@ report⇔verdict coupling test fails in a way you'd "fix" by weakening either si
 
 ---
 
+### M4-C8e — Exact-zero buy-side slippage when slippage is zero (unblocks C8c) — `TODO`
+
+*(Inserted 2026-07-08. C8c's escalation was CORRECT and the operator ruled: fix the accounting,
+never weaken the assertion. `fill_buy`'s reporting identity leaves a ±1-ulp Decimal residue in
+`slippage_quote` when `slippage_bps = 0` — a real money-reporting defect that C8c's first-class
+export made visible. Pre-existing M2 behavior; the sell side is already structurally exact.
+Execute this card, then re-gate C8c in the SAME session.)*
+
+**Goal.** A zero-slippage cost model must report exactly zero slippage (serves M4 deliverable
+*turnover and fee-sensitivity reporting* — exported money values must be exact, invariant 7).
+
+**Files.**
+1. `crates/portfolio/src/cost.rs` — **money-accounting file: change EXACTLY what this card says,
+   nothing else in the crate**
+2. `crates/sweep/src/report.rs` — DTO stringification only (an approved amendment to C8c's
+   still-uncommitted build)
+(then re-run C8c's gate and flip BOTH cards.)
+
+**Current state (verbatim, cost.rs:69-85; the residue is line 77).**
+```rust
+    /// Simulate spending `quote_in` USDC to buy SOL at mid `price`.
+    #[must_use]
+    pub fn fill_buy(&self, quote_in: Decimal, price: Decimal) -> BuyFill {
+        let eff = self.buy_price(price);
+        let gross_base = quote_in / eff;
+        let dex_fee_base = apply_bps(gross_base, self.dex_fee_bps);
+        let net_base = quantize_floor(gross_base - dex_fee_base, SOL_DECIMALS);
+        // Reporting figures in quote terms (valued at mid price).
+        let slippage_quote = quote_in - (quote_in * price / eff);
+        let dex_fee_quote = dex_fee_base * price;
+        BuyFill {
+            net_base,
+            gas_sol: self.gas_sol(),
+            slippage_quote,
+            dex_fee_quote,
+        }
+    }
+```
+The sell side (cost.rs:94) is `let slippage_quote = base_in * (price - eff);` — structurally exact
+when `eff == price`. `slippage_quote` is a **reporting-only** field: `net_base`/`gas_sol` drive
+balances, so this fix cannot change fills, balances, or equity.
+
+**Steps.**
+1. Replace line 77 with:
+   ```rust
+        // Exact-zero guard: with zero slippage `eff == price` and the identity below is
+        // mathematically zero, but Decimal's 28-digit division can leave a ±1-ulp residue once
+        // balances carry high scale. The sell side (`base_in * (price - eff)`) is structurally
+        // exact; this makes the buy side match (invariant 7 — exported money is exact).
+        let slippage_quote = if eff == price {
+            Decimal::ZERO
+        } else {
+            quote_in - (quote_in * price / eff)
+        };
+   ```
+2. Regression test in cost.rs's `mod tests`:
+   ```rust
+   #[test]
+   fn zero_slippage_buy_reports_exactly_zero_slippage_even_at_high_scale() {
+       // High-scale quote_in (as produced by prior fractional fills) used to leave a ±1-ulp
+       // residue through the quote_in * price / eff rounding. Must be exactly zero.
+       let cost = CostModel {
+           dex_fee_bps: 5,
+           slippage_bps: 0,
+           base_fee_lamports: 5_000,
+           priority_fee_lamports: 50_000,
+       };
+       let quote_in = dec!(937.5) / dec!(7); // deliberately non-terminating scale
+       let f = cost.fill_buy(quote_in, dec!(103));
+       assert!(f.slippage_quote.is_zero());
+   }
+   ```
+   (Red-green: this SHOULD fail if run before step 1 — verify if convenient; if these particular
+   numbers happen to pass pre-fix, keep the test anyway — C8c's end-to-end assert is the real proof.)
+3. In `report.rs` (C8c's uncommitted DTO helpers): stringify every Decimal via
+   `.normalize().to_string()` instead of `.to_string()` (the six `ScenarioMetricsDto` money fields,
+   both drags in `FeeSensitivityDto`, and `max_drawdown`/`turnover` in `CandidateMetricsDto`), with
+   a one-line doc note: scale-canonical strings, matching `param_id`'s `.normalize()` convention —
+   so exact zeros export as `"0"`, not `"0.0000000000000000000000000"`. Keep C8c's value-equality
+   zero assertions (they pass either way; they are the approved form).
+4. `cargo test -p portfolio` → all green including the new test; every pre-existing slippage
+   assertion (cost.rs:142, :157, :173, :205, :225) unchanged and green.
+5. **Re-run C8c's full gate** (its build is already in the tree): `cargo fmt --all`; full-workspace
+   gate → **0 failed** (the previously-failing before_costs assert must now pass);
+   `cargo run -q -p cli -- sweep | shasum` twice + `--threads 8` → all three identical (hash will
+   differ from `e94e10c0…` — record the new value); `sweep-verify; echo $?` → OK, 0;
+   `cargo run -q -p cli -- demo | shasum` → **unchanged `ae064f79…`** (demo uses `slippage_bps: 20`,
+   so `eff != price` — untouched by the guard); `git status` → only C8c's six files + cost.rs +
+   report.rs modified, no schema other than sweep-report.
+6. Flip **both C8e and C8c** to DONE; one worklog line with the new sweep hash.
+
+**Guardrails.** Money-accounting crate: the ONLY behavioral change is the exact-zero guard on a
+reporting-only field — `net_base`/`net_quote`/fee/gas formulas must not change by a single
+character; Decimal only, no f64; no new dependencies; no execution/RPC code; holdout untouched; no
+schema edits on this card (C8c's schema change is already in the tree); no master-plan edits.
+
+**Escalate-if.** cost.rs:69-85 differs from the verbatim block; the demo hash changes (means the
+guard touched a non-zero-slippage path — stop immediately); any pre-existing portfolio/strategies/
+cli test fails; C8c's gate still fails after the fix.
+
+---
+
 ### M4-C8d — Close the review's two minor test gaps — `TODO`
 
 **Goal.** (1) Exercise the InsufficientData path end-to-end through `run_sweep` (not just hand-built
@@ -1428,7 +1530,7 @@ master-plan.md; determinism evidence must come from freshly run commands (step 1
 card's text; no new dependencies; holdout stays sealed.
 
 **Escalate-if.** ANY step-1 command fails (M4 is NOT complete — stop, report, do not declare); any
-checklist row lacks its artifact; cards C1–C8 **and C8b/C8c/C8d** are not all DONE in this file.
+checklist row lacks its artifact; cards C1–C8 **and C8b/C8c/C8d/C8e** are not all DONE in this file.
 
 ---
 
@@ -1469,6 +1571,896 @@ tasks, or any M6+ scaffolding; no master-plan edits.
 
 **Escalate-if.** C9 is not DONE; anything in handoff.md contradicts the STOP semantics after your
 edit; you find yourself wanting to sketch M5 implementation steps (don't — that is the operator's gate).
+
+---
+
+## M-HF wave 1 — task cards (**BLOCKED**: drafted ahead of the gate — do not execute)
+
+*(Drafted 2026-07-07 on operator instruction after the entry-condition check found all three
+conditions unmet — see worklog. These cards serve machina's goal — genuine autonomous passive
+income at high volume — by building the machinery that TESTS whether small-edge/high-volume
+trading clears real round-trip costs. Every HF strategy family is a hypothesis; no card claims or
+implies a known-profitable algorithm; rejecting all seven families cleanly is a successful outcome.)*
+
+**Execution may not start until ALL THREE hold (check them, don't assume — verify directly:
+M4-C9's Status in this file; `cmp plans/master-plan.md solana-crypto-trader-plan.md` plus the
+Status line at the top of highfrequency-algo-plan.md; `grep -n "HF-Q" plans/questions.md`):**
+1. **M4 gate declared** — card M4-C9 is DONE in this file.
+2. **Operator approval + amendment** — the operator has approved
+   [highfrequency-algo-plan.md](highfrequency-algo-plan.md) AND the master-plan amendment has been
+   made (`plans/master-plan.md` and root `solana-crypto-trader-plan.md` edited in lockstep,
+   byte-identical — verify with `cmp`, per Q6). That amendment is an **operator-level edit, never a
+   card.**
+3. **HF-Q decisions recorded in plans/questions.md** — HF-Q1 (intraday data source) blocks only
+   M-HF-C9; HF-Q2 (USDT/LST allowlist additions) blocks M-HF-C7's statarb family; HF-Q3 (frozen
+   intraday walk-forward sizing + HF advancement thresholds, incl. the turnover-criterion
+   replacement) blocks the M-HF-C10 sweep. **No HF-Q blocks C1–C2** (synthetic fixtures carry
+   C1–C8), but conditions 1–2 block everything.
+
+**Wave discipline.** C1–C2 are drafted now because they need only today's `crates/research-core` +
+`crates/market-data` (untouched by the in-flight M4-C8c/C8d). **C3–C10 are deliberately NOT
+drafted** — they must quote types C1–C2 will create, so each wave is expanded against what actually
+landed. A mandatory **adversarial review checkpoint follows M-HF-C5** (the fill/cost engine — the
+place an HF backtest would silently lie) before C6+ may be expanded. The 2026-07-07 audit of the HF
+plan vs. the tree covered market-data/portfolio/prior-art; the sweep-ladder, strategies-trait, and
+invariants-config audit areas were cut short (session limit) and **must be re-run before wave 2 is
+expanded** (findings + coverage gaps recorded in the 2026-07-07 worklog entry and in
+[highfrequency-algo-plan.md](highfrequency-algo-plan.md)'s Appendix).
+
+Execution contract and guardrails: identical to the M4 cards above (fresh session per card; flip the
+card status + one worklog line when its gate passes; never `git commit`/`git push` — the operator
+commits explicit paths; full-workspace gate on every card; `cargo fmt --all` once after typing in
+pasted code). **Step 0 of every card: run the full-workspace gate BEFORE touching any file.** If it
+is already red, STOP and report the baseline failure in the worklog instead of proceeding — never
+spend the session attributing a pre-existing break to your own diff. (The 2026-07-07 card rehearsal
+hit exactly this: from a clean checkout, `crates/results/tests/schema_validation.rs` fails because
+`.gitignore`'s `wallet*.json` pattern kept `schemas/wallet-snapshot.schema.json` untracked — see
+that day's worklog entry for the fix status.)
+
+**Escalate and STOP (report in plans/worklog.md instead of improvising) if:** a file, line, or
+signature named on the card doesn't match what you find; any pre-existing test fails, or a gate
+fails for a reason unrelated to your change; the task seems to need a file the card doesn't list;
+anything ambiguous touches money types, determinism, the holdout, or schemas.
+
+Every signature below was **copied verbatim from source on 2026-07-07 at commit
+`e821591`** (the tree's uncommitted M4-C8c edits touch only `crates/sweep`,
+`schemas/sweep-report.schema.json`, and `DECISIONS.md` — not these crates) — if what you find
+differs, escalate, don't adapt.
+
+---
+
+### M-HF-C1 — Intraday domain types + series hygiene (trade prints, slot snapshots, 1s bars) — `BLOCKED (pre-gate draft)`
+
+**Goal.** Give the research engine intraday primitives with the same hygiene guarantees daily bars
+already have: `TradePrint`/`SlotSnapshot` types in `research-core` (self-checking, like `Bar`),
+series-level validation in `market-data` (single venue, sorted, unique per key, explicit gap
+policy), and tiny hand-written synthetic fixtures proving every rejection path (serves HF plan
+§2.1; unblocks M-HF-C2 and every later HF card).
+
+**Audit corrections this card implements (2026-07-07, confirmed against source).** (a) The HF
+plan's "gap-scenario config from M1" does **not** exist in code — the only gap override today is
+*calling the looser function*: validation.rs:114-115 says "Callers that deliberately allow gaps (an
+explicit scenario) should use [`validate_series`] instead." This card mirrors that exact
+two-function pattern for intraday data (strict + loose, choice documented); a config-level scenario
+mechanism belongs to the wave that gives `SweepSpec` intraday support (M-HF-C8), where a run
+actually declares scenarios. (b) "(venue, slot, seq)" is a **new** per-event ordering/uniqueness
+key this card introduces — no existing Rust type in `research-core`/`market-data` carries per-event
+venue/slot/seq fields (`AllowlistEntry.venues` in allowlist.rs and the wallet-snapshot schema's
+`slot` are unrelated, non-colliding uses of those words); `Bar` is keyed by `ts` alone. (c) 1-second bars
+need **no new type**: `validate_series_spacing(bars, 1)` already handles them — this card only adds
+the test that pins that.
+
+**Files.**
+1. `crates/research-core/src/intraday.rs` (new)
+2. `crates/research-core/src/lib.rs` (two added lines)
+3. `crates/market-data/src/intraday.rs` (new)
+4. `crates/market-data/src/lib.rs` (two added lines)
+5. `crates/market-data/fixtures/` — SIX NEW files (step 5): `prints_good.json`,
+   `prints_unsorted.json`, `prints_duplicate.json`, `prints_bad_size.json`, `snapshots_good.json`,
+   `snapshots_slot_gap.json`
+6. `crates/market-data/tests/intraday_validation.rs` (new)
+
+Sanctioned exception to the ~3-file budget: files 1/3/5/6 are ALL NEW; the two lib.rs edits are
+module + re-export lines. No existing file's behavior changes. **This card edits NO Cargo.toml**
+(all needed deps exist) and touches NO existing fixture.
+
+**Current state (verbatim, verified 2026-07-07 at `e821591`).**
+`crates/research-core/src/lib.rs:12-15` modules (alphabetical): `pub mod bar; pub mod money;
+pub mod time; pub mod token;` — re-exports at :17-25 include `pub use bar::{Bar, BarError};` and
+`pub use rust_decimal::Decimal;`. `crates/market-data/src/lib.rs:10-16` (entire public surface):
+```rust
+pub mod allowlist;
+pub mod validation;
+
+pub use allowlist::{Allowlist, AllowlistEntry};
+pub use validation::{
+    validate_series, validate_series_spacing, validate_token_decimals, DataError,
+};
+```
+The daily-bar machinery this card mirrors (read-only — do NOT modify any of it):
+```rust
+// crates/research-core/src/bar.rs:12-21
+pub struct Bar {
+    /// Bar open time (UTC). Bars are keyed and sorted by this.
+    pub ts: Timestamp,
+    pub open: Decimal,
+    pub high: Decimal,
+    pub low: Decimal,
+    pub close: Decimal,
+    /// Base-asset volume; must be ≥ 0.
+    pub volume: Decimal,
+}
+// crates/research-core/src/time.rs:11-12 — newtype ⇒ serializes as a bare integer in fixtures
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Timestamp(i64);
+// crates/market-data/src/validation.rs:84
+pub fn validate_series(bars: &[Bar]) -> Result<(), DataError>
+// crates/market-data/src/validation.rs:116
+pub fn validate_series_spacing(bars: &[Bar], expected_interval_secs: i64) -> Result<(), DataError>
+```
+validation.rs:113-115 doc (the gap-scenario pattern to mirror): "a hole between otherwise sorted,
+unique bars is rejected with [`DataError::Gap`]. Callers that deliberately allow gaps (an explicit
+scenario) should use [`validate_series`] instead."
+Fixture-loading convention (crates/market-data/tests/fixture_validation.rs:14-18):
+```rust
+fn load(name: &str) -> Vec<Bar> {
+    let path = format!("{}/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {path}: {e}"));
+    serde_json::from_str(&text).unwrap_or_else(|e| panic!("parse {path}: {e}"))
+}
+```
+Existing fixtures (6 files, daily bars — never modify): bars_bad_ohlc / bars_duplicate / bars_gap /
+bars_good / bars_negative_volume / bars_unsorted `.json`. Dependencies already present:
+research-core has `rust_decimal` + `serde` (dev: `rust_decimal_macros`, `serde_json`); market-data
+has `research-core`, `rust_decimal`, `serde`, `toml` (dev: `rust_decimal_macros`, `serde_json`).
+
+**Steps.**
+1. Create `crates/research-core/src/intraday.rs`:
+   ```rust
+   //! Intraday market events: trade prints and per-slot state snapshots (HF plan §2.1).
+   //!
+   //! Same split as [`crate::bar`]: an item only knows how to validate itself; series-level checks
+   //! (single venue, sorted, unique per key, slot-gap policy) live in `market-data`. Research data
+   //! only — these types carry no execution capability.
+
+   use crate::time::Timestamp;
+   use rust_decimal::Decimal;
+   use serde::{Deserialize, Serialize};
+
+   /// Aggressor side of a trade print.
+   #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+   #[serde(rename_all = "lowercase")]
+   pub enum Side {
+       Buy,
+       Sell,
+   }
+
+   /// One executed trade on one venue. Ordered and deduplicated by `(slot, seq)` within a venue
+   /// (`seq` disambiguates multiple prints landing in the same slot).
+   #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+   pub struct TradePrint {
+       pub venue: String,
+       /// Solana slot in which the trade landed.
+       pub slot: u64,
+       /// Intra-slot sequence number (0-based) — the uniqueness key together with `slot`.
+       pub seq: u32,
+       /// Wall-clock time of the slot (UTC). Carried for bar alignment; ordering uses (slot, seq).
+       pub ts: Timestamp,
+       pub side: Side,
+       /// Trade price in quote units; must be > 0.
+       pub price: Decimal,
+       /// Trade size in base units; must be > 0.
+       pub size: Decimal,
+   }
+
+   /// One market-state observation for one venue at one slot (pool/book mid).
+   /// Depth fields arrive with the HF fill/cost cards — do not add them here.
+   #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+   pub struct SlotSnapshot {
+       pub venue: String,
+       pub slot: u64,
+       pub ts: Timestamp,
+       /// Mid price in quote units; must be > 0.
+       pub mid: Decimal,
+   }
+
+   /// A single-item validation failure, tagged with the offending key.
+   #[derive(Debug, Clone, PartialEq, Eq)]
+   pub enum IntradayItemError {
+       NonPositivePrice { slot: u64, seq: u32 },
+       NonPositiveSize { slot: u64, seq: u32 },
+       NonPositiveMid { slot: u64 },
+   }
+
+   impl std::fmt::Display for IntradayItemError {
+       fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+           match self {
+               Self::NonPositivePrice { slot, seq } => {
+                   write!(f, "print (slot {slot}, seq {seq}): price must be > 0")
+               }
+               Self::NonPositiveSize { slot, seq } => {
+                   write!(f, "print (slot {slot}, seq {seq}): size must be > 0")
+               }
+               Self::NonPositiveMid { slot } => {
+                   write!(f, "snapshot (slot {slot}): mid must be > 0")
+               }
+           }
+       }
+   }
+
+   impl std::error::Error for IntradayItemError {}
+
+   impl TradePrint {
+       /// Validate this print's single-item invariants: `price > 0`, `size > 0`.
+       pub fn check(&self) -> Result<(), IntradayItemError> {
+           if self.price <= Decimal::ZERO {
+               return Err(IntradayItemError::NonPositivePrice {
+                   slot: self.slot,
+                   seq: self.seq,
+               });
+           }
+           if self.size <= Decimal::ZERO {
+               return Err(IntradayItemError::NonPositiveSize {
+                   slot: self.slot,
+                   seq: self.seq,
+               });
+           }
+           Ok(())
+       }
+   }
+
+   impl SlotSnapshot {
+       /// Validate this snapshot's single-item invariant: `mid > 0`.
+       pub fn check(&self) -> Result<(), IntradayItemError> {
+           if self.mid <= Decimal::ZERO {
+               return Err(IntradayItemError::NonPositiveMid { slot: self.slot });
+           }
+           Ok(())
+       }
+   }
+   ```
+   plus `#[cfg(test)] mod tests` in the same file with exactly these four tests (use
+   `rust_decimal_macros::dec` and `serde_json` — both dev-deps):
+   - `valid_print_and_snapshot_pass_check` — a print (price `dec!(100.25)`, size `dec!(1.5)`) and a
+     snapshot (mid `dec!(100)`) both return `Ok(())`.
+   - `non_positive_price_size_mid_rejected` — price `dec!(0)` → `NonPositivePrice`; size `dec!(-1)`
+     → `NonPositiveSize`; mid `dec!(0)` → `NonPositiveMid` (match on the variants).
+   - `print_serde_round_trips_with_lowercase_side` — `serde_json::to_string` of a print contains
+     `"side":"buy"`; parsing it back equals the original.
+   - `snapshot_serde_round_trips` — snapshot JSON round-trips to an equal value and its `ts`
+     serializes as a bare integer (assert the JSON contains `"ts":1609459200`).
+2. In `crates/research-core/src/lib.rs`: add `pub mod intraday;` between `pub mod bar;` and
+   `pub mod money;`; add `pub use intraday::{IntradayItemError, Side, SlotSnapshot, TradePrint};`
+   directly after the `pub use bar::{Bar, BarError};` line.
+3. Create `crates/market-data/src/intraday.rs`:
+   ```rust
+   //! Intraday series hygiene: trade prints and slot snapshots (HF plan §2.1). Same discipline as
+   //! [`crate::validation`], same gap rule as daily bars: **missing data blocks a run unless the
+   //! caller explicitly declares a gap scenario by choosing the looser validator** — never
+   //! silently. At slot resolution gaps are frequent (skipped slots, outages), so snapshot series
+   //! treat slot gaps as the declared-scenario default ([`validate_snapshots`]) and offer a strict
+   //! contiguous check ([`validate_snapshots_contiguous`]) for gap-free segments.
+   //!
+   //! 1-second BARS need no new types: a 1s series is a plain `[Bar]` validated with
+   //! [`crate::validation::validate_series_spacing`]`(bars, 1)` (gap-blocking) or
+   //! [`crate::validation::validate_series`] (declared-gap scenario) — pinned by test in
+   //! `tests/intraday_validation.rs`.
+
+   use research_core::intraday::{IntradayItemError, SlotSnapshot, TradePrint};
+
+   /// An intraday data-hygiene failure. Every variant is a hard stop for a run.
+   #[derive(Debug, Clone, PartialEq, Eq)]
+   pub enum IntradayError {
+       /// A run was asked to use an empty series.
+       EmptySeries,
+       /// All items in one series must come from one venue (cross-venue data = separate series).
+       MixedVenue {
+           index: usize,
+           expected: String,
+           found: String,
+       },
+       /// `(slot, seq)` (prints) or `slot` (snapshots) is not strictly increasing.
+       OutOfOrder {
+           index: usize,
+           prev_slot: u64,
+           cur_slot: u64,
+       },
+       /// Two items share the uniqueness key. `seq` is 0 for snapshot series (keyed by slot alone).
+       DuplicateKey { index: usize, slot: u64, seq: u32 },
+       /// Timestamps decrease while the slot advances.
+       NonMonotonicTime { index: usize },
+       /// A single item failed its invariants.
+       Item(IntradayItemError),
+       /// A hole in a contiguous-slot series (strict validator only).
+       SlotGap {
+           index: usize,
+           prev_slot: u64,
+           cur_slot: u64,
+       },
+   }
+
+   impl std::fmt::Display for IntradayError {
+       fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+           match self {
+               Self::EmptySeries => write!(f, "intraday series is empty (a run requires data)"),
+               Self::MixedVenue {
+                   index,
+                   expected,
+                   found,
+               } => write!(f, "mixed venues at index {index}: expected {expected}, found {found}"),
+               Self::OutOfOrder {
+                   index,
+                   prev_slot,
+                   cur_slot,
+               } => write!(
+                   f,
+                   "items out of order at index {index}: slot {cur_slot} follows {prev_slot}"
+               ),
+               Self::DuplicateKey { index, slot, seq } => {
+                   write!(f, "duplicate key (slot {slot}, seq {seq}) at index {index}")
+               }
+               Self::NonMonotonicTime { index } => {
+                   write!(f, "timestamp decreases at index {index} while slot advances")
+               }
+               Self::Item(e) => write!(f, "{e}"),
+               Self::SlotGap {
+                   index,
+                   prev_slot,
+                   cur_slot,
+               } => write!(
+                   f,
+                   "missing slot(s) before index {index}: {cur_slot} follows {prev_slot} (expected contiguous)"
+               ),
+           }
+       }
+   }
+
+   impl std::error::Error for IntradayError {}
+
+   impl From<IntradayItemError> for IntradayError {
+       fn from(e: IntradayItemError) -> Self {
+           Self::Item(e)
+       }
+   }
+
+   /// Validate a single-venue trade-print series: non-empty, per-item invariants, one venue,
+   /// strictly increasing `(slot, seq)`, non-decreasing timestamps. Slot gaps are expected in
+   /// event data and are NOT an error here.
+   pub fn validate_prints(prints: &[TradePrint]) -> Result<(), IntradayError> {
+       if prints.is_empty() {
+           return Err(IntradayError::EmptySeries);
+       }
+       let venue = &prints[0].venue;
+       for (i, p) in prints.iter().enumerate() {
+           p.check()?;
+           if &p.venue != venue {
+               return Err(IntradayError::MixedVenue {
+                   index: i,
+                   expected: venue.clone(),
+                   found: p.venue.clone(),
+               });
+           }
+           if i > 0 {
+               let prev = (prints[i - 1].slot, prints[i - 1].seq);
+               let cur = (p.slot, p.seq);
+               if cur == prev {
+                   return Err(IntradayError::DuplicateKey {
+                       index: i,
+                       slot: p.slot,
+                       seq: p.seq,
+                   });
+               }
+               if cur < prev {
+                   return Err(IntradayError::OutOfOrder {
+                       index: i,
+                       prev_slot: prints[i - 1].slot,
+                       cur_slot: p.slot,
+                   });
+               }
+               if p.ts < prints[i - 1].ts {
+                   return Err(IntradayError::NonMonotonicTime { index: i });
+               }
+           }
+       }
+       Ok(())
+   }
+
+   /// Validate a single-venue snapshot series: non-empty, per-item invariants, one venue, strictly
+   /// increasing `slot`, non-decreasing timestamps. **Slot gaps are allowed here** — this is the
+   /// declared-scenario path, mirroring [`crate::validation::validate_series`] for daily bars.
+   pub fn validate_snapshots(snaps: &[SlotSnapshot]) -> Result<(), IntradayError> {
+       if snaps.is_empty() {
+           return Err(IntradayError::EmptySeries);
+       }
+       let venue = &snaps[0].venue;
+       for (i, s) in snaps.iter().enumerate() {
+           s.check()?;
+           if &s.venue != venue {
+               return Err(IntradayError::MixedVenue {
+                   index: i,
+                   expected: venue.clone(),
+                   found: s.venue.clone(),
+               });
+           }
+           if i > 0 {
+               let prev = snaps[i - 1].slot;
+               if s.slot == prev {
+                   return Err(IntradayError::DuplicateKey {
+                       index: i,
+                       slot: s.slot,
+                       seq: 0,
+                   });
+               }
+               if s.slot < prev {
+                   return Err(IntradayError::OutOfOrder {
+                       index: i,
+                       prev_slot: prev,
+                       cur_slot: s.slot,
+                   });
+               }
+               if s.ts < snaps[i - 1].ts {
+                   return Err(IntradayError::NonMonotonicTime { index: i });
+               }
+           }
+       }
+       Ok(())
+   }
+
+   /// [`validate_snapshots`] AND require every slot advance to be exactly `+1`. The strict
+   /// gap-blocking path, mirroring [`crate::validation::validate_series_spacing`].
+   pub fn validate_snapshots_contiguous(snaps: &[SlotSnapshot]) -> Result<(), IntradayError> {
+       validate_snapshots(snaps)?;
+       for i in 1..snaps.len() {
+           let prev = snaps[i - 1].slot;
+           if snaps[i].slot != prev + 1 {
+               return Err(IntradayError::SlotGap {
+                   index: i,
+                   prev_slot: prev,
+                   cur_slot: snaps[i].slot,
+               });
+           }
+       }
+       Ok(())
+   }
+   ```
+   plus `#[cfg(test)] mod tests` with exactly these eight tests (build items via small `fn print(…)`
+   / `fn snap(…)` helpers with `dec!`):
+   - `good_prints_pass` — 4 prints: (slot 1000, seq 0), (1000, 1), (1002, 0), (1005, 0), equal or
+     rising ts → `Ok` (covers same-slot seq bump AND slot skips being fine for prints).
+   - `mixed_venue_rejected` — second print with another venue → `MixedVenue { index: 1, .. }`.
+   - `out_of_order_and_duplicate_rejected` — (1002,0) then (1000,0) → `OutOfOrder`; (1000,0) twice
+     → `DuplicateKey`; same slot with seq 1 then 0 → `OutOfOrder`.
+   - `non_monotonic_time_rejected` — rising slots, falling `ts` → `NonMonotonicTime { index: 1 }`.
+   - `bad_item_rejected` — size `dec!(0)` → `Item(IntradayItemError::NonPositiveSize { .. })`.
+   - `snapshots_loose_allows_slot_gaps_strict_rejects` — slots 1000, 1001, 1003:
+     `validate_snapshots` → `Ok`; `validate_snapshots_contiguous` →
+     `SlotGap { index: 2, prev_slot: 1001, cur_slot: 1003 }`.
+   - `empty_series_rejected` — both validators on `&[]` → `EmptySeries`.
+   - `intraday_error_display_covers_variants` — `to_string()` of each variant contains its key
+     phrase (mirror `data_error_display_and_from_bar_error` in validation.rs).
+4. In `crates/market-data/src/lib.rs`: add `pub mod intraday;` between `pub mod allowlist;` and
+   `pub mod validation;`; add
+   `pub use intraday::{validate_prints, validate_snapshots, validate_snapshots_contiguous, IntradayError};`
+   after the `pub use allowlist::…` line.
+5. Create the six fixtures under `crates/market-data/fixtures/` (tiny, hand-written, synthetic —
+   `venue_a` is deliberately not a real venue name):
+   `prints_good.json`:
+   ```json
+   [
+     {"venue": "venue_a", "slot": 1000, "seq": 0, "ts": 1609459200, "side": "buy",  "price": "100.25", "size": "1.5"},
+     {"venue": "venue_a", "slot": 1000, "seq": 1, "ts": 1609459200, "side": "sell", "price": "100.20", "size": "0.75"},
+     {"venue": "venue_a", "slot": 1002, "seq": 0, "ts": 1609459201, "side": "buy",  "price": "100.30", "size": "2.0"},
+     {"venue": "venue_a", "slot": 1005, "seq": 0, "ts": 1609459202, "side": "sell", "price": "100.10", "size": "0.5"}
+   ]
+   ```
+   `prints_unsorted.json`:
+   ```json
+   [
+     {"venue": "venue_a", "slot": 1002, "seq": 0, "ts": 1609459201, "side": "buy",  "price": "100.30", "size": "2.0"},
+     {"venue": "venue_a", "slot": 1000, "seq": 0, "ts": 1609459200, "side": "buy",  "price": "100.25", "size": "1.5"}
+   ]
+   ```
+   `prints_duplicate.json`:
+   ```json
+   [
+     {"venue": "venue_a", "slot": 1000, "seq": 0, "ts": 1609459200, "side": "buy",  "price": "100.25", "size": "1.5"},
+     {"venue": "venue_a", "slot": 1000, "seq": 0, "ts": 1609459200, "side": "buy",  "price": "100.25", "size": "1.5"}
+   ]
+   ```
+   `prints_bad_size.json`:
+   ```json
+   [
+     {"venue": "venue_a", "slot": 1000, "seq": 0, "ts": 1609459200, "side": "buy",  "price": "100.25", "size": "1.5"},
+     {"venue": "venue_a", "slot": 1002, "seq": 0, "ts": 1609459201, "side": "sell", "price": "100.20", "size": "-1"}
+   ]
+   ```
+   `snapshots_good.json`:
+   ```json
+   [
+     {"venue": "venue_a", "slot": 1000, "ts": 1609459200, "mid": "100.25"},
+     {"venue": "venue_a", "slot": 1001, "ts": 1609459200, "mid": "100.30"},
+     {"venue": "venue_a", "slot": 1002, "ts": 1609459201, "mid": "100.20"}
+   ]
+   ```
+   `snapshots_slot_gap.json`:
+   ```json
+   [
+     {"venue": "venue_a", "slot": 1000, "ts": 1609459200, "mid": "100.25"},
+     {"venue": "venue_a", "slot": 1001, "ts": 1609459200, "mid": "100.30"},
+     {"venue": "venue_a", "slot": 1003, "ts": 1609459201, "mid": "100.20"}
+   ]
+   ```
+6. Create `crates/market-data/tests/intraday_validation.rs` mirroring fixture_validation.rs's
+   shape (same `load` pattern — write two small helpers `load_prints`/`load_snapshots`):
+   - `good_prints_fixture_validates`; `unsorted_prints_fixture_rejected` (`OutOfOrder`);
+     `duplicate_prints_fixture_rejected` (`DuplicateKey`); `bad_size_prints_fixture_rejected`
+     (`Item(_)`); `snapshot_fixtures_good_and_gap` (good passes BOTH validators; gap fixture passes
+     `validate_snapshots`, rejected by `validate_snapshots_contiguous` — assert both, with a
+     comment restating "gaps allowed only by explicit scenario, never silently");
+   - `one_second_bars_use_existing_validators` — build 3 in-line `Bar`s at unix 0, 1, 2 (reuse the
+     `bar()` helper shape from validation.rs tests) → `validate_series_spacing(&bars, 1)` is `Ok`;
+     with ts 0, 1, 3 → `Err(DataError::Gap { .. })`. This pins the "1s bars are plain `Bar`s" claim.
+7. `cargo fmt --all`, then run the gate.
+
+**Gate.**
+- `cargo test -p research-core` → the 4 new intraday unit tests pass; all pre-existing pass.
+- `cargo test -p market-data` → the 8 new unit + 6 new integration tests pass; all pre-existing
+  (validation, allowlist, fixture_validation) pass unchanged.
+- Full-workspace gate green: `cargo fmt --all --check` && `cargo clippy --all-targets
+  --all-features -- -D warnings` && `cargo test --workspace --all-features` → **0 failed**.
+- `cargo run -q -p cli -- demo | shasum` twice → identical (nothing on this card touches the CLI).
+- `git status` under `crates/market-data/fixtures/` shows ONLY the six new files — no existing
+  fixture modified.
+
+**Guardrails (restated; violating any one = STOP).** Prices/sizes/money are `Decimal` — never f64.
+No RNG, no clock, no I/O in library code (validation is pure; fixtures are read only by tests).
+Parallel==sequential byte-identity of the sweep is untouched (this card must not touch
+`crates/sweep`; the determinism gate's thread counts {1,2,3,7,8} stay green via the workspace
+gate). The holdout stays sealed — `evaluate_on_holdout` is M5-only, never called or wired.
+Strategies emit intent only — no strategy, cost, or execution code on this card. **No execution
+code anywhere**: no keys, signing, submission, RPC, network, or HTTP (M8/M9 require separate
+explicit human approval). For later HF cards (context, restated per contract): per-trade cost =
+venue fee + depth-walk slippage + regime priority fee + tip — never base fee alone; adversarial/MEV
+terms are modeled only as costs *to us*, never as capability. No new dependencies (workspace or
+external). ADD-only under `fixtures/` — never modify existing fixtures, `schemas/*`,
+`plans/master-plan.md`, or `solana-crypto-trader-plan.md`.
+
+**Escalate-if.** This card's Status is still BLOCKED (entry conditions 1–2 above unmet — check
+first, work second); any verbatim block differs from source (esp. validation.rs:84/116,
+bar.rs:12-21, either lib.rs); a name this card adds collides with an existing export; `Timestamp`
+does not serialize as a bare integer (newtype serde behavior changed — stop); any pre-existing test
+fails; you find yourself wanting to modify `DataError`, `validation.rs`, or any existing fixture
+(don't — new module + new files only).
+
+---
+
+### M-HF-C2 — Deterministic synthetic microstructure generator — `BLOCKED (pre-gate draft; requires M-HF-C1 DONE)`
+
+**Goal.** A generator for synthetic intraday research data — OU mean-reverting mid price +
+impact-decay events + regime-switching congestion — emitting 1s bars, trade prints, slot snapshots,
+and a congestion series that all pass M-HF-C1 validation. Same spec → byte-identical output; every
+output self-identifies as synthetic. This generator carries HF cards C3–C8 until the operator
+decides HF-Q1 (real intraday data), exactly as Q3's synthetic-fixtures default carried M1–M4.
+
+**Files.**
+1. `crates/market-data/src/synthetic.rs` (new)
+2. `crates/market-data/src/lib.rs` (two added lines)
+No Cargo.toml edits; no fixture files (generation is in-memory — checked-in fixtures stay the
+hand-authored C1 ones; **never write files from library code**).
+
+**Current state (assumes M-HF-C1 landed exactly as its card specifies — verify, and escalate if
+not).** `market-data::intraday` exports `validate_prints`, `validate_snapshots`,
+`validate_snapshots_contiguous`, `IntradayError`; `research_core::intraday` exports `Side`,
+`SlotSnapshot`, `TradePrint`, `IntradayItemError`;
+`market_data::validation::validate_series_spacing(bars, 1)` validates 1s bars. The determinism
+invariant this card must satisfy (docs/invariants.md §3 enforcement line, verbatim): "fixed-point
+money (`rust_decimal::Decimal`), ordered collections in canonical output, no wall-clock/RNG in
+canonical runs, and a repeated-run determinism test." Compliance: the generator is a **pure
+function of its `SyntheticSpec`** — the "noise" is a fixed 16-entry `Decimal` quantile table
+indexed by a SplitMix64 integer hash stream seeded from the spec. No entropy source, no clock, no
+`rand` dependency (D-0002 minimalism upheld). NOTE: `rust_decimal_macros` is a **dev-dependency**
+of market-data — library code must construct constants with `Decimal::new(mantissa, scale)` /
+`Decimal::from(int)`; `dec!` only in tests.
+
+**Steps.**
+1. Create `crates/market-data/src/synthetic.rs`:
+   ```rust
+   //! Deterministic synthetic intraday data (HF plan §2.1, card M-HF-C2). Research fixtures ONLY.
+   //!
+   //! Every output is a pure function of its [`SyntheticSpec`]: the "noise" is a fixed quantile
+   //! table indexed by a SplitMix64 integer hash stream seeded from the spec — no entropy source,
+   //! no clock, no `rand` dependency (invariant 3: no wall-clock/RNG in canonical runs). Same spec
+   //! → byte-identical output. Every bundle carries `synthetic: true` into serialization, so no
+   //! synthetic series can masquerade as real data, and none of it may ever ground a statistical
+   //! claim about real markets (invariant 11's no-profitability-claims rule, extended here to
+   //! synthetic-vs-real labeling; real ingestion is M-HF-C9, gated on HF-Q1).
+
+   use crate::intraday::{validate_prints, validate_snapshots};
+   use crate::validation::validate_series_spacing;
+   use research_core::intraday::{Side, SlotSnapshot, TradePrint};
+   use research_core::{Bar, Decimal, Timestamp};
+   use serde::Serialize;
+
+   /// Spec for one synthetic intraday series. The output is a pure function of this struct.
+   #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+   pub struct SyntheticSpec {
+       /// Seed of the SplitMix64 index stream.
+       pub seed: u64,
+       /// Number of 1-second steps (one bar per step); must be > 0.
+       pub steps: usize,
+       /// Unix seconds (UTC) of the first bar.
+       pub start_unix: i64,
+       /// First Solana slot. Slots advance 2–3 per step (deterministically), so snapshot series
+       /// have realistic slot gaps — the declared-scenario path of M-HF-C1.
+       pub start_slot: u64,
+       /// Synthetic venue label (not a real venue).
+       pub venue: String,
+       /// Initial mid price; must be > 0.
+       pub mid0: Decimal,
+       /// OU anchor μ; must be > 0.
+       pub anchor: Decimal,
+       /// OU reversion θ per step; must be in [0, 1).
+       pub reversion: Decimal,
+       /// Noise step size σ in quote units; must be ≥ 0.
+       pub vol_step: Decimal,
+       /// Every `impact_every`-th step (i > 0) starts an impact event; 0 = never.
+       pub impact_every: usize,
+       /// Initial displacement magnitude of an impact event; must be ≥ 0.
+       pub impact_size: Decimal,
+       /// Per-step geometric decay of the outstanding impact; must be in [0, 1).
+       pub impact_decay: Decimal,
+       /// Steps per congestion regime segment (> 0): Calm → Busy → Hot → Calm → …
+       pub regime_period: usize,
+   }
+
+   /// Congestion regime label (consumed by the HF cost cards).
+   #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+   #[serde(rename_all = "lowercase")]
+   pub enum Congestion {
+       Calm,
+       Busy,
+       Hot,
+   }
+
+   /// Why a spec was rejected or generation failed its own hygiene check.
+   #[derive(Debug, Clone, PartialEq, Eq)]
+   pub enum SyntheticError {
+       BadSpec(&'static str),
+       /// Generated output failed M-HF-C1 validation — a generator bug by definition.
+       SelfCheck(String),
+   }
+
+   impl std::fmt::Display for SyntheticError {
+       fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+           match self {
+               Self::BadSpec(why) => write!(f, "bad synthetic spec: {why}"),
+               Self::SelfCheck(e) => write!(f, "generator self-check failed: {e}"),
+           }
+       }
+   }
+
+   impl std::error::Error for SyntheticError {}
+
+   /// One generated bundle. `synthetic` is always `true` and serializes into every export.
+   #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+   pub struct SyntheticIntraday {
+       /// Always true — synthetic data must self-identify (HF plan §2.1).
+       pub synthetic: bool,
+       pub spec: SyntheticSpec,
+       pub bars_1s: Vec<Bar>,
+       pub prints: Vec<TradePrint>,
+       pub snapshots: Vec<SlotSnapshot>,
+       /// One label per step.
+       pub congestion: Vec<Congestion>,
+   }
+
+   /// SplitMix64 — a deterministic integer hash sequence, NOT an entropy source.
+   fn splitmix64(state: &mut u64) -> u64 {
+       *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+       let mut z = *state;
+       z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+       z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+       z ^ (z >> 31)
+   }
+
+   /// Fixed symmetric noise quantile table (mean 0). `dec!` is dev-only, hence `Decimal::new`.
+   fn noise_table() -> [Decimal; 16] {
+       [
+           Decimal::new(-200, 2),
+           Decimal::new(-150, 2),
+           Decimal::new(-100, 2),
+           Decimal::new(-75, 2),
+           Decimal::new(-50, 2),
+           Decimal::new(-25, 2),
+           Decimal::new(-10, 2),
+           Decimal::ZERO,
+           Decimal::ZERO,
+           Decimal::new(10, 2),
+           Decimal::new(25, 2),
+           Decimal::new(50, 2),
+           Decimal::new(75, 2),
+           Decimal::new(100, 2),
+           Decimal::new(150, 2),
+           Decimal::new(200, 2),
+       ]
+   }
+
+   fn check_spec(spec: &SyntheticSpec) -> Result<(), SyntheticError> {
+       if spec.steps == 0 {
+           return Err(SyntheticError::BadSpec("steps must be > 0"));
+       }
+       if spec.mid0 <= Decimal::ZERO {
+           return Err(SyntheticError::BadSpec("mid0 must be > 0"));
+       }
+       if spec.anchor <= Decimal::ZERO {
+           return Err(SyntheticError::BadSpec("anchor must be > 0"));
+       }
+       if spec.reversion < Decimal::ZERO || spec.reversion >= Decimal::ONE {
+           return Err(SyntheticError::BadSpec("reversion must be in [0, 1)"));
+       }
+       if spec.vol_step < Decimal::ZERO {
+           return Err(SyntheticError::BadSpec("vol_step must be >= 0"));
+       }
+       if spec.impact_size < Decimal::ZERO {
+           return Err(SyntheticError::BadSpec("impact_size must be >= 0"));
+       }
+       if spec.impact_decay < Decimal::ZERO || spec.impact_decay >= Decimal::ONE {
+           return Err(SyntheticError::BadSpec("impact_decay must be in [0, 1)"));
+       }
+       if spec.regime_period == 0 {
+           return Err(SyntheticError::BadSpec("regime_period must be > 0"));
+       }
+       Ok(())
+   }
+
+   /// Generate one synthetic bundle. Pure: same `spec` → byte-identical output, proven by test.
+   ///
+   /// Per step: decay the outstanding impact, maybe start a new impact event, then
+   /// `next = mid + θ(μ − mid) + σ·ε + impact`, quantized to 9 dp (deterministic banker's
+   /// rounding) and floored at 0.01 so prices stay positive. The bar is (open = mid,
+   /// close = next); one print and one snapshot land on a slot that advances 2–3 per step.
+   pub fn generate(spec: &SyntheticSpec) -> Result<SyntheticIntraday, SyntheticError> {
+       check_spec(spec)?;
+       let noise = noise_table();
+       let floor = Decimal::new(1, 2); // 0.01
+       let mut state = spec.seed;
+       let mut mid = spec.mid0;
+       let mut impact = Decimal::ZERO;
+       let mut slot = spec.start_slot;
+       let mut bars_1s = Vec::with_capacity(spec.steps);
+       let mut prints = Vec::with_capacity(spec.steps);
+       let mut snapshots = Vec::with_capacity(spec.steps);
+       let mut congestion = Vec::with_capacity(spec.steps);
+       for i in 0..spec.steps {
+           let r = splitmix64(&mut state);
+           let eps = noise[(r % 16) as usize];
+           impact *= spec.impact_decay;
+           if spec.impact_every > 0 && i > 0 && i % spec.impact_every == 0 {
+               let sign = if r & (1 << 20) == 0 { Decimal::ONE } else { -Decimal::ONE };
+               impact = spec.impact_size * sign;
+           }
+           let mut next = (mid + spec.reversion * (spec.anchor - mid) + spec.vol_step * eps
+               + impact)
+               .round_dp(9);
+           if next < floor {
+               next = floor;
+           }
+           let ts = Timestamp::from_unix(spec.start_unix + i as i64);
+           let (high, low) = if next >= mid { (next, mid) } else { (mid, next) };
+           let volume = Decimal::from(1 + (r >> 8) % 9);
+           bars_1s.push(Bar {
+               ts,
+               open: mid,
+               high,
+               low,
+               close: next,
+               volume,
+           });
+           slot += 2 + ((r >> 16) & 1); // 2–3 slots per second: slot gaps are the honest default
+           let side = if next >= mid { Side::Buy } else { Side::Sell };
+           prints.push(TradePrint {
+               venue: spec.venue.clone(),
+               slot,
+               seq: 0,
+               ts,
+               side,
+               price: next,
+               size: volume,
+           });
+           snapshots.push(SlotSnapshot {
+               venue: spec.venue.clone(),
+               slot,
+               ts,
+               mid: next,
+           });
+           congestion.push(match (i / spec.regime_period) % 3 {
+               0 => Congestion::Calm,
+               1 => Congestion::Busy,
+               _ => Congestion::Hot,
+           });
+           mid = next;
+       }
+       // Self-check: generator output must satisfy the M-HF-C1 hygiene it will be tested against.
+       validate_series_spacing(&bars_1s, 1)
+           .map_err(|e| SyntheticError::SelfCheck(e.to_string()))?;
+       validate_prints(&prints).map_err(|e| SyntheticError::SelfCheck(e.to_string()))?;
+       validate_snapshots(&snapshots).map_err(|e| SyntheticError::SelfCheck(e.to_string()))?;
+       Ok(SyntheticIntraday {
+           synthetic: true,
+           spec: spec.clone(),
+           bars_1s,
+           prints,
+           snapshots,
+           congestion,
+       })
+   }
+   ```
+2. `#[cfg(test)] mod tests` in the same file — exactly these seven tests (use `dec!` and
+   `serde_json`; base-spec helper: `seed 42, steps 600, start_unix 1_609_459_200,
+   start_slot 100_000, venue "venue_a".to_string(), mid0 dec!(100), anchor dec!(100),
+   reversion dec!(0.05), vol_step dec!(0.2), impact_every 50, impact_size dec!(1.5),
+   impact_decay dec!(0.5), regime_period 100`):
+   - `same_spec_is_byte_identical` — `serde_json::to_string(&generate(&spec()).unwrap())` twice →
+     equal strings; changing only `seed` to 43 → a different string.
+   - `outputs_pass_c1_validation` — on the base spec: `validate_series_spacing(&out.bars_1s, 1)`
+     Ok; `validate_prints(&out.prints)` Ok; `validate_snapshots(&out.snapshots)` Ok; and
+     `validate_snapshots_contiguous(&out.snapshots)` → `Err(IntradayError::SlotGap { .. })` (slot
+     skipping is the honest default; contiguity is a declared scenario — this asymmetry is the
+     point, assert it).
+   - `output_self_identifies_as_synthetic` — `out.synthetic` is true AND the serialized JSON
+     contains `"synthetic":true`.
+   - `mean_reversion_pulls_toward_anchor` — spec: `mid0 dec!(110), anchor dec!(100),
+     reversion dec!(0.2), vol_step dec!(0.05), impact_every 0, steps 100`. Let
+     `dev_i = bars_1s[i].close − dec!(100)` for `i in 0..steps`: for every `i` with `i + 1 < steps`
+     and `|dev_i| > dec!(1)`, assert `|dev_{i+1}| < |dev_i|`; assert `|dev_{steps−1}| <= dec!(1)`.
+     (Provable a priori:
+     `|dev_{i+1}| ≤ 0.8·|dev_i| + 0.1 < |dev_i|` for `|dev_i| > 0.5`, and once ≤ 1 it stays ≤ 1.
+     If this fails, the loop math was mistyped — fix YOUR code, do not loosen the assert.)
+   - `impact_fires_and_decays_geometrically` — spec: `vol_step dec!(0), reversion dec!(0),
+     impact_every 5, impact_size dec!(2), impact_decay dec!(0.5), steps 10`. Let
+     `d_i = bars_1s[i].close − bars_1s[i].open`: assert `d_0 … d_4 == 0` (flat before the first
+     event), `|d_5| == dec!(2)`, `d_6 * dec!(2) == d_5`, `d_7 * dec!(2) == d_6` (exact geometric
+     decay, same sign).
+   - `regimes_cycle_deterministically` — base spec: `congestion[0] == Calm`,
+     `congestion[100] == Busy`, `congestion[200] == Hot`, `congestion[300] == Calm`; each 100-step
+     segment is constant.
+   - `bad_specs_rejected` — `steps 0`, `mid0 dec!(0)`, `reversion dec!(1)`, `regime_period 0` →
+     each `Err(SyntheticError::BadSpec(_))`.
+3. In `crates/market-data/src/lib.rs`: add `pub mod synthetic;` between `pub mod intraday;` and
+   `pub mod validation;`; add
+   `pub use synthetic::{generate, Congestion, SyntheticError, SyntheticIntraday, SyntheticSpec};`
+   after the `pub use intraday::…` line.
+4. `cargo fmt --all`, then run the gate.
+
+**Gate.**
+- `cargo test -p market-data synthetic` → the 7 new tests pass.
+- `cargo test -p market-data` → everything passes (C1's tests unchanged).
+- Full-workspace gate green: fmt + clippy `-D warnings` + `cargo test --workspace --all-features`
+  → **0 failed**.
+- `cargo run -q -p cli -- demo | shasum` twice → identical (CLI untouched).
+- `git status` → NO `Cargo.toml`/`Cargo.lock` modified (proves no new dependency).
+
+**Guardrails (restated; violating any one = STOP).** All prices/sizes `Decimal`, integer slot/seed
+math only — never f64 anywhere. Determinism is the deliverable: the ONLY "randomness" is SplitMix64
+on `spec.seed` — a pure integer function; no `rand`, no OS entropy, no clock, no new dependencies
+(D-0002). Byte-identity is asserted by test — if it fails, the bug is in YOUR code; never weaken
+the assert. Synthetic data must self-identify (`synthetic: true` stays a serialized field) and must
+never be presented as real market data or ground a statistical claim (invariant 11's rule, extended
+to synthetic-vs-real labeling). Library code writes no files. Parallel==sequential byte-identity of
+the sweep untouched at thread counts {1,2,3,7,8} (don't touch
+`crates/sweep`). Holdout stays sealed (`evaluate_on_holdout` is M5-only, never wired). Strategies
+emit intent only — no strategy/cost/execution code here. **No execution code anywhere** — no
+keys/signing/submit/RPC/HTTP (M8/M9 need separate explicit human approval). Later-card context,
+restated per contract: per-trade cost = venue fee + depth-walk slippage + regime priority + tip,
+never base fee alone; adversarial/MEV terms are modeled only as costs to us. Never edit
+`schemas/*`, existing fixtures, `plans/master-plan.md`, or `solana-crypto-trader-plan.md`.
+
+**Escalate-if.** This card's Status is still BLOCKED or M-HF-C1 is not DONE; C1's exports differ
+from the "Current state" block above (quote what you actually find in the worklog — don't adapt);
+you need `dec!` in non-test code (design misfit — stop); `same_spec_is_byte_identical` or the
+mean-reversion/impact asserts fail with the pinned numbers (the card's math note is then wrong —
+stop and report, do NOT tweak constants until green); clippy `-D warnings` fails on pasted code
+for a reason whose mechanical fix would change behavior; any pre-existing test fails.
 
 ---
 
