@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://machina.local/schemas/wallet-snapshot.schema.json",
+  "title": "WalletSnapshot",
+  "description": "A read-only reconciliation snapshot of on-chain token balances. In shadow mode this is derived from a READ-ONLY wallet address with NO signing key. This schema fixes the agreed shape for M7; NO code in this repository reads wallets or RPC yet. Balances are exact decimal strings AND raw integer base units for exact reconciliation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "mode",
+    "wallet_address",
+    "slot",
+    "commitment",
+    "provider_id",
+    "observed_at",
+    "sol_balance",
+    "token_accounts"
+  ],
+  "properties": {
+    "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "mode": {
+      "type": "string",
+      "enum": ["shadow", "devnet", "canary", "live-disabled"],
+      "description": "Wallet snapshots only exist from shadow mode onward; never carries a private key."
+    },
+    "wallet_address": { "type": "string", "minLength": 32, "maxLength": 44, "description": "Read-only public address." },
+    "slot": { "type": "integer", "minimum": 0 },
+    "commitment": { "type": "string", "enum": ["processed", "confirmed", "finalized"] },
+    "provider_id": { "type": "string", "minLength": 1 },
+    "observed_at": { "type": "string", "format": "date-time" },
+    "sol_balance": { "$ref": "#/$defs/decimalString" },
+    "token_accounts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/TokenAccount" }
+    }
+  },
+  "$defs": {
+    "decimalString": { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?$" },
+    "TokenAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mint", "decimals", "amount_base_units", "amount_decimal"],
+      "properties": {
+        "mint": { "type": "string", "minLength": 32, "maxLength": 44 },
+        "symbol": { "type": ["string", "null"] },
+        "decimals": { "type": "integer", "minimum": 0, "maximum": 18 },
+        "amount_base_units": { "type": "string", "pattern": "^[0-9]+$", "description": "Raw integer base units as a string (exact)." },
+        "amount_decimal": { "$ref": "#/$defs/decimalString" },
+        "allowlisted": { "type": "boolean", "description": "Whether this mint is in the active allowlist; an unknown token is an alert condition." }
+      }
+    }
+  }
+}

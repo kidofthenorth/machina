@@ -14,6 +14,10 @@ id.json
 *.mnemonic
 *.wallet
 wallet*.json
+# …but the wallet-snapshot JSON Schema is a tracked research CONTRACT (schemas-as-contracts,
+# D-0001), not a wallet file — without this negation it was silently untracked and a clean
+# checkout failed crates/results/tests/schema_validation.rs (found 2026-07-07).
+!schemas/wallet-snapshot.schema.json
 secrets/
 .secrets/
 *.secret
