@@ -65,3 +65,6 @@ Thumbs.db
 
 # ── Local agent tooling (cadence engine, machine-local settings) ─────────────
 .claude/settings.local.json
+
+# ── Personal playbook (portable, not a project artifact) ─────────────────────
+/FOREMAN.md
