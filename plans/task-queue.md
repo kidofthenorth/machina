@@ -24,7 +24,7 @@ M8/M9 explicit human approval.
 | T12 | DONE | M2/M3 | `crates/cli` | `cargo run -p cli -- demo` runs | deterministic demo wiring; emits validated RunResult. |
 | T13 | DONE | M0–M3 | (gates) | fmt+clippy+test green | fmt/clippy clean; demo byte-identical. |
 | T14 | DONE | M0–M3 | (review) | verification fan-out recorded | 6-lens adversarial workflow → PASS; 14 findings fixed/accepted (review-packet). |
-| M4·S1–S11 | DONE | M4 | `crates/sweep` (+ portfolio/results/research-core additive), `schemas/sweep-report.schema.json` | parallel==sequential byte-identical {1,2,3,7,8}; repeated identical; holdout sealed | Plan: [m4-sweep.md](m4-sweep.md). Deterministic sweep core (S1–S7), walk-forward (S8), holdout gate (S9), cost/fee sensitivity (S10), advancement report + schema (S11) — all adversarially reviewed. **Verified against source 2026-07-06 (audit in worklog): all claims confirmed; one S9 nuance → card M4-C1.** Workspace green at `df18267`: **272 tests, 0 failed**. |
+| M4·S1–S11 | DONE | M4 | `crates/sweep` (+ portfolio/results/research-core additive), `schemas/sweep-report.schema.json` | parallel==sequential byte-identical {1,2,3,7,8}; repeated identical; holdout sealed | Plan: [m4-sweep.md](m4-sweep.md). Deterministic sweep core (S1–S7), walk-forward (S8), holdout gate (S9), cost/fee sensitivity (S10), advancement report + schema (S11) — all adversarially reviewed. **Verified against source 2026-07-06 (audit in worklog): all claims confirmed; one S9 nuance → card M4-C1.** Workspace green at `df18267`: **272 tests, 0 failed**. **GATE DECLARED 2026-07-09 (card M4-C9): 301 tests, 0 failed; demo `ae064f79…`; sweep `7ad3df7d…`.** |
 
 ---
 
@@ -1464,7 +1464,7 @@ any pre-existing test fails.
 
 ---
 
-### M4-C9 — M4 gate declaration (evidence checklist against master-plan.md) — `TODO`
+### M4-C9 — M4 gate declaration (evidence checklist against master-plan.md) — `DONE`
 
 **Goal.** Run the full battery, check every M4 deliverable and gate criterion against
 `plans/master-plan.md:873-889` (quoted verbatim below — do NOT edit master-plan.md), and declare M4

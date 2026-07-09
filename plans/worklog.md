@@ -599,3 +599,29 @@ recorded inline (not full logs).
 - C9 remains TODO and may now run fresh: no new full re-review required — the session must verify the
   two resolutions exist (D-0011 in DECISIONS.md; m4-sweep §10 amendment; the discriminating cost.rs
   test) and then execute the card's step-1 battery + evidence table as written.
+
+## 2026-07-09 — M4-C9 executed: M4 gate declared
+- Pre-checks verified fresh before running the card: `D-0011` is DECISIONS.md's top entry; m4-sweep
+  §10 carries the `AMENDED 2026-07-09 (D-0011)` note; `cargo test -p portfolio zero_slippage_buy`
+  passes (1 passed).
+- Step-1 battery re-run fresh, all pass: `cargo fmt --all --check` exit 0; `cargo clippy --all-targets
+  --all-features -- -D warnings` exit 0; `cargo test --workspace --all-features` → **301 passed, 0
+  failed**, exit 0; `cargo run -p cli -- demo | shasum` ×2 → identical `ae064f79242f823ffd8f55bf9104e
+  3e1b45d425a`; `cargo run -p cli -- sweep | shasum` ×2 + `--threads 8` → identical
+  `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `cargo run -p cli -- sweep-verify; echo $?` →
+  `sweep-verify: OK — byte-identical across sequential, 2 and 8 threads, and repeat (18990 bytes)`,
+  exit 0; no-execution-deps grep scan → `OK`.
+- Evidence checklist walked against real artifacts (not just the card's prose): confirmed
+  `sweep::param`, `sweep::parallel` (`thread::scope`), `determinism.rs`
+  `parallel_equals_sequential_across_thread_counts` (K∈{1,2,3,7,8}) + `repeated_runs_are_byte_identical`,
+  `SweepReport::to_json`, `schemas/sweep-report.schema.json`, `sweep::window` +
+  `walk_forward.rs`, `report.rs` candidate `turnover`/`max_drawdown`/`fee_sensitivity` fields,
+  `advance.rs` `RejectionKind` (7 variants), `holdout_sealing.rs` (`Cell<u32>` read-counter,
+  `holdout_read_count() == 0` assertion) — all present and matching the card's claims; no row lacked
+  its artifact.
+- Declared M4 complete: `m4-sweep.md` S12 row → `✅ DONE (as cards M4-C1…C10)`, §1 gains
+  `**GATE DECLARED 2026-07-09**`; `current-state.md` milestone section moves M4 DONE→gate declared,
+  DOING→between milestones, Gates-run section refreshed to 301 tests / today's hashes; `task-queue.md`
+  M4-C9 flipped to `DONE`, `M4·S1–S11` row notes appended with the declaration. No code, schema, or
+  config touched — plan files only, per the card's guardrail. **M4-C10 (M5 handoff pointer) is
+  deliberately left for its own fresh session, per the card.**
