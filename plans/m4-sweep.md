@@ -178,9 +178,19 @@ under base vs doubled, plus `return_drag_doubled = return_base - return_doubled`
 
 ## 10. Strategy-family comparison
 
-Per family, aggregate cells into a comparison row: best/median/worst across param neighbors, baseline
-deltas (cost-matched), walk-forward fold consistency, fee-sensitivity degradation. Keyed and sorted
-on `Decimal` fields only.
+> **AMENDED 2026-07-09 (D-0011).** The per-family *aggregation row* originally sketched below
+> (best/median/worst across param neighbors) is **descoped from M4 and folded into M5's
+> "Strategy-family ranking" deliverable** (master-plan.md:900), where it is trivially derivable from
+> `SweepReport.candidates[]`. What M4 ships as "strategy-family comparison" — and what the C9 gate
+> evidence cites — is the **cross-family canonical report**: both families' candidates scored through
+> the identical shared `eval_strategy` core, against the same cost-matched baselines and walk-forward
+> windows, exported side-by-side (label-sorted) with per-candidate metrics, fee sensitivity, and
+> verdicts. The 2026-07-09 pre-declaration re-review caught that this file's stronger sketch had no
+> artifact; the descope is recorded, not silent (mirroring D-0010's precedent).
+
+Original sketch (now the M5 ranking input): per family, aggregate cells into a comparison row —
+best/median/worst across param neighbors, baseline deltas (cost-matched), walk-forward fold
+consistency, fee-sensitivity degradation. Keyed and sorted on `Decimal` fields only.
 
 ## 11. Rejection report (robustness only — invariant 11)
 

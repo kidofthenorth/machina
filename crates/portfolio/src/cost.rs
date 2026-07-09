@@ -253,15 +253,19 @@ mod tests {
     #[test]
     fn zero_slippage_buy_reports_exactly_zero_slippage_even_at_high_scale() {
         // High-scale quote_in (as produced by prior fractional fills) used to leave a ±1-ulp
-        // residue through the quote_in * price / eff rounding. Must be exactly zero.
+        // residue through the quote_in * price / eff rounding. Must be exactly zero. This
+        // specific (quote_in, price) pair is pinned because it reproduces a nonzero residue
+        // under the pre-guard formula `quote_in - (quote_in * price / eff)` — unlike the
+        // original 937.5/7 @ 103 pairing, which rounds back exactly even without the guard and
+        // so would not have caught a regression.
         let cost = CostModel {
             dex_fee_bps: 5,
             slippage_bps: 0,
             base_fee_lamports: 5_000,
             priority_fee_lamports: 50_000,
         };
-        let quote_in = dec!(937.5) / dec!(7); // deliberately non-terminating scale
-        let f = cost.fill_buy(quote_in, dec!(103));
+        let quote_in = dec!(1000) / dec!(3); // deliberately non-terminating scale
+        let f = cost.fill_buy(quote_in, dec!(50));
         assert!(f.slippage_quote.is_zero());
     }
 

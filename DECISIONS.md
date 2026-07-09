@@ -7,6 +7,25 @@ do not authorize any new capability (no signing, no submission — see
 
 ---
 
+## D-0011 — M4 "strategy-family comparison" = the cross-family canonical report; per-family aggregation rows move to M5 (M4)
+**Context.** The 2026-07-09 pre-declaration re-review confirmed a major: `plans/m4-sweep.md` §10
+sketched a per-family aggregation row (best/median/worst across param neighbors) with no
+corresponding artifact anywhere, and the C9 evidence checklist had silently substituted a weaker
+reading — the failure mode D-0010 was recorded to prevent.
+**Decision.** The master plan lists "Strategy-family comparison" under M4 but **"Strategy-family
+ranking" under M5** (master-plan.md:900). M4's deliverable is satisfied by what actually ships: both
+families' candidates scored through the identical shared `eval_strategy` core, against the same
+cost-matched baselines and walk-forward windows, exported side-by-side (label-sorted) in
+`SweepReport.candidates[]` with per-candidate metrics, fee sensitivity, and verdicts — a genuine
+cross-family comparison under one cost model. The per-family *aggregate* row is descoped from M4 and
+folded into M5's ranking deliverable, where it is trivially derivable from `candidates[]` and where
+choosing its aggregation semantics belongs (after real data, Q3, and frozen thresholds, Q5).
+`plans/m4-sweep.md` §10 is amended accordingly; the master-plan pair is untouched (its own M4/M5
+split already says this).
+**Consequences.** The M4 gate evidence cites the artifact that exists, with the descope recorded
+rather than implied. M5's ranking work starts from `candidates[]`, not from a bespoke M4 structure
+chosen before real data existed.
+
 ## D-0010 — SweepReport carries first-class per-candidate turnover + fee-sensitivity (M4)
 **Context.** The pre-declaration adversarial review of the M4 surface (2026-07-07, 11 agents)
 confirmed a major: the "turnover and fee-sensitivity reporting" deliverable never reached the

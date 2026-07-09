@@ -529,3 +529,73 @@ recorded inline (not full logs).
   gate (fmt+clippy+test) → 0 failed. Demo hash unchanged `ae064f79242f823ffd8f55bf9104e3e1b45d425a`;
   sweep hash unchanged `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` (refactor is behavior-preserving);
   `sweep-verify` → OK, exit 0. **M4-C8d** flipped to DONE.
+
+## 2026-07-09 — M4-C9 pre-declaration re-review (addendum): CONFIRMED MAJOR — M4 gate NOT declared
+- Before attempting C9, ran the mandated pre-declaration re-review: a 4-lens Sonnet workflow (report/
+  schema fidelity; aggregation-math consistency; the cost.rs exact-zero-guard's reporting-only scope;
+  master-plan conformance) over the C8b-C8e diff (`git diff 9368e95 01be9e9 --
+  crates/sweep/src/{sensitivity,runner,report,lib}.rs crates/portfolio/src/cost.rs
+  schemas/sweep-report.schema.json crates/sweep/tests/{schema_validation,sweep_runner}.rs
+  DECISIONS.md`), every finding put through 2 independent skeptics prompted to refute with file:line
+  evidence. First run hit the session token-limit mid-flight (4/6 agents errored); resumed the same
+  run (cached agents replayed, only the failed calls re-ran) to a clean 8/8 completion, 0 errors.
+- **report-schema-fidelity** and **aggregation-math-consistency** lenses: 0 findings (DTO<->schema
+  field parity, `.normalize()` stringification, total-order sort, and the `aggregate_evidence` /
+  `aggregate_fee_sensitivity` single-input consistency all checked out - both functions provably
+  consume the identical `keys`/`results`/`doubled_floors` slices in the same order within one
+  `run_sweep` call, so `survives_doubled` cannot drift from the edge-vanishes verdict).
+- **cost-rs-exact-zero-guard** lens: 1 finding, **CONFIRMED minor** (2/2 skeptics) - the C8e regression
+  test `zero_slippage_buy_reports_exactly_zero_slippage_even_at_high_scale` used `937.5/7 @ 103`, a
+  pair that rounds back to an exact-zero residue even under the OLD unguarded formula, so it would not
+  have caught a regression of the `eff == price` guard. **Fixed in this session** (test-only, 4 lines):
+  swapped to `1000/3 @ 50`; hand-verified red (fails without the guard) -> green (passes with it) via a
+  temporary local revert + restore. `cargo test -p portfolio --lib cost::` -> 9 passed; full-workspace
+  gate (fmt+clippy+test) -> 301 passed, 0 failed; demo hash unchanged
+  `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep hash unchanged
+  `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` (sequential/threads-8/repeat identical); `sweep-verify` ->
+  OK, exit 0. `git status`: only `crates/portfolio/src/cost.rs` modified (test literals + comment).
+- **master-plan-conformance** lens: 1 finding, **CONFIRMED major** (2/2 skeptics) - master-plan.md's M4
+  deliverable "Strategy-family comparison" is elaborated in `plans/m4-sweep.md` §10 as a per-family
+  "comparison row: best/median/worst across param neighbors, baseline deltas (cost-matched),
+  walk-forward fold consistency, fee-sensitivity degradation." No such aggregation exists anywhere in
+  the tree - `SweepReport` exports only a flat, label-sorted `candidates`/`verdicts` list (one row per
+  param point, never grouped or reduced by family); `grep -rniE
+  "median|FamilyComparison|ComparisonRow|per_family|by_family" crates/ schemas/` -> no hits. The
+  M4-C9 evidence checklist below (the "Strategy-family comparison" row) maps the deliverable to "one
+  report covering both families' candidates, scored via the shared `eval_strategy` core against the
+  same 4 cost-matched baselines" - a materially weaker reading than §10, adopted with no DECISIONS.md
+  entry recording the descoping (unlike D-0010, which did exactly that for the analogous
+  fee-sensitivity gap). One illustrative detail in the finding was wrong (candidates do not literally
+  interleave by family in a real run - they cluster, since "threshold_rebalance_v1" < "trend_alloc_v1"
+  lexicographically) but both skeptics judged this a cosmetic slip, not a defect in the core claim, and
+  did not refute on it.
+- **Per the addendum's decision rule (confirmed major -> STOP, do not declare): the M4 gate is NOT
+  declared this session.** M4-C9 stays `TODO` below; `plans/m4-sweep.md` and `plans/current-state.md`
+  are untouched (S12 row, milestone status, gate-declared line all unchanged). The full step-1 gate
+  battery was not run for declaration purposes (would be moot); the fmt/clippy/test/demo/sweep/
+  sweep-verify runs above were solely to confirm the minor fix above didn't regress anything.
+- **Operator decision needed before C9 can proceed:** either (a) implement a real per-family comparison
+  artifact (a new aggregation type + schema block + tests - a genuine feature addition, not a
+  same-session fix) and re-run this review, or (b) explicitly amend `plans/m4-sweep.md` §10 (descoping
+  "Strategy-family comparison" to the flat candidate/verdict list, deferring true per-family rollup to
+  M5's "Strategy-family ranking," master-plan.md:902) with a recorded DECISIONS.md entry, master-plan.md
+  edited in lockstep with the root `solana-crypto-trader-plan.md` per Q6, then re-run C9 in a fresh
+  session.
+
+## 2026-07-09 — Ruling on the second C9 stop: descope with rigor (D-0011), C9 cleared for a third run
+- The re-review's major is confirmed and fair: m4-sweep §10's per-family best/median/worst row has no
+  artifact, and C9's evidence table had silently substituted a weaker reading — the exact move D-0010
+  exists to prevent. Ruling = option (b), recorded not silent: the authoritative master plan puts
+  "Strategy-family comparison" in M4 but **"Strategy-family ranking" in M5** (master-plan.md:900);
+  what M4 ships (both families scored through one shared eval core against identical cost-matched
+  baselines/windows, side-by-side in `candidates[]` + verdicts) IS a cross-family comparison, and the
+  per-family aggregate row is M5 ranking input, trivially derivable from `candidates[]`. Recorded as
+  **D-0011**; m4-sweep §10 amended; C9's evidence row now cites the descope explicitly. Master-plan
+  pair untouched (no reword needed — its own M4/M5 split already says this).
+- Blessed the review's minor fix already in the tree: the C8e regression literals (937.5/7 @ 103)
+  were non-discriminating (rounded to exact zero even pre-fix); swapped to 1000/3 @ 50 and
+  red→green verified. Gate re-confirmed by the operator side: 301 tests 0 failed; sweep `7ad3df7d…`;
+  demo `ae064f79…` — both unchanged.
+- C9 remains TODO and may now run fresh: no new full re-review required — the session must verify the
+  two resolutions exist (D-0011 in DECISIONS.md; m4-sweep §10 amendment; the discriminating cost.rs
+  test) and then execute the card's step-1 battery + evidence table as written.

@@ -1509,7 +1509,7 @@ collapsed — your checklist):**
    | Parallel execution | `sweep::parallel` (`std::thread::scope`) + `--threads N` + determinism.rs {1,2,3,7,8} |
    | Canonical result export | `SweepReport::to_json` + `schemas/sweep-report.schema.json` validation tests (schema_validation.rs, sweep_runner.rs) |
    | Walk-forward windows | `sweep::window` + `DevValidation::walk_forward_windows` + walk_forward.rs |
-   | Strategy-family comparison | one report covering both families' candidates, scored via the shared `eval_strategy` core against the same 4 cost-matched baselines |
+   | Strategy-family comparison | cross-family canonical report: both families' candidates scored via the shared `eval_strategy` core against the same 4 cost-matched baselines and windows, exported side-by-side in `candidates[]` + verdicts. The per-family best/median/worst aggregation row is **descoped to M5's "Strategy-family ranking" deliverable — recorded as D-0011** (m4-sweep §10 amended 2026-07-09) |
    | Turnover & fee-sensitivity reporting | **first-class in the exported artifact**: `SweepReport.candidates[]` per-candidate `turnover`, `max_drawdown`, and `fee_sensitivity` block (C8b/C8c, schema 1.1.0, D-0010) + `RunOutput.traded_notional_quote` → `CellResult.turnover` + budget/doubled-costs criteria with recorded observed/threshold |
    | Rejection report | `advance` (7 criteria) + `report` verdicts, schema-validated |
    | Gate: parallel==sequential | determinism.rs + sweep_runner.rs test (a) + step 1e/1f above |
