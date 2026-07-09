@@ -519,3 +519,13 @@ recorded inline (not full logs).
   identical) `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify` → OK, exit 0. `git status`:
   only C8c's six files + `crates/portfolio/src/cost.rs` modified, no schema besides sweep-report.
   Both **M4-C8e** and **M4-C8c** flipped to DONE.
+
+## 2026-07-09 — M4-C8d executed: two review minors closed
+- Added `under_populated_schedule_is_rejected_as_insufficient_data_end_to_end` to
+  `sweep_runner.rs` (clones `spec()`, sets `min_windows: 99`, asserts every verdict
+  `Rejected`/`InsufficientData` only) — `cargo test -p sweep --test sweep_runner` → 7 passed.
+  Extracted `parse_sweep_args` (pure) out of `sweep_cmd` in `crates/cli/src/main.rs`, same
+  messages/exit(2) on Err; 6 new unit tests — `cargo test -p cli` → 15 passed. Full-workspace
+  gate (fmt+clippy+test) → 0 failed. Demo hash unchanged `ae064f79242f823ffd8f55bf9104e3e1b45d425a`;
+  sweep hash unchanged `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` (refactor is behavior-preserving);
+  `sweep-verify` → OK, exit 0. **M4-C8d** flipped to DONE.

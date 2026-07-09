@@ -1418,7 +1418,7 @@ cli test fails; C8c's gate still fails after the fix.
 
 ---
 
-### M4-C8d — Close the review's two minor test gaps — `TODO`
+### M4-C8d — Close the review's two minor test gaps — `DONE`
 
 **Goal.** (1) Exercise the InsufficientData path end-to-end through `run_sweep` (not just hand-built
 evidence); (2) put the CLI `--threads`/`--out` parser under test — the pre-declaration review's two

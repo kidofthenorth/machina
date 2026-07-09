@@ -53,41 +53,45 @@ fn usage() {
     );
 }
 
-fn sweep_cmd(mut args: impl Iterator<Item = String>) {
+/// Parse `sweep` options. Pure so it is unit-testable; `sweep_cmd` maps `Err` to `exit(2)`.
+fn parse_sweep_args(
+    mut args: impl Iterator<Item = String>,
+) -> Result<(Parallelism, Option<String>), String> {
     let mut threads: Option<usize> = None;
     let mut out: Option<String> = None;
     while let Some(a) = args.next() {
         match a.as_str() {
             "--threads" => {
-                let v = args.next().unwrap_or_else(|| {
-                    eprintln!("--threads needs a value");
-                    std::process::exit(2)
-                });
-                threads = Some(v.parse().unwrap_or_else(|_| {
-                    eprintln!("--threads must be a positive integer");
-                    std::process::exit(2)
-                }));
+                let v = args
+                    .next()
+                    .ok_or_else(|| "--threads needs a value".to_string())?;
+                threads = Some(
+                    v.parse()
+                        .map_err(|_| "--threads must be a positive integer".to_string())?,
+                );
             }
             "--out" => {
-                out = Some(args.next().unwrap_or_else(|| {
-                    eprintln!("--out needs a path");
-                    std::process::exit(2)
-                }))
+                out = Some(
+                    args.next()
+                        .ok_or_else(|| "--out needs a path".to_string())?,
+                );
             }
-            other => {
-                eprintln!("unknown sweep option: {other}");
-                std::process::exit(2);
-            }
+            other => return Err(format!("unknown sweep option: {other}")),
         }
     }
     let parallelism = match threads {
         None => Parallelism::Sequential,
-        Some(0) => {
-            eprintln!("--threads must be >= 1");
-            std::process::exit(2);
-        }
+        Some(0) => return Err("--threads must be >= 1".to_string()),
         Some(n) => Parallelism::Threads(NonZeroUsize::new(n).expect("n >= 1")),
     };
+    Ok((parallelism, out))
+}
+
+fn sweep_cmd(args: impl Iterator<Item = String>) {
+    let (parallelism, out) = parse_sweep_args(args).unwrap_or_else(|message| {
+        eprintln!("{message}");
+        std::process::exit(2)
+    });
     let json = sweep_report_json(parallelism);
     match out {
         Some(p) => {
@@ -420,6 +424,48 @@ mod tests {
         let threads_8 = sweep_report_json(Parallelism::Threads(NonZeroUsize::new(8).unwrap()));
         assert_eq!(sequential, threads_2);
         assert_eq!(sequential, threads_8);
+    }
+
+    #[test]
+    fn parse_sweep_args_defaults_to_sequential_with_no_output_path() {
+        let (parallelism, out) = parse_sweep_args(std::iter::empty()).unwrap();
+        assert_eq!(parallelism, Parallelism::Sequential);
+        assert_eq!(out, None);
+    }
+
+    #[test]
+    fn parse_sweep_args_reads_threads_and_out() {
+        let args = ["--threads", "2", "--out", "x.json"].map(String::from);
+        let (parallelism, out) = parse_sweep_args(args.into_iter()).unwrap();
+        assert_eq!(
+            parallelism,
+            Parallelism::Threads(NonZeroUsize::new(2).unwrap())
+        );
+        assert_eq!(out, Some("x.json".to_string()));
+    }
+
+    #[test]
+    fn parse_sweep_args_rejects_zero_threads() {
+        let args = ["--threads", "0"].map(String::from);
+        assert!(parse_sweep_args(args.into_iter()).is_err());
+    }
+
+    #[test]
+    fn parse_sweep_args_rejects_non_integer_threads() {
+        let args = ["--threads", "abc"].map(String::from);
+        assert!(parse_sweep_args(args.into_iter()).is_err());
+    }
+
+    #[test]
+    fn parse_sweep_args_rejects_out_with_no_value() {
+        let args = ["--out"].map(String::from);
+        assert!(parse_sweep_args(args.into_iter()).is_err());
+    }
+
+    #[test]
+    fn parse_sweep_args_rejects_unknown_option() {
+        let args = ["--bogus"].map(String::from);
+        assert!(parse_sweep_args(args.into_iter()).is_err());
     }
 
     #[test]

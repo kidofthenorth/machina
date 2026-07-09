@@ -7,7 +7,7 @@ use research_core::{Bar, Decimal, Timestamp};
 use rust_decimal_macros::dec;
 use sweep::{
     run_sweep, AdvancementThresholds, Parallelism, ParamGrid, PartitionSpec, RejectionKind,
-    SweepSpec, WalkForward, WindowKind,
+    SweepSpec, Verdict, WalkForward, WindowKind,
 };
 
 const DAY: i64 = 86_400;
@@ -244,6 +244,32 @@ fn fee_sensitivity_is_reported_first_class_per_candidate() {
             !candidate.fee_sensitivity.survives_doubled, edge_vanishes,
             "survives_doubled must be false iff the verdict records edge-vanishes ({})",
             candidate.candidate_label
+        );
+    }
+}
+
+#[test]
+fn under_populated_schedule_is_rejected_as_insufficient_data_end_to_end() {
+    let mut spec = spec();
+    spec.thresholds.min_windows = 99;
+
+    let outcome = run_sweep(
+        &spec,
+        synthetic_series(160),
+        &cost(),
+        dec!(10000),
+        365.0,
+        Parallelism::Sequential,
+    )
+    .unwrap();
+
+    assert!(!outcome.report.verdicts.is_empty());
+    for verdict in &outcome.report.verdicts {
+        assert_eq!(verdict.status, Verdict::Rejected);
+        assert_eq!(verdict.failed_criteria.len(), 1);
+        assert_eq!(
+            verdict.failed_criteria[0].kind,
+            RejectionKind::InsufficientData
         );
     }
 }
