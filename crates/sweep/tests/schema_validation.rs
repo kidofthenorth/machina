@@ -3,11 +3,13 @@
 //! rejection criterion round-trips, `trial_count` is recorded, and two serializations are
 //! byte-identical. Plus the f64-comparison audit: the advancement/selection modules are Decimal-only.
 
+use research_core::Decimal;
 use rust_decimal_macros::dec;
 use serde_json::{json, Value};
+use sweep::report::CandidateMetricsDto;
 use sweep::{
-    evaluate_candidate, AdvancementThresholds, CandidateEvidence, RejectionKind, SweepReport,
-    Verdict,
+    evaluate_candidate, AdvancementThresholds, CandidateEvidence, FeeSensitivity, RejectionKind,
+    ScenarioId, ScenarioMetrics, SweepReport, Verdict,
 };
 
 fn schema() -> Value {
@@ -54,6 +56,33 @@ fn evidence(label: &str) -> CandidateEvidence {
     }
 }
 
+fn scenario_metrics(scenario: ScenarioId, total_return: Decimal) -> ScenarioMetrics {
+    ScenarioMetrics {
+        scenario,
+        total_return,
+        turnover: dec!(1.4),
+        n_trades: 6,
+        fees_paid_quote: dec!(2.5),
+        slippage_paid_quote: dec!(1.25),
+        priority_fees_paid_sol: dec!(0.001),
+    }
+}
+
+fn sample_candidate() -> CandidateMetricsDto {
+    let fs = FeeSensitivity::from_scenarios(
+        scenario_metrics(ScenarioId::BeforeCosts, dec!(0.30)),
+        scenario_metrics(ScenarioId::Base, dec!(0.20)),
+        scenario_metrics(ScenarioId::Doubled, dec!(0.10)),
+        dec!(0.03),
+    );
+    CandidateMetricsDto::new(
+        "threshold_rebalance_v1/target=0.5;band=0".to_string(),
+        dec!(0.12),
+        dec!(1.4),
+        &fs,
+    )
+}
+
 #[test]
 fn schema_is_valid_json_schema() {
     let _ = validator(); // panics if the schema itself is malformed
@@ -84,13 +113,13 @@ fn built_report_validates_against_schema() {
         RejectionKind::InsufficientData
     );
 
-    let report = SweepReport::new(&th, 48, vec![ok, bad, thin]);
+    let report = SweepReport::new(&th, 48, vec![ok, bad, thin], vec![sample_candidate()]);
     assert_valid(&report.to_value());
 }
 
 #[test]
 fn report_rejects_a_numeric_budget() {
-    let report = SweepReport::new(&thresholds(), 12, vec![]);
+    let report = SweepReport::new(&thresholds(), 12, vec![], vec![]);
     let mut value = report.to_value();
     assert!(validator().is_valid(&value));
     // Violate the decimal-string contract: a budget as a JSON number.
@@ -109,6 +138,7 @@ fn report_rejects_unknown_status_and_reason_kind() {
         &thresholds(),
         1,
         vec![evaluate_candidate(&ev, &thresholds())],
+        vec![],
     );
     let mut value = report.to_value();
     assert!(validator().is_valid(&value));
@@ -129,12 +159,37 @@ fn report_rejects_unknown_status_and_reason_kind() {
 
 #[test]
 fn report_rejects_additional_properties() {
-    let report = SweepReport::new(&thresholds(), 1, vec![]);
+    let report = SweepReport::new(&thresholds(), 1, vec![], vec![]);
     let mut value = report.to_value();
     value["surprise"] = json!("not allowed");
     assert!(
         !validator().is_valid(&value),
         "additionalProperties:false must reject unknown top-level fields"
+    );
+}
+
+#[test]
+fn candidate_rejects_additional_properties() {
+    let report = SweepReport::new(&thresholds(), 1, vec![], vec![sample_candidate()]);
+    let mut value = report.to_value();
+    assert!(validator().is_valid(&value));
+    value["candidates"][0]["surprise"] = json!("not allowed");
+    assert!(
+        !validator().is_valid(&value),
+        "additionalProperties:false must reject unknown candidate fields"
+    );
+}
+
+#[test]
+fn candidate_rejects_a_numeric_total_return() {
+    let report = SweepReport::new(&thresholds(), 1, vec![], vec![sample_candidate()]);
+    let mut value = report.to_value();
+    assert!(validator().is_valid(&value));
+    // Violate the decimal-string contract: a scenario return as a JSON number.
+    value["candidates"][0]["fee_sensitivity"]["base"]["total_return"] = json!(0.2);
+    assert!(
+        !validator().is_valid(&value),
+        "schema must reject a numeric total_return"
     );
 }
 

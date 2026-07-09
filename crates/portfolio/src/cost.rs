@@ -74,7 +74,15 @@ impl CostModel {
         let dex_fee_base = apply_bps(gross_base, self.dex_fee_bps);
         let net_base = quantize_floor(gross_base - dex_fee_base, SOL_DECIMALS);
         // Reporting figures in quote terms (valued at mid price).
-        let slippage_quote = quote_in - (quote_in * price / eff);
+        // Exact-zero guard: with zero slippage `eff == price` and the identity below is
+        // mathematically zero, but Decimal's 28-digit division can leave a ±1-ulp residue once
+        // balances carry high scale. The sell side (`base_in * (price - eff)`) is structurally
+        // exact; this makes the buy side match (invariant 7 — exported money is exact).
+        let slippage_quote = if eff == price {
+            Decimal::ZERO
+        } else {
+            quote_in - (quote_in * price / eff)
+        };
         let dex_fee_quote = dex_fee_base * price;
         BuyFill {
             net_base,
@@ -240,6 +248,21 @@ mod tests {
         let s = c.fill_sell(dec!(0), dec!(100));
         assert_eq!(s.net_quote, dec!(0));
         assert_eq!(s.gas_sol, dec!(0.000055));
+    }
+
+    #[test]
+    fn zero_slippage_buy_reports_exactly_zero_slippage_even_at_high_scale() {
+        // High-scale quote_in (as produced by prior fractional fills) used to leave a ±1-ulp
+        // residue through the quote_in * price / eff rounding. Must be exactly zero.
+        let cost = CostModel {
+            dex_fee_bps: 5,
+            slippage_bps: 0,
+            base_fee_lamports: 5_000,
+            priority_fee_lamports: 50_000,
+        };
+        let quote_in = dec!(937.5) / dec!(7); // deliberately non-terminating scale
+        let f = cost.fill_buy(quote_in, dec!(103));
+        assert!(f.slippage_quote.is_zero());
     }
 
     #[test]

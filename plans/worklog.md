@@ -510,3 +510,12 @@ recorded inline (not full logs).
   export strings, matching `param_id`'s convention — zeros export as "0").
 - C9's preconditions now include C8e. M4 gate remains UNDECLARED. Sweep hash will change again at
   C8e/C8c re-gate (recorded there); demo hash must stay `ae064f79…`.
+
+## 2026-07-08 — M4-C8e executed; C8c re-gated and flipped
+- Applied the exact-zero guard to `fill_buy` (cost.rs:77) + high-scale regression test; `cargo test
+  -p portfolio` → 33 passed, 0 failed. Amended C8c's DTO helpers in `report.rs` to
+  `.normalize().to_string()`. Full-workspace gate (fmt+clippy+test) → 0 failed. Demo hash unchanged
+  `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; new sweep hash (sequential/threads-8/repeat, all
+  identical) `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify` → OK, exit 0. `git status`:
+  only C8c's six files + `crates/portfolio/src/cost.rs` modified, no schema besides sweep-report.
+  Both **M4-C8e** and **M4-C8c** flipped to DONE.

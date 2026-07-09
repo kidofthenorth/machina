@@ -10,11 +10,13 @@
 //! states this in the JSON itself.
 
 use crate::advance::{AdvancementThresholds, CandidateVerdict};
+use crate::sensitivity::{FeeSensitivity, ScenarioMetrics};
+use research_core::Decimal;
 use serde::Serialize;
 
 /// Version of the sweep-report schema this crate targets (matches `schema_version` in the JSON and
 /// `sweep-report.schema.json`).
-pub const SWEEP_SCHEMA_VERSION: &str = "1.0.0";
+pub const SWEEP_SCHEMA_VERSION: &str = "1.1.0";
 
 /// The fixed disclaimer embedded in every report (invariant 11).
 const REPORT_NOTE: &str = "Robustness filter only — not a profitability verdict. 'advanceable' means a candidate survived the robustness battery (costs, doubled costs, walk-forward, baselines) and is eligible for M5 review; it is never evidence the strategy is profitable. In-sample results never establish an edge.";
@@ -43,6 +45,86 @@ impl ThresholdsDto {
     }
 }
 
+/// One scenario's reportable metrics, decimal-string encoded. The parent key
+/// (before_costs/base/doubled) is the scenario discriminator — no separate field carried.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct ScenarioMetricsDto {
+    pub total_return: String,
+    pub turnover: String,
+    pub n_trades: u32,
+    pub fees_paid_quote: String,
+    pub slippage_paid_quote: String,
+    pub priority_fees_paid_sol: String,
+}
+
+impl ScenarioMetricsDto {
+    /// Scale-canonical strings (`.normalize()`, matching `param_id`'s convention) so exact zeros
+    /// export as `"0"`, not `"0.0000000000000000000000000"`.
+    fn from_metrics(m: &ScenarioMetrics) -> Self {
+        Self {
+            total_return: m.total_return.normalize().to_string(),
+            turnover: m.turnover.normalize().to_string(),
+            n_trades: m.n_trades,
+            fees_paid_quote: m.fees_paid_quote.normalize().to_string(),
+            slippage_paid_quote: m.slippage_paid_quote.normalize().to_string(),
+            priority_fees_paid_sol: m.priority_fees_paid_sol.normalize().to_string(),
+        }
+    }
+}
+
+/// A candidate's fee-sensitivity block (m4-sweep.md §9), decimal-string encoded. Robustness
+/// reporting only — never a profitability claim (invariant 11).
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct FeeSensitivityDto {
+    pub before_costs: ScenarioMetricsDto,
+    pub base: ScenarioMetricsDto,
+    pub doubled: ScenarioMetricsDto,
+    pub return_drag_costs: String,
+    pub return_drag_doubled: String,
+    pub survives_doubled: bool,
+}
+
+impl FeeSensitivityDto {
+    fn from_sensitivity(fs: &FeeSensitivity) -> Self {
+        Self {
+            before_costs: ScenarioMetricsDto::from_metrics(&fs.before_costs),
+            base: ScenarioMetricsDto::from_metrics(&fs.base),
+            doubled: ScenarioMetricsDto::from_metrics(&fs.doubled),
+            return_drag_costs: fs.return_drag_costs.normalize().to_string(),
+            return_drag_doubled: fs.return_drag_doubled.normalize().to_string(),
+            survives_doubled: fs.survives_doubled,
+        }
+    }
+}
+
+/// One candidate's first-class reported metrics (M4 deliverable: turnover and fee-sensitivity
+/// reporting). `Ord` keys on `candidate_label` first — total canonical order, like verdicts.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct CandidateMetricsDto {
+    pub candidate_label: String,
+    pub max_drawdown: String,
+    pub turnover: String,
+    pub fee_sensitivity: FeeSensitivityDto,
+}
+
+impl CandidateMetricsDto {
+    /// Stringify one candidate's worst-window drawdown/turnover + fee-sensitivity block.
+    #[must_use]
+    pub fn new(
+        candidate_label: String,
+        max_drawdown: Decimal,
+        turnover: Decimal,
+        fee_sensitivity: &FeeSensitivity,
+    ) -> Self {
+        Self {
+            candidate_label,
+            max_drawdown: max_drawdown.normalize().to_string(),
+            turnover: turnover.normalize().to_string(),
+            fee_sensitivity: FeeSensitivityDto::from_sensitivity(fee_sensitivity),
+        }
+    }
+}
+
 /// The canonical, schema-validated sweep report.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct SweepReport {
@@ -51,26 +133,30 @@ pub struct SweepReport {
     /// Total cells evaluated across the sweep (for M5 multiple-testing accounting).
     pub trial_count: u32,
     pub thresholds: ThresholdsDto,
+    pub candidates: Vec<CandidateMetricsDto>,
     pub verdicts: Vec<CandidateVerdict>,
 }
 
 impl SweepReport {
-    /// Assemble a report. `verdicts` are sorted into a **total** canonical order (by
-    /// `candidate_label` first, then status and reasons — see `CandidateVerdict`'s `Ord`), so the
-    /// output is byte-identical regardless of the order candidates were evaluated, even if two
-    /// verdicts happen to share a label.
+    /// Assemble a report. `verdicts` and `candidates` are each sorted into a **total** canonical
+    /// order (by `candidate_label` first, then the remaining fields — see their `Ord` derives), so
+    /// the output is byte-identical regardless of the order candidates were evaluated, even if two
+    /// entries happen to share a label.
     #[must_use]
     pub fn new(
         thresholds: &AdvancementThresholds,
         trial_count: u32,
         mut verdicts: Vec<CandidateVerdict>,
+        mut candidates: Vec<CandidateMetricsDto>,
     ) -> Self {
         verdicts.sort();
+        candidates.sort();
         Self {
             schema_version: SWEEP_SCHEMA_VERSION.to_string(),
             note: REPORT_NOTE.to_string(),
             trial_count,
             thresholds: ThresholdsDto::from_thresholds(thresholds),
+            candidates,
             verdicts,
         }
     }
@@ -126,7 +212,7 @@ mod tests {
             evaluate_candidate(&evidence("zeta/target=0.9;band=0", dec!(0.40)), &th),
             evaluate_candidate(&evidence("alpha/target=0.5;band=0", dec!(0.12)), &th),
         ];
-        SweepReport::new(&th, 48, verdicts)
+        SweepReport::new(&th, 48, verdicts, vec![])
     }
 
     #[test]
@@ -180,8 +266,8 @@ mod tests {
         let th = thresholds();
         let advanceable = evaluate_candidate(&evidence("dup/target=0.5;band=0", dec!(0.12)), &th);
         let rejected = evaluate_candidate(&evidence("dup/target=0.5;band=0", dec!(0.55)), &th);
-        let r1 = SweepReport::new(&th, 2, vec![advanceable.clone(), rejected.clone()]);
-        let r2 = SweepReport::new(&th, 2, vec![rejected, advanceable]);
+        let r1 = SweepReport::new(&th, 2, vec![advanceable.clone(), rejected.clone()], vec![]);
+        let r2 = SweepReport::new(&th, 2, vec![rejected, advanceable], vec![]);
         assert_eq!(r1.to_json(), r2.to_json());
     }
 }

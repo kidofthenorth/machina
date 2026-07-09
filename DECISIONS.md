@@ -7,6 +7,23 @@ do not authorize any new capability (no signing, no submission — see
 
 ---
 
+## D-0010 — SweepReport carries first-class per-candidate turnover + fee-sensitivity (M4)
+**Context.** The pre-declaration adversarial review of the M4 surface (2026-07-07, 11 agents)
+confirmed a major: the "turnover and fee-sensitivity reporting" deliverable never reached the
+EXPORTED artifact — `sensitivity::FeeSensitivity` had zero production callers and `SweepReport`
+surfaced turnover only inside failure reasons. Plan §25 requires both as first-class outputs.
+**Decision.** `SweepReport` (schema_version 1.0.0 → 1.1.0) gains a required `candidates` array:
+per candidate, worst-window `max_drawdown`/`turnover` plus a `fee_sensitivity` block
+(before_costs/base/doubled aggregated ScenarioMetrics, both return drags, baseline-grounded
+`survives_doubled`). Aggregation matches the evidence rules (mean returns, worst-window
+turnover/drawdown, summed costs); `survives_doubled` shares its floor and comparison with the
+edge-vanishes criterion via the single constructor `FeeSensitivity::from_scenarios`, so report
+and verdict cannot drift. The schema edit is a deliberate, reviewed contract change (D-0001);
+the review finding is its recorded cause.
+**Consequences.** The M4 deliverable is satisfied in the artifact itself; BeforeCosts cells have
+a production consumer; reports stay byte-deterministic (candidates sorted by label; exact
+decimal strings; no f64).
+
 ## D-0009 — M4 sweep: std::thread::scope parallelism (zero new deps); traded-notional turnover; sweep-report schema; sealed holdout (M4)
 **Context.** M4 needs a deterministic parallel sweep (plan §19) whose parallel output is
 byte-identical to sequential, a turnover base that rebalancers cannot undercount, a canonical

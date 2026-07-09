@@ -8,7 +8,7 @@ use crate::cell::CellResult;
 use crate::parallel::{run_cells, Parallelism, SweepCell};
 use crate::param::{ParamGrid, ParamPoint};
 use crate::partition::{PartitionError, PartitionedBars, Sealed};
-use crate::report::SweepReport;
+use crate::report::{CandidateMetricsDto, SweepReport};
 use crate::sensitivity::{
     cost_scenarios, scale_cost_model, CostScenario, FeeSensitivity, ScenarioId, ScenarioMetrics,
 };
@@ -324,8 +324,9 @@ pub fn run_sweep(
     let ladder = cost_scenarios(base_cost);
     // BeforeCosts, Base, Doubled — ladder order is test-pinned. BeforeCosts cells are evaluated
     // and counted in trial_count but not read by aggregate_evidence: they are the "same strategy
-    // before costs" sensitivity rung m4-sweep.md §13 mandates, kept for M5's FeeSensitivity use
-    // and honest multiple-testing accounting. Deliberate — do not narrow to [1..3].
+    // before costs" sensitivity rung m4-sweep.md §13 mandates, consumed by
+    // `aggregate_fee_sensitivity` for the reported before-costs rung and honest multiple-testing
+    // accounting. Deliberate — do not narrow to [1..3].
     let scenarios = &ladder[..3];
     let points: Vec<ParamPoint> = spec.grids.iter().flat_map(|g| g.points()).collect();
     let (cells, keys) = enumerate_cells(&points, scenarios, &windows);
@@ -362,13 +363,21 @@ pub fn run_sweep(
         &base_floors,
         &doubled_floors,
     );
+    let fee = aggregate_fee_sensitivity(&spec.grids, &keys, &results, &doubled_floors);
+    let candidates = evidence
+        .iter()
+        .zip(&fee)
+        .map(|(ev, fs)| {
+            CandidateMetricsDto::new(ev.candidate_label.clone(), ev.max_drawdown, ev.turnover, fs)
+        })
+        .collect();
     let verdicts = evidence
         .iter()
         .map(|ev| evaluate_candidate(ev, &spec.thresholds))
         .collect();
     let trial_count = u32::try_from(cells.len()).unwrap_or(u32::MAX);
     Ok(SweepOutcome {
-        report: SweepReport::new(&spec.thresholds, trial_count, verdicts),
+        report: SweepReport::new(&spec.thresholds, trial_count, verdicts, candidates),
         sealed,
     })
 }

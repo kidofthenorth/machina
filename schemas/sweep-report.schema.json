@@ -5,7 +5,7 @@
   "description": "Canonical, deterministic result of a parameter sweep's robustness battery (M4). A research FILTER, not a profitability verdict: 'advanceable' means a candidate survived costs/doubled-costs/walk-forward/baseline checks and is eligible for M5 review, never that it is profitable (invariant 11). All budgets and observed/threshold values are exact decimal strings (never JSON floats).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "note", "trial_count", "thresholds", "verdicts"],
+  "required": ["schema_version", "note", "trial_count", "thresholds", "candidates", "verdicts"],
   "properties": {
     "schema_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
     "note": { "type": "string", "minLength": 1 },
@@ -15,6 +15,11 @@
       "minimum": 0
     },
     "thresholds": { "$ref": "#/$defs/Thresholds" },
+    "candidates": {
+      "description": "Per-candidate first-class metrics: worst-window drawdown/turnover and the fee-sensitivity block (before/base/doubled). Robustness reporting only (invariant 11).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/CandidateMetrics" }
+    },
     "verdicts": {
       "type": "array",
       "items": { "$ref": "#/$defs/CandidateVerdict" }
@@ -45,6 +50,60 @@
         "dispersion_budget": { "$ref": "#/$defs/decimalString" },
         "neighbor_tolerance": { "$ref": "#/$defs/decimalString" },
         "min_windows": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "CandidateMetrics": {
+      "description": "One candidate's first-class reported metrics: worst-window drawdown and turnover plus the fee-sensitivity block.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_label", "max_drawdown", "turnover", "fee_sensitivity"],
+      "properties": {
+        "candidate_label": { "type": "string", "minLength": 1 },
+        "max_drawdown": { "$ref": "#/$defs/decimalString" },
+        "turnover": { "$ref": "#/$defs/decimalString" },
+        "fee_sensitivity": { "$ref": "#/$defs/FeeSensitivity" }
+      }
+    },
+    "FeeSensitivity": {
+      "description": "Aggregated cost-ladder metrics (before_costs/base/doubled), both return drags, and the baseline-grounded doubled-costs survival flag. The parent key of each scenario block is its discriminator.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "before_costs",
+        "base",
+        "doubled",
+        "return_drag_costs",
+        "return_drag_doubled",
+        "survives_doubled"
+      ],
+      "properties": {
+        "before_costs": { "$ref": "#/$defs/ScenarioMetrics" },
+        "base": { "$ref": "#/$defs/ScenarioMetrics" },
+        "doubled": { "$ref": "#/$defs/ScenarioMetrics" },
+        "return_drag_costs": { "$ref": "#/$defs/decimalString" },
+        "return_drag_doubled": { "$ref": "#/$defs/decimalString" },
+        "survives_doubled": { "type": "boolean" }
+      }
+    },
+    "ScenarioMetrics": {
+      "description": "One cost scenario's aggregated metrics, decimal-string encoded (never JSON floats).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_return",
+        "turnover",
+        "n_trades",
+        "fees_paid_quote",
+        "slippage_paid_quote",
+        "priority_fees_paid_sol"
+      ],
+      "properties": {
+        "total_return": { "$ref": "#/$defs/decimalString" },
+        "turnover": { "$ref": "#/$defs/decimalString" },
+        "n_trades": { "type": "integer", "minimum": 0 },
+        "fees_paid_quote": { "$ref": "#/$defs/decimalString" },
+        "slippage_paid_quote": { "$ref": "#/$defs/decimalString" },
+        "priority_fees_paid_sol": { "$ref": "#/$defs/decimalString" }
       }
     },
     "CandidateVerdict": {

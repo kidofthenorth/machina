@@ -1137,7 +1137,7 @@ code; holdout untouched (`evaluate_on_holdout` never called); **no schema edits 
 
 ---
 
-### M4-C8c — Export per-candidate turnover + fee sensitivity in SweepReport (schema 1.1.0, D-0010) — `BLOCKED` *(2026-07-07: escalated — zero-cost scenario reports a 1-ulp nonzero slippage; fix needs `portfolio/src/cost.rs`, off-card. See worklog. All 6 card files are edited and in the working tree; only step 6's zero-cost assert fails.)*
+### M4-C8c — Export per-candidate turnover + fee sensitivity in SweepReport (schema 1.1.0, D-0010) — `DONE` *(2026-07-07: escalated — zero-cost scenario reports a 1-ulp nonzero slippage; fix needed `portfolio/src/cost.rs`, off-card. Resolved 2026-07-08 by M4-C8e's exact-zero guard; re-gated in the same session — 0 failed.)*
 
 **Goal.** Make turnover and fee sensitivity **first-class outputs of the exported artifact** — the
 deliverable the pre-declaration review found unmet. `SweepReport` gains a required `candidates`
@@ -1316,7 +1316,7 @@ report⇔verdict coupling test fails in a way you'd "fix" by weakening either si
 
 ---
 
-### M4-C8e — Exact-zero buy-side slippage when slippage is zero (unblocks C8c) — `TODO`
+### M4-C8e — Exact-zero buy-side slippage when slippage is zero (unblocks C8c) — `DONE`
 
 *(Inserted 2026-07-08. C8c's escalation was CORRECT and the operator ruled: fix the accounting,
 never weaken the assertion. `fill_buy`'s reporting identity leaves a ±1-ulp Decimal residue in

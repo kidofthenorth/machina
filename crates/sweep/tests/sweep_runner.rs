@@ -6,8 +6,8 @@ use portfolio::CostModel;
 use research_core::{Bar, Decimal, Timestamp};
 use rust_decimal_macros::dec;
 use sweep::{
-    run_sweep, AdvancementThresholds, Parallelism, ParamGrid, PartitionSpec, SweepSpec,
-    WalkForward, WindowKind,
+    run_sweep, AdvancementThresholds, Parallelism, ParamGrid, PartitionSpec, RejectionKind,
+    SweepSpec, WalkForward, WindowKind,
 };
 
 const DAY: i64 = 86_400;
@@ -198,6 +198,54 @@ fn trial_count_is_windows_times_three_scenarios_times_points() {
     );
     let expected = u32::try_from(n_windows * 3 * n_points).unwrap();
     assert_eq!(outcome.report.trial_count, expected);
+}
+
+#[test]
+fn fee_sensitivity_is_reported_first_class_per_candidate() {
+    let outcome = run_sweep(
+        &spec(),
+        synthetic_series(160),
+        &cost(),
+        dec!(10000),
+        365.0,
+        Parallelism::Sequential,
+    )
+    .unwrap();
+    let report = &outcome.report;
+
+    assert_eq!(report.candidates.len(), 4);
+    for (candidate, verdict) in report.candidates.iter().zip(&report.verdicts) {
+        // Both collections are label-sorted, so they pair up one-to-one.
+        assert_eq!(candidate.candidate_label, verdict.candidate_label);
+
+        // The zero-cost rung must report zero costs. Compare as Decimal values: the DTO exports
+        // exact `.to_string()` like every other decimal in the report, and a rust_decimal zero
+        // may carry scale from intermediate arithmetic (e.g. "0.0000000000000000000000000").
+        let before = &candidate.fee_sensitivity.before_costs;
+        for cost_paid in [
+            &before.fees_paid_quote,
+            &before.slippage_paid_quote,
+            &before.priority_fees_paid_sol,
+        ] {
+            assert_eq!(
+                cost_paid.parse::<Decimal>().unwrap(),
+                Decimal::ZERO,
+                "before_costs must report zero costs, got {cost_paid}"
+            );
+        }
+
+        // Report⇔verdict single-source coupling: survives_doubled and the edge-vanishes
+        // criterion share their floor and comparison via FeeSensitivity::from_scenarios.
+        let edge_vanishes = verdict
+            .failed_criteria
+            .iter()
+            .any(|r| r.kind == RejectionKind::EdgeVanishesUnderDoubledCosts);
+        assert_eq!(
+            !candidate.fee_sensitivity.survives_doubled, edge_vanishes,
+            "survives_doubled must be false iff the verdict records edge-vanishes ({})",
+            candidate.candidate_label
+        );
+    }
 }
 
 #[test]
