@@ -1,8 +1,9 @@
 # Handoff — for a new chat continuing machina
 
-You are picking up an in-progress build. This is the single entry point. Read the five pointer files
-below, confirm the gates are green, then continue in milestone order. **Do not commit or push — the
-operator commits.**
+You are picking up a build where **M4 is DONE and gate-declared**; M5 requires an explicit operator
+decision first. This is the single entry point. Read the five pointer files below, confirm the gates
+are green, then follow the STOP block in [current-state.md](current-state.md) — do not proceed into
+M5 without it. **Do not commit or push — the operator commits.**
 
 ---
 
@@ -23,9 +24,9 @@ authorizes trading. Full invariants: [docs/invariants.md](../docs/invariants.md)
 ## Read these first (source of truth)
 
 1. [plans/current-state.md](current-state.md) — live per-milestone status, gates, blockers, next command.
-2. **[plans/task-queue.md](task-queue.md) — the ACTIVE work queue: task cards M4-C1…M4-C10** (the former
-   S12, expanded by the 2026-07-06 audit). Execute in order, one card per fresh session; each card is
-   self-contained. Design rationale lives in [plans/m4-sweep.md](m4-sweep.md) (S1–S11 DONE).
+2. **[plans/task-queue.md](task-queue.md) — the M4 task queue, CLOSED**: cards M4-C1…M4-C10 are all
+   DONE. Nothing in it is active; do not resume it. Design rationale lives in
+   [plans/m4-sweep.md](m4-sweep.md) (S1–S11 DONE).
 3. [plans/master-plan.md](master-plan.md) — authoritative M0–M11 roadmap & architecture.
 4. [plans/m4-sweep.md](m4-sweep.md) — the M4 design record (S1–S11 rationale the cards build on).
 5. [docs/architecture-index.md](../docs/architecture-index.md) + [docs/invariants.md](../docs/invariants.md) — module map + hard invariants.
@@ -119,40 +120,43 @@ Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronolo
 ```bash
 cargo fmt --all --check                                  # clean
 cargo clippy --all-targets --all-features -- -D warnings # clean
-cargo test --workspace --all-features                    # 272 passed, 0 failed (2026-07-06; 169 at S11 + 103 test-hardening)
-cargo run -p cli -- demo                                 # deterministic, schema-valid RunResult (shasum-identical on repeat)
+cargo test --workspace --all-features                    # 301 passed, 0 failed (2026-07-09, card M4-C9 gate declaration)
+cargo run -p cli -- demo                                 # deterministic, schema-valid RunResult (shasum ae064f79242f823ffd8f55bf9104e3e1b45d425a, identical on repeat)
+cargo run -p cli -- sweep                                # deterministic sweep report (shasum 7ad3df7de2e2c1139be427e9c953b57d4e289cb3, identical ×2 and at --threads 8)
+cargo run -p cli -- sweep-verify                         # sweep-verify: OK — byte-identical across sequential, 2 and 8 threads, and repeat (18990 bytes); exit 0
 # no-execution-deps scan (CI parity) — must print OK:
 pattern='solana-sdk|solana-client|solana-program|solana-rpc|jupiter|jito|ed25519-dalek|keypair|bip39|tiny-bip39|secp256k1'
 grep -REn --include='Cargo.toml' "$pattern" . | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || echo OK
 ```
 
-Repo state (2026-07-06): the operator has committed **everything through S11 plus 9 test-hardening
-commits — HEAD = `df18267`, working tree clean**. **Never** `git add -A`; **never** stage `.claude/`.
-Stage explicit paths only. (Run `git status` to confirm — the operator may have committed more since
-this was written.)
+Repo state (2026-07-09): **M4 gate declared (card M4-C9).** The operator has committed through card
+M4-C9 (HEAD = `98724e2`, "GATE DECLARED 2026-07-09 — M4 sweep/walk-forward complete"); card M4-C10
+(this handoff pointer) is this session's plan-only edit, pending operator commit. **Never** `git add
+-A`; **never** stage `.claude/`. Stage explicit paths only. (Run `git status` to confirm current HEAD
+and what's staged.)
 
-## What's next — execute the M4 task cards (see [task-queue.md](task-queue.md))
+## What's next — STOP: M5 is an operator decision
 
-S1–S11 are done. The former S12 was **expanded on 2026-07-06 into ten self-contained task cards
-M4-C1…M4-C10** after an audit found it underspecified (no `SweepSpec`/`run_sweep` orchestrator or TOML
-`Deserialize` existed in `crates/sweep`, and `strategy-lab.example.toml` lacked the
-`[walk_forward]`/`[advancement]`/grid blocks the CLI design assumed). Execute the cards **in order,
-one per fresh session**; each carries its own files, verbatim signatures, steps, gate, guardrails, and
-escalate-ifs — a session should never need to open a file its card doesn't name.
+**M4 is DONE — gate declared 2026-07-09 (card M4-C9); all cards M4-C1…M4-C10 are complete.** The
+task queue's M4 section is closed. Do not resume it and do not queue M5 implementation.
 
-- **M4-C1** — add the missing `no_run` canary to the `Sealed` no-forgery doctest (S9 nuance).
-- **M4-C2** — `sweep::spec`: `SweepSpec::from_toml_str` + the template's `[walk_forward]`/`[advancement]`/grid blocks.
-- **M4-C3…C5** — `sweep::runner`: canonical enumeration → evidence aggregation → `run_sweep` + report-level determinism test.
-- **M4-C6…C7** — CLI `machina sweep [--threads N] [--out PATH]` and `machina sweep-verify` (no clap, D-0002; holdout never reachable).
-- **M4-C8** — DECISIONS **D-0009** + docs/AGENTS refresh.
-- **M4-C9** — **M4 gate declaration**: run the full battery, check the evidence table against master-plan.md:873-889, declare M4 complete.
-- **M4-C10** — point current-state/handoff at the **M5 operator decision** and STOP.
+**STOP — operator decisions required before M5 (the research decision):**
+1. Freeze the walk-forward sizing and rejection thresholds (questions.md Q5) — they are illustrative
+   in `strategy-lab.example.toml` and must be frozen BEFORE the decisive sweep (post-hoc choice =
+   overfitting).
+2. Choose the real OHLCV data source for SOL/USDC (questions.md Q3) — all M4 runs used synthetic
+   series; no statistical claim is valid until real multi-year data is ingested and validated.
+3. Give an explicit M5 go decision. M5's gate (master-plan.md:903-907): select ONE candidate for
+   mainnet shadow because it satisfies predefined criteria, or reject all and return to research.
 
-Beyond M4: **M5** research-decision gate (needs the operator to FREEZE walk-forward sizing + rejection
-thresholds first — questions.md Q5); **M6** Jupiter shadow (re-verify plan §22 sources; no signing).
-**BLOCKED — M8/M9** devnet/canary signing + submission: **separate explicit human approval. Do not start.**
-Real OHLCV ingestion is deferred pending an operator data-source decision (questions.md Q3); M1–M4 use
-tiny synthetic checked-in fixtures only.
+Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).
+Agents picking up this repo may do **maintenance only** (fix a failing gate, refresh docs) until the
+operator records a written go in `plans/questions.md`.
+
+Separately, questions.md Q7 records the operator's high-frequency direction decision (2026-07-07): the
+plan amendment adding an HF research track is a **pending operator-level planning task**, not an
+executor card — it waits on this same M5 gate and is out of scope for any agent session until the
+operator makes that edit.
 
 ## Operating contract (executor rules — keep these)
 
@@ -194,32 +198,26 @@ tiny synthetic checked-in fixtures only.
 
 ---
 
-## Seed prompt for the new chat — execute ONE M4 task card (paste this, filling in the card ID)
+## Seed prompt for the new chat — maintenance only (M4 is done; M5 needs the operator)
 
-> You are the EXECUTOR continuing the **machina** (`solana-crypto-trader`) repo — a paper-first,
-> Solana-focused crypto trading-**research** platform in Rust built toward **genuine autonomous
-> passive income** (truly autonomous, so truly passive), earned through milestone gates. The current
-> phase is research: no keys/signing/RPC/network anywhere.
+> You are picking up the **machina** (`solana-crypto-trader`) repo — a paper-first, Solana-focused
+> crypto trading-**research** platform in Rust built toward **genuine autonomous passive income**
+> (truly autonomous, so truly passive), earned through milestone gates. The current phase is
+> research: no keys/signing/RPC/network anywhere.
 >
-> Your entire task this session is **one card: M4-C\<N\>** in `plans/task-queue.md` (the first card
-> whose Status is TODO, taken in order). Open `plans/task-queue.md`, read the card queue's common
-> rules ("How to execute a card", "Guardrails", "Escalate and STOP"), then your card. **The card is
-> self-contained** — its files, verbatim current signatures, numbered steps, and runnable gate are all
-> inline. Do not open files the card doesn't name; do not do more than the card says.
+> **M4 is DONE — gate declared 2026-07-09 (card M4-C9); M4-C1…M4-C10 are all complete.** Read
+> `plans/handoff.md` → `plans/current-state.md` → the STOP block there before doing anything else.
+> There is no active M4 task queue left to execute, and M5 cannot start without the operator's
+> written go.
 >
-> **State:** M0–M3 done; M4 engine S1–S11 built and green (272 tests at `df18267`, 2026-07-06); the
-> cards are the remainder of M4. **Do not commit or push; the operator commits** (stage explicit paths
-> only, never `.claude/`, never `git add -A`).
+> **Your task this session is maintenance only**: fix a failing gate (a fmt/clippy/test regression)
+> or refresh stale docs. You may **not** start M5 implementation, real-data ingestion, or any M6+
+> scaffolding — those require the operator to (1) freeze questions.md Q5's walk-forward sizing and
+> rejection thresholds, (2) choose the Q3 real-data source, and (3) record an explicit M5 go in
+> `plans/questions.md`. If none of that is recorded yet, do not queue or sketch M5 work — say so and
+> stop.
 >
-> When the card's gate passes: flip the card's Status to DONE in `plans/task-queue.md` and append one
-> line to `plans/worklog.md`. If ANY escalate-if condition triggers — a signature doesn't match the
-> card, an unrelated test fails, you need an unlisted file, or anything ambiguous touches money,
-> determinism, the holdout, or schemas — **STOP, record the mismatch in `plans/worklog.md`, and
-> report** instead of improvising.
->
-> Non-negotiables (restated on every card): `Decimal`/integer only for money — never f64; parallel
-> output byte-identical to sequential; no new dependencies; no execution/signing/RPC code; the holdout
-> stays sealed — **never call `evaluate_on_holdout`**; never edit `schemas/*.json` or
-> `plans/master-plan.md`. After card M4-C10, **STOP — M5 is an operator decision** (freeze
-> questions.md Q5 thresholds; choose the Q3 data source; explicit go). **Never start M8/M9**
-> (signing/submit) — separate explicit human approval required.
+> Non-negotiables (unchanged): `Decimal`/integer only for money — never f64; the holdout stays sealed
+> — **never call `evaluate_on_holdout`**; never edit `schemas/*.json` or `plans/master-plan.md`;
+> never `git commit`/`git push` (stage explicit paths only, never `.claude/`, never `git add -A`);
+> never start M8/M9 (signing/submit) — separate explicit human approval required.

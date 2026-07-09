@@ -82,15 +82,17 @@ through the milestone gates (money-moving capability stays gated by explicit hum
 - Accepted nit (no action): CostModelDto lamports are `i64` vs schema `minimum:0` — latent only, no
   negative-producing path (audit JS-1).
 - Deferred to later milestones: real OHLCV ingestion (needs operator data-source choice, Q3); M6
-  route/shadow crates; M7 wallet-state; M8/M9 gated execution. (The M4 sweep crate exists; only its
-  CLI wiring + gate declaration remain — cards M4-C1…C10.)
+  route/shadow crates; M7 wallet-state; M8/M9 gated execution. (M4 is DONE — sweep crate, CLI wiring,
+  and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-- Execute the **task cards M4-C1…M4-C10 in [task-queue.md](task-queue.md), in order, one card per fresh
-  session**. Each card is self-contained (goal, exact files + signatures, numbered steps, runnable gate,
-  guardrails, escalate-ifs) and sized for a small model with zero exploration. The queue covers: the S9
-  `no_run` canary (C1), `SweepSpec` TOML parsing + config-template blocks (C2), the sweep runner
-  (C3–C5), CLI `machina sweep` / `machina sweep-verify` (C6–C7), DECISIONS D-0009 + docs (C8), the
-  **M4 gate declaration** (C9), and the M5 handoff pointer (C10). **The holdout stays M5-only — never
-  call or wire `evaluate_on_holdout`.** Do NOT start M5 implementation (needs Q3 data + explicit go) or
-  execution work (M8/M9 — separate human approval).
+**STOP — operator decisions required before M5 (the research decision).** In order:
+1. Freeze the walk-forward sizing and rejection thresholds (questions.md Q5) — they are
+   illustrative in `strategy-lab.example.toml` and must be frozen BEFORE the decisive sweep
+   (post-hoc choice = overfitting).
+2. Choose the real OHLCV data source for SOL/USDC (questions.md Q3) — all M4 runs used synthetic
+   series; no statistical claim is valid until real multi-year data is ingested and validated.
+3. Give an explicit M5 go decision. M5's gate (master-plan.md:903-907): select ONE candidate for
+   mainnet shadow because it satisfies predefined criteria, or reject all and return to research.
+
+Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

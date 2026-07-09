@@ -1534,7 +1534,7 @@ checklist row lacks its artifact; cards C1–C8 **and C8b/C8c/C8d/C8e** are not 
 
 ---
 
-### M4-C10 — Point current-state/handoff at the M5 decision and STOP — `TODO`
+### M4-C10 — Point current-state/handoff at the M5 decision and STOP — `DONE`
 
 **Goal.** Leave the repo in a clean between-milestones state: the next action belongs to the
 **operator**, not an agent. No M5 implementation may be queued (M5 needs real data — questions.md Q3 —

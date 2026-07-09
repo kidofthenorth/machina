@@ -625,3 +625,4 @@ recorded inline (not full logs).
   M4-C9 flipped to `DONE`, `M4·S1–S11` row notes appended with the declaration. No code, schema, or
   config touched — plan files only, per the card's guardrail. **M4-C10 (M5 handoff pointer) is
   deliberately left for its own fresh session, per the card.**
+- 2026-07-09: M4-C10 done — the M4 queue is complete; `current-state.md` and `handoff.md` now point at the M5 operator decision and STOP (freeze questions.md Q5 walk-forward sizing + rejection thresholds; choose the Q3 real-data source; explicit go against master-plan.md's M5 gate), with the seed prompt replaced by a maintenance-only version and questions.md Q7's HF plan amendment noted as a pending operator-level task, not a card. Plan files only; full-workspace gate re-confirmed green (fmt clean, clippy clean, 301 tests 0 failed) with no code touched. **The M4 task-queue card sequence (M4-C1…C10) is now fully DONE.**
