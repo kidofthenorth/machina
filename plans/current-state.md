@@ -71,9 +71,9 @@ through the milestone gates (money-moving capability stays gated by explicit hum
 - Allowlist-gated; next-bar execution (final-bar signal cannot open a position); strategies = intent.
 
 ## Commit state
-- Operator committed through S11 (`5e5b0ba`) plus 9 test-hardening commits; **HEAD = `df18267`
-  (2026-07-01), working tree clean**. Operator commits only — executors never commit/push; stage
-  explicit paths only, never `.claude/`, never `git add -A`.
+- Operator committed through the M5-GO planning batch; **HEAD = `286b785` (2026-07-09, "review
+  fixes on aaa2e28 — M5-C6 gets a pre-declaration review"), working tree clean**. Operator commits
+  only — executors never commit/push; stage explicit paths only, never `.claude/`, never `git add -A`.
 
 ## Known blockers / open items
 - **0 blocking.** 2026-07-09: Q3 + Q5 RESOLVED and M5 GO recorded (plans/questions.md). Remaining
@@ -90,7 +90,7 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   `m-hf-track.md` §5, not the superseded sketch in `highfrequency-algo-plan.md` §3.
 - Accepted nit (no action): CostModelDto lamports are `i64` vs schema `minimum:0` — latent only, no
   negative-producing path (audit JS-1).
-- Deferred to later milestones: real OHLCV ingestion (needs operator data-source choice, Q3); M6
+- Deferred to later milestones: M6
   route/shadow crates; M7 wallet-state; M8/M9 gated execution. (M4 is DONE — sweep crate, CLI wiring,
   and gate declaration all complete, cards M4-C1…C10.)
 
