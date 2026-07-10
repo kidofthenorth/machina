@@ -1649,7 +1649,7 @@ any Rust change; anything suggests adding an HTTP client crate.
 
 ---
 
-### M5-C2 — `machina data-validate`: Binance CSV → `Vec<Bar>` loader + hygiene record — `TODO`
+### M5-C2 — `machina data-validate`: Binance CSV → `Vec<Bar>` loader + hygiene record — `DONE`
 
 **Goal.** Deterministically load the snapshot CSVs into validated `Bar`s and print the hygiene
 record (row count, date span, digest) that M5-C3's freeze sitting consumes (Q3 resolution: hygiene

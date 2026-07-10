@@ -678,3 +678,16 @@ recorded inline (not full logs).
   `.gitignore:43-48` verbatim, so the script's own ignore-guard is live; full-workspace gate green
   (fmt clean, clippy clean, 301 tests 0 failed, no code touched); `git status` showed only
   `scripts/`. M5-C1 flipped to DONE. Next: M5-C2 (`machina data-validate`), fresh session.
+- 2026-07-10 (executor, M5-C2): added `crates/market-data/src/binance_csv.rs` (new — `load_dir`,
+  `fnv1a64`, dependency-free CSV parsing) + `pub mod binance_csv;` in `lib.rs`, and a
+  `machina data-validate --dir PATH [--interval-secs 86400]` subcommand in `crates/cli/src/main.rs`
+  (sanctioned 3-file card). Verbatim signatures (dispatch block, `validate_series_spacing`) matched
+  source exactly; no escalation needed. Gate verified: 7 new `binance_csv` tests + 1 CLI test green
+  (309 total workspace tests, 0 failed, up from 301); `cargo fmt --all --check` and clippy
+  (`-D warnings`) clean; `demo | shasum` unchanged `ae064f79242f823ffd8f55bf9104e3e1b45d425a`;
+  `sweep | shasum` unchanged `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify` OK, exit 0;
+  `git status` shows no `Cargo.toml`/`Cargo.lock` change (no new deps — std + existing
+  `rust_decimal` only). Manual smoke test on a temp dir confirmed the OK line format and the
+  Gap-failure path (prints the first offending bar's timestamp, exit 1, never patches). M5-C2
+  flipped to DONE. Next: M5-C3 (Q5 number-freeze sitting — operator + planner, not an executor
+  card).

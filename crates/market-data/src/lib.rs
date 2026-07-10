@@ -8,6 +8,7 @@
 //!    missing data blocks a run — there is no silent forward-fill.
 
 pub mod allowlist;
+pub mod binance_csv;
 pub mod validation;
 
 pub use allowlist::{Allowlist, AllowlistEntry};

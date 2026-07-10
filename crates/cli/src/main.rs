@@ -7,12 +7,14 @@
 //! There is no key handling, RPC client, or transaction path anywhere in this binary. Output is a
 //! research comparison and implies NO profitability.
 
-use market_data::{validate_series_spacing, Allowlist};
+use market_data::binance_csv::{fnv1a64, load_dir};
+use market_data::{validate_series_spacing, Allowlist, DataError};
 use metrics::Metrics;
 use portfolio::{run, CostModel};
 use research_core::{Bar, Decimal, Timestamp};
 use results::{RunInputs, RunResult};
 use std::num::NonZeroUsize;
+use std::path::Path;
 use strategies::{
     BuyAndHoldSol, DcaIntoSol, HoldUsdc, Static5050, Strategy, ThresholdRebalanceV1, TrendAllocV1,
 };
@@ -34,6 +36,7 @@ fn main() {
         Some("demo") => demo(),
         Some("sweep") => sweep_cmd(args),
         Some("sweep-verify") => sweep_verify(),
+        Some("data-validate") => data_validate_cmd(args),
         Some("--help" | "-h" | "help") | None => usage(),
         Some(other) => {
             eprintln!("unknown command: {other}\n");
@@ -123,6 +126,79 @@ fn sweep_verify() {
         "sweep-verify: OK — byte-identical across sequential, 2 and 8 threads, and repeat ({} bytes)",
         sequential.len()
     );
+}
+
+/// Parse `data-validate` options. Pure so it is unit-testable; `data_validate_cmd` maps `Err` to
+/// `exit(2)`.
+fn parse_data_validate_args(
+    mut args: impl Iterator<Item = String>,
+) -> Result<(String, i64), String> {
+    let mut dir: Option<String> = None;
+    let mut interval_secs: i64 = 86_400;
+    while let Some(a) = args.next() {
+        match a.as_str() {
+            "--dir" => {
+                dir = Some(
+                    args.next()
+                        .ok_or_else(|| "--dir needs a path".to_string())?,
+                );
+            }
+            "--interval-secs" => {
+                let v = args
+                    .next()
+                    .ok_or_else(|| "--interval-secs needs a value".to_string())?;
+                interval_secs = v
+                    .parse()
+                    .map_err(|_| "--interval-secs must be an integer".to_string())?;
+            }
+            other => return Err(format!("unknown data-validate option: {other}")),
+        }
+    }
+    let dir = dir.ok_or_else(|| "--dir PATH is required".to_string())?;
+    Ok((dir, interval_secs))
+}
+
+fn data_validate_cmd(args: impl Iterator<Item = String>) {
+    let (dir, interval_secs) = parse_data_validate_args(args).unwrap_or_else(|message| {
+        eprintln!("{message}");
+        std::process::exit(2)
+    });
+    match run_data_validate(Path::new(&dir), interval_secs) {
+        Ok(line) => println!("{line}"),
+        Err(message) => {
+            eprintln!("{message}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Load a Binance CSV snapshot directory and hygiene-check it; format the operator-facing report
+/// line. Pure aside from the filesystem read, so its formatting is unit-testable.
+fn run_data_validate(dir: &Path, interval_secs: i64) -> Result<String, String> {
+    let bars = load_dir(dir).map_err(|e| e.to_string())?;
+    if let Err(e) = validate_series_spacing(&bars, interval_secs) {
+        let mut message = format!("data-validate: FAILED — {e}");
+        if let DataError::Gap { index, .. } = e {
+            message.push_str(&format!(
+                "\nfirst offending bar: {} (shrink the span before this timestamp — Q3: never patch)",
+                bars[index].ts.to_rfc3339()
+            ));
+        }
+        return Err(message);
+    }
+    let first = bars
+        .first()
+        .expect("validate_series_spacing rejects empty series");
+    let last = bars
+        .last()
+        .expect("validate_series_spacing rejects empty series");
+    Ok(format!(
+        "data-validate: OK — {} bars, {}..{}, spacing {interval_secs}s, fnv1a64 0x{:x}",
+        bars.len(),
+        &first.ts.to_rfc3339()[..10],
+        &last.ts.to_rfc3339()[..10],
+        fnv1a64(&bars)
+    ))
 }
 
 /// Run the canonical M4 sweep on the embedded templates + synthetic series; return report JSON.
@@ -480,5 +556,28 @@ mod tests {
         let rr_hold = run_strategy(&HoldUsdc, &bars, &cost, &al);
         assert!(rr_hold.equity_curve.is_empty());
         assert!(rr_hold.round_trips.is_empty());
+    }
+
+    #[test]
+    fn data_validate_reports_ok_line_for_a_small_valid_snapshot() {
+        let dir =
+            std::env::temp_dir().join(format!("machina-data-validate-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("create temp snapshot dir");
+        std::fs::write(
+            dir.join("SOLUSDC-1d-2021-01.csv"),
+            "1609459200000,100,110,90,105,1000,0,0,0,0,0,0\n\
+             1609545600000,105,115,95,110,1200,0,0,0,0,0,0\n\
+             1609632000000,110,120,100,115,1300,0,0,0,0,0,0\n",
+        )
+        .expect("write fixture csv");
+
+        let result = run_data_validate(&dir, 86_400);
+        std::fs::remove_dir_all(&dir).expect("clean up temp snapshot dir");
+
+        assert_eq!(
+            result.expect("valid snapshot validates"),
+            "data-validate: OK — 3 bars, 2021-01-01..2021-01-03, spacing 86400s, \
+             fnv1a64 0xf57d42c4827d80e0"
+        );
     }
 }
