@@ -650,3 +650,24 @@ recorded inline (not full logs).
   line numbers (903-909) unchanged. D-0012 recorded; HF-Q1/Q2/Q3 added to questions.md;
   current-state.md + handoff.md repointed at the M5 queue (STOP lifted; executor seed prompt
   restored). Plan/docs files only — no code, schema, config, or fixture touched.
+- 2026-07-09 (foreman, review fixes on aaa2e28): a fresh-session review of the Phase-2 commit
+  returned two findings, both applied. **F1**: M5-C6 (the M5 gate declaration — the highest-stakes
+  card in the project) lacked its own mandatory pre-declaration adversarial review, unlike M4-C9
+  which was correctly stopped twice by exactly such a review. Added Step 0 to M5-C6: a 4-lens
+  Sonnet-subagent workflow (verdict-vs-report fidelity; frozen-threshold integrity — diffs
+  m5-frozen.toml against the Q5 resolution; holdout-path call-site audit — zero calls for Branch A,
+  exactly one for Branch B; declaration-vs-master-plan:903-909 conformance), 2 skeptics per finding,
+  fixed decision rule (confirmed blocker/major → do not declare). **F2**: the M-HF wave-1 preamble
+  in task-queue.md still cited `highfrequency-algo-plan.md` as design authority and listed the
+  amendment as unmet. Corrected: design authority is now `m-hf-track.md` §5 (the adjudicated card
+  sequence, which inserts C2.5/C2.6 before the renumbered C3 and changes C1's/C6's required
+  surface); entry condition 2 marked satisfied (D-0012, 2026-07-09, cmp-verified). Also **verified
+  by direct inspection, not inferred**: M-HF-C1/C2's card bodies are the pre-adjudication draft,
+  unmodified since 2026-07-07 (`e821591`) — C2's `SyntheticIntraday` carries a plain `synthetic:
+  bool`, not the typed `Provenance` enum `m-hf-track.md` §2/§5 requires, and C1 lacks the
+  `IntraBar` alias §5 names as its required addition. A reconciliation note was added to the
+  preamble: a planner session must patch C1's card text (fold in `IntraBar`, replace `synthetic:
+  bool` with typed `Provenance`) before M-HF-C1 executes; everything else in C1/C2 (types, hygiene
+  split, C2's `Congestion` enum + splitmix64 primitive) already lines up with the adjudicated
+  design and needs no rework. current-state.md's HF blocker line updated to match. Plan files
+  only; no code/schema/config touched.

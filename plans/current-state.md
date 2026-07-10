@@ -81,9 +81,13 @@ through the milestone gates (money-moving capability stays gated by explicit hum
 - **HF research track (Q7): amendment MADE 2026-07-09 (D-0012).** Master-plan pair amended in
   lockstep (cmp-verified); formal milestone plan authored at [m-hf-track.md](m-hf-track.md) via a
   3-design + adversarial-review + adjudication workflow (7 Sonnet agents; reuse-first won).
-  Wave-1 cards M-HF-C1/C2 stand; entry now waits only on **HF-Q1/HF-Q2** (questions.md) — C1–C2.6
-  are synthetic-only and the operator may unblock them ahead of HF-Q1 by written note. Wave-2+
-  card drafting still requires the sweep/strategies/invariants audit re-run flagged 2026-07-07.
+  Wave-1 cards M-HF-C1/C2 are the **pre-adjudication draft, unmodified** — confirmed 2026-07-09
+  they lack the typed `Provenance` enum and `IntraBar` alias `m-hf-track.md` §5 requires; a planner
+  session must patch C1's card text before it executes (task-queue.md's reconciliation note). Entry
+  otherwise waits only on **HF-Q1/HF-Q2** (questions.md) — C1–C2.6 are synthetic-only and the
+  operator may unblock them ahead of HF-Q1 by written note. Wave-2+ card drafting still requires
+  the sweep/strategies/invariants audit re-run flagged 2026-07-07, and must be drafted against
+  `m-hf-track.md` §5, not the superseded sketch in `highfrequency-algo-plan.md` §3.
 - Accepted nit (no action): CostModelDto lamports are `i64` vs schema `minimum:0` — latent only, no
   negative-producing path (audit JS-1).
 - Deferred to later milestones: real OHLCV ingestion (needs operator data-source choice, Q3); M6

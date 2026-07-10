@@ -1879,6 +1879,30 @@ pub fn evaluate_on_holdout(
 ```
 
 **Steps.**
+0. **Mandatory pre-declaration adversarial review (FOREMAN §3/§7) — before touching any file below.**
+   This is the single highest-stakes card in the project (the M5 gate, master-plan.md:903-909); M4's
+   own gate declaration (M4-C9) was correctly stopped twice by exactly this kind of review before it
+   was allowed to land, and this card gets no less scrutiny. Run a multi-agent workflow (Sonnet
+   subagents) with **4 independent lenses** over the draft declaration + `plans/m5-sweep-report.json`
+   + `config/strategies/m5-frozen.toml`:
+   - **Verdict-vs-report fidelity** — every claim in the draft declaration text is checked against
+     the actual `SweepReport` JSON (verdicts, `failed_criteria`, `trial_count`) field-by-field; no
+     paraphrase may soften or drop a failed criterion.
+   - **Frozen-threshold integrity** — `config/strategies/m5-frozen.toml`'s `[walk_forward]` and
+     `[advancement]` blocks are diffed line-by-line against the Q5 resolution recorded in
+     `plans/questions.md` (2026-07-09) and against `plans/m5-data-validation.md`'s confirmed span;
+     any drift is a blocker (a silently-redefined threshold is exactly how a post-hoc rejection
+     becomes a post-hoc advance).
+   - **Holdout-path audit** — greps the diff/tree for every call site of `evaluate_on_holdout`;
+     Branch A must show **zero** call sites anywhere; Branch B must show **exactly one**, gated by
+     `read_count == 1`, with no code path that could invoke it twice.
+   - **Declaration-vs-master-plan conformance** — the declaration text is checked against
+     master-plan.md:903-909 quoted verbatim: does it actually assert what the gate requires (a named
+     candidate satisfying predefined criteria, or an explicit reject-all), not a weaker substitute.
+   Each finding gets **2 independent skeptic agents** attempting to refute it. Decision rule (fixed
+   in advance, per FOREMAN §7): any confirmed blocker or major → **do not declare**; fix the cause or
+   descope on the record (FOREMAN §8), then re-run this review before trying again. Zero confirmed
+   findings → record "review: PASS (N agents)" in the worklog and proceed to step 1.
 1. Read `plans/m5-sweep-report.json` verdicts.
 2. **Branch A — all candidates `rejected` (expected default).** The holdout is NEVER read: no code
    is written, `holdout_read_count` stays 0, the seal survives intact for a future cycle. Declare
@@ -1898,14 +1922,17 @@ pub fn evaluate_on_holdout(
 
 **Guardrails.** `evaluate_on_holdout` at most once, ever, this cycle — Branch A calls it zero
 times. No execution work follows from either branch without its own milestone approval (M6+ gates;
-M8/M9 separate explicit human approval). Never weaken a frozen threshold to flip a verdict.
+M8/M9 separate explicit human approval). Never weaken a frozen threshold to flip a verdict. The
+step-0 review is not optional and not skippable by a confident planner — it runs even if the
+verdicts look unambiguous.
 
 **Escalate-if.** Any impulse to re-run the sweep with different numbers after seeing results; any
-second holdout read; any verdict ambiguity (e.g. report/schema mismatch) — STOP and record.
+second holdout read; any verdict ambiguity (e.g. report/schema mismatch); any confirmed blocker or
+major from the step-0 review — STOP and record.
 
 ---
 
-## M-HF wave 1 — task cards (**BLOCKED**: drafted ahead of the gate — do not execute)
+## M-HF wave 1 — task cards (**BLOCKED**: reconciliation against the adjudicated design pending)
 
 *(Drafted 2026-07-07 on operator instruction after the entry-condition check found all three
 conditions unmet — see worklog. These cards serve machina's goal — genuine autonomous passive
@@ -1913,30 +1940,56 @@ income at high volume — by building the machinery that TESTS whether small-edg
 trading clears real round-trip costs. Every HF strategy family is a hypothesis; no card claims or
 implies a known-profitable algorithm; rejecting all seven families cleanly is a successful outcome.)*
 
-**Execution may not start until ALL THREE hold (check them, don't assume — verify directly:
-M4-C9's Status in this file; `cmp plans/master-plan.md solana-crypto-trader-plan.md` plus the
-Status line at the top of highfrequency-algo-plan.md; `grep -n "HF-Q" plans/questions.md`):**
-1. **M4 gate declared** — card M4-C9 is DONE in this file.
-2. **Operator approval + amendment** — the operator has approved
-   [highfrequency-algo-plan.md](highfrequency-algo-plan.md) AND the master-plan amendment has been
-   made (`plans/master-plan.md` and root `solana-crypto-trader-plan.md` edited in lockstep,
-   byte-identical — verify with `cmp`, per Q6). That amendment is an **operator-level edit, never a
-   card.**
-3. **HF-Q decisions recorded in plans/questions.md** — HF-Q1 (intraday data source) blocks only
-   M-HF-C9; HF-Q2 (USDT/LST allowlist additions) blocks M-HF-C7's statarb family; HF-Q3 (frozen
-   intraday walk-forward sizing + HF advancement thresholds, incl. the turnover-criterion
-   replacement) blocks the M-HF-C10 sweep. **No HF-Q blocks C1–C2** (synthetic fixtures carry
-   C1–C8), but conditions 1–2 block everything.
+**Design authority: [m-hf-track.md](m-hf-track.md), §5, not `highfrequency-algo-plan.md`.**
+The Q7 amendment (D-0012, 2026-07-09) ran a 3-design + adversarial-review + adjudication workflow
+and selected a **reuse-first** design; `m-hf-track.md` is the resulting, adjudicated milestone plan
+and its §5 card sequence is authoritative (it inserts new cards **C2.5** and **C2.6** before C3,
+and changes C1's/C6's required surface — see the reconciliation note below).
+`highfrequency-algo-plan.md` remains reference text for its §1 strategy survey and §2
+execution-realism requirements only; its own §3 card sketch is **superseded**.
+
+**Entry conditions — verify directly (M4-C9's Status in this file; `cmp plans/master-plan.md
+solana-crypto-trader-plan.md`; `grep -n "^## D-0012" DECISIONS.md`; `grep -n "HF-Q" plans/questions.md`):**
+1. **M4 gate declared** — card M4-C9 is DONE in this file. ✅ (2026-07-09)
+2. **Operator approval + amendment** — ✅ **SATISFIED 2026-07-09 (D-0012).** The master-plan
+   amendment was made (`plans/master-plan.md` §19 "M-HF" + amended Arbitrage/XEMM/MEV disposition;
+   root `solana-crypto-trader-plan.md` edited in lockstep, `cmp`-verified byte-identical, per Q6).
+3. **HF-Q decisions recorded in plans/questions.md** — **still open.** HF-Q1 (intraday data source)
+   blocks only M-HF-C9/C10; HF-Q2 (USDT/LST allowlist additions) blocks M-HF-C7's statarb family;
+   HF-Q3 (frozen intraday walk-forward sizing + HF advancement thresholds, incl. the
+   turnover-criterion replacement, incl. auction-margin sensitivity) blocks the M-HF-C10 sweep. **No
+   HF-Q blocks C1–C2.6** (synthetic fixtures carry them), but see the reconciliation note below —
+   that gap blocks C1 regardless of HF-Q status.
+
+**Reconciliation note (stated, not inferred) — C1/C2 as drafted are the PRE-adjudication text,
+unmodified.** The card bodies below were copied verbatim from source on 2026-07-07 at commit
+`e821591`, **before** the design workflow ran; they were **not** regenerated against
+`m-hf-track.md`'s adjudicated design. Confirmed by direct inspection (2026-07-09): neither card
+contains the typed `Provenance::{Synthetic,Real}` enum `m-hf-track.md` §2/§5 requires — C2's
+`SyntheticIntraday` carries only a plain `pub synthetic: bool` field — and neither contains the
+`IntraBar = research_core::Bar` alias `m-hf-track.md` §5 names as C1's required addition ("zero
+logic" — a doc comment + `pub use`). Everything else in C1/C2 (the `TradePrint`/`SlotSnapshot`
+types, the strict/loose hygiene split, C2's `Congestion` enum and its `splitmix64` primitive) lines
+up with the adjudicated design's §1–§3 and needs no rework. **Before M-HF-C1 executes, a planner
+session must patch its card text** to (a) fold in the `IntraBar` alias per `m-hf-track.md` §1, and
+(b) replace the `synthetic: bool` field with the typed `Provenance` enum per §2, then re-verify the
+"Current state (verbatim)" block against source as of that session's commit. This is a small,
+mechanical patch, not a redesign — the types, hygiene functions, and fixtures below are otherwise
+sound and were reviewed as such.
 
 **Wave discipline.** C1–C2 are drafted now because they need only today's `crates/research-core` +
-`crates/market-data` (untouched by the in-flight M4-C8c/C8d). **C3–C10 are deliberately NOT
-drafted** — they must quote types C1–C2 will create, so each wave is expanded against what actually
-landed. A mandatory **adversarial review checkpoint follows M-HF-C5** (the fill/cost engine — the
-place an HF backtest would silently lie) before C6+ may be expanded. The 2026-07-07 audit of the HF
-plan vs. the tree covered market-data/portfolio/prior-art; the sweep-ladder, strategies-trait, and
-invariants-config audit areas were cut short (session limit) and **must be re-run before wave 2 is
-expanded** (findings + coverage gaps recorded in the 2026-07-07 worklog entry and in
-[highfrequency-algo-plan.md](highfrequency-algo-plan.md)'s Appendix).
+`crates/market-data`. `m-hf-track.md` §5 inserts **C2.5** (reuse-proof: existing engine on 1s bars,
+zero new source) and **C2.6** (streaming/scale-proof at ~31M rows) between C2 and the (renumbered)
+C3 fill engine — neither is drafted yet. **C3–C10 remain deliberately NOT drafted** — they must
+quote types C1–C2.6 will create, so each wave is expanded against what actually landed, and against
+`m-hf-track.md` §5's card-by-card gate list (not the superseded sketch in
+`highfrequency-algo-plan.md` §3). A mandatory **adversarial review checkpoint follows the
+fill/cost/adversarial-terms cards** (C3–C5 in the new numbering — the place an HF backtest would
+silently lie) before C6+ may be expanded, per `m-hf-track.md` §5's stated risk points. The
+2026-07-07 audit of the HF plan vs. the tree covered market-data/portfolio/prior-art; the
+sweep-ladder, strategies-trait, and invariants-config audit areas were cut short (session limit) and
+**must be re-run before wave 2 is expanded** (findings + coverage gaps recorded in the 2026-07-07
+worklog entry and in [highfrequency-algo-plan.md](highfrequency-algo-plan.md)'s Appendix).
 
 Execution contract and guardrails: identical to the M4 cards above (fresh session per card; flip the
 card status + one worklog line when its gate passes; never `git commit`/`git push` — the operator
