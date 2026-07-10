@@ -1601,7 +1601,7 @@ additions for M5:
 
 ---
 
-### M5-C1 — Operator ingestion script for Binance SOLUSDC daily klines — `TODO`
+### M5-C1 — Operator ingestion script for Binance SOLUSDC daily klines — `DONE`
 
 **Goal.** A one-time, operator-run snapshot of daily SOLUSDC klines from `data.binance.vision` into
 gitignored files (Q3 resolution; serves M5 gate master-plan.md:905-909 by making a real-data

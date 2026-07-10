@@ -671,3 +671,10 @@ recorded inline (not full logs).
   split, C2's `Congestion` enum + splitmix64 primitive) already lines up with the adjudicated
   design and needs no rework. current-state.md's HF blocker line updated to match. Plan files
   only; no code/schema/config touched.
+- 2026-07-10 (executor, M5-C1): added `scripts/ingest-binance-solusdc-1d.sh` (new `scripts/` dir),
+  the operator-run, one-time Binance SOLUSDC daily-kline snapshot script — no Rust touched. Gate
+  verified: `bash -n` syntax-clean; `--dry-run 2021-01 2021-02` printed exactly the two expected
+  monthly zip URLs and fetched nothing; `git check-ignore -q data/raw/` confirmed matching
+  `.gitignore:43-48` verbatim, so the script's own ignore-guard is live; full-workspace gate green
+  (fmt clean, clippy clean, 301 tests 0 failed, no code touched); `git status` showed only
+  `scripts/`. M5-C1 flipped to DONE. Next: M5-C2 (`machina data-validate`), fresh session.
