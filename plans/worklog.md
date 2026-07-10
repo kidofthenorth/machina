@@ -626,3 +626,27 @@ recorded inline (not full logs).
   config touched — plan files only, per the card's guardrail. **M4-C10 (M5 handoff pointer) is
   deliberately left for its own fresh session, per the card.**
 - 2026-07-09: M4-C10 done — the M4 queue is complete; `current-state.md` and `handoff.md` now point at the M5 operator decision and STOP (freeze questions.md Q5 walk-forward sizing + rejection thresholds; choose the Q3 real-data source; explicit go against master-plan.md's M5 gate), with the seed prompt replaced by a maintenance-only version and questions.md Q7's HF plan amendment noted as a pending operator-level task, not a card. Plan files only; full-workspace gate re-confirmed green (fmt clean, clippy clean, 301 tests 0 failed) with no code touched. **The M4 task-queue card sequence (M4-C1…C10) is now fully DONE.**
+- 2026-07-09 (foreman, M5 GO + Q7 amendment): gates re-verified fresh at `bd0b3e2` before anything
+  else (fmt/clippy clean; 301 tests 0 failed; demo `ae064f79…` ×2; sweep `7ad3df7d…` at 1+8
+  threads; sweep-verify OK 18990 bytes). Operator decisions recorded VERBATIM in questions.md: Q3
+  RESOLVED (Binance data.binance.vision daily SOLUSDC one-time snapshot; CEX-proxy caveat →
+  provenance notes; shrink-never-patch hygiene rule; GeckoTerminal cross-check; Birdeye pencilled
+  as HF-Q1), Q5 RESOLVED (rolling 365/90/90/5; 0.35/12/0.02/0.40/0.15/min_windows 6; holdout final
+  ~20% by date; numbers final-frozen at span confirmation, one-way ratchet), M5 GO. task-queue.md
+  gains §M5 with cards M5-C1…C6 (ingestion script → data-validate loader/hygiene → Q5 freeze
+  sitting → --config/--data sweep wiring + provenance note → decisive sweep → decision card with
+  the single call-once evaluate_on_holdout; reject-all reads the holdout ZERO times and routes to
+  the HF track); signatures copied verbatim from source at `bd0b3e2`. Q7 amendment executed:
+  3-design + 3-adversarial-lens + adjudicator workflow (7 Sonnet agents) → reuse-first design won
+  (only design preserving the holdout-seal pattern at intraday granularity; adversary-first
+  carried an unrefuted seal blocker and was disqualified); grafts + all 10 must-address findings
+  folded into plans/m-hf-track.md (typed Provenance; C2.5 reuse-proof + C2.6 streaming/scale-proof
+  gates; splitmix64 determinism proven at introduction with global fixture-relative event_index;
+  fail-closed landing tables; base-rung adverse-selection pricing; depth_curve required for
+  HF-kind specs; HF+turnover_budget spec lint; competitor_floor sensitivity sweep at C10; named
+  targeting-decorrelation limitation; storage-format decision deferred to C2.6 on the record).
+  master-plan.md §19 gains the M-HF track section, Arbitrage/XEMM/MEV disposition amended;
+  solana-crypto-trader-plan.md updated in the same pass, `cmp` → byte-identical; M5 gate text and
+  line numbers (903-909) unchanged. D-0012 recorded; HF-Q1/Q2/Q3 added to questions.md;
+  current-state.md + handoff.md repointed at the M5 queue (STOP lifted; executor seed prompt
+  restored). Plan/docs files only — no code, schema, config, or fixture touched.

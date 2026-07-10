@@ -135,28 +135,24 @@ M4-C9 (HEAD = `98724e2`, "GATE DECLARED 2026-07-09 — M4 sweep/walk-forward com
 -A`; **never** stage `.claude/`. Stage explicit paths only. (Run `git status` to confirm current HEAD
 and what's staged.)
 
-## What's next — STOP: M5 is an operator decision
+## What's next — M5 is GO (operator decisions recorded 2026-07-09)
 
-**M4 is DONE — gate declared 2026-07-09 (card M4-C9); all cards M4-C1…M4-C10 are complete.** The
-task queue's M4 section is closed. Do not resume it and do not queue M5 implementation.
+**M4 is DONE — gate declared 2026-07-09 (card M4-C9).** The former STOP is lifted: questions.md
+records the Q3 resolution (Binance data.binance.vision daily SOLUSDC snapshot, CEX-proxy caveat
+acknowledged), the Q5 resolution (thresholds approved; final numbers frozen at span confirmation,
+one-way ratchet), and the **M5 GO**.
 
-**STOP — operator decisions required before M5 (the research decision):**
-1. Freeze the walk-forward sizing and rejection thresholds (questions.md Q5) — they are illustrative
-   in `strategy-lab.example.toml` and must be frozen BEFORE the decisive sweep (post-hoc choice =
-   overfitting).
-2. Choose the real OHLCV data source for SOL/USDC (questions.md Q3) — all M4 runs used synthetic
-   series; no statistical claim is valid until real multi-year data is ingested and validated.
-3. Give an explicit M5 go decision. M5's gate (master-plan.md:903-907): select ONE candidate for
-   mainnet shadow because it satisfies predefined criteria, or reject all and return to research.
+**The active queue is task-queue.md §M5 — cards M5-C1…C6, in order, one card per fresh session:**
+ingestion script → `data-validate` hygiene → Q5 number-freeze sitting (operator) → `--config`/
+`--data` sweep wiring → decisive sweep → decision card (the single call-once `evaluate_on_holdout`
+for an advanceable candidate; **reject-all reads the holdout zero times** and routes to the HF
+track). The declaration is judged against master-plan.md:903-909.
+
+The Q7 HF amendment was made 2026-07-09 (D-0012): master-plan pair amended in lockstep
+(cmp-verified); milestone plan at [m-hf-track.md](m-hf-track.md). M-HF execution still waits on
+HF-Q1/HF-Q2 (questions.md).
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).
-Agents picking up this repo may do **maintenance only** (fix a failing gate, refresh docs) until the
-operator records a written go in `plans/questions.md`.
-
-Separately, questions.md Q7 records the operator's high-frequency direction decision (2026-07-07): the
-plan amendment adding an HF research track is a **pending operator-level planning task**, not an
-executor card — it waits on this same M5 gate and is out of scope for any agent session until the
-operator makes that edit.
 
 ## Operating contract (executor rules — keep these)
 
@@ -198,26 +194,30 @@ operator makes that edit.
 
 ---
 
-## Seed prompt for the new chat — maintenance only (M4 is done; M5 needs the operator)
+## Seed prompt for the new chat — execute the next M5 card
 
-> You are picking up the **machina** (`solana-crypto-trader`) repo — a paper-first, Solana-focused
+> You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
 > crypto trading-**research** platform in Rust built toward **genuine autonomous passive income**
 > (truly autonomous, so truly passive), earned through milestone gates. The current phase is
-> research: no keys/signing/RPC/network anywhere.
+> research: no keys/signing/RPC/network anywhere in the tree (the only network touch in all of M5
+> is the operator running the M5-C1 shell script by hand).
 >
-> **M4 is DONE — gate declared 2026-07-09 (card M4-C9); M4-C1…M4-C10 are all complete.** Read
-> `plans/handoff.md` → `plans/current-state.md` → the STOP block there before doing anything else.
-> There is no active M4 task queue left to execute, and M5 cannot start without the operator's
-> written go.
+> **State:** M4 gate declared 2026-07-09; workspace green at **301 tests, 0 failed**; demo shasum
+> `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum
+> `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify: OK`. Operator resolutions Q3/Q5 + M5
+> GO are recorded in `plans/questions.md` (2026-07-09).
 >
-> **Your task this session is maintenance only**: fix a failing gate (a fmt/clippy/test regression)
-> or refresh stale docs. You may **not** start M5 implementation, real-data ingestion, or any M6+
-> scaffolding — those require the operator to (1) freeze questions.md Q5's walk-forward sizing and
-> rejection thresholds, (2) choose the Q3 real-data source, and (3) record an explicit M5 go in
-> `plans/questions.md`. If none of that is recorded yet, do not queue or sketch M5 work — say so and
-> stop.
+> Your task is **the next TODO card in `plans/task-queue.md` §M5** (M5-C1 → C6, in order). Read the
+> M4 section's common rules, then the card. It is self-contained — do not open files it doesn't
+> name; do not do more than it says. M5-C3 and M5-C6 are operator+planner cards — if the next card
+> is one of those, say so and stop.
 >
-> Non-negotiables (unchanged): `Decimal`/integer only for money — never f64; the holdout stays sealed
-> — **never call `evaluate_on_holdout`**; never edit `schemas/*.json` or `plans/master-plan.md`;
-> never `git commit`/`git push` (stage explicit paths only, never `.claude/`, never `git add -A`);
-> never start M8/M9 (signing/submit) — separate explicit human approval required.
+> When the gate passes: flip the card, one worklog line, stop — the next card gets a fresh chat.
+> If any escalate-if triggers: STOP, record the mismatch in the worklog, report.
+>
+> Non-negotiables (unchanged): `Decimal`/integer only for money — never f64; the holdout stays
+> sealed — `evaluate_on_holdout` is called at most once, only by the M5-C6 decision card, never by
+> you; never stage anything under `data/`; never edit `schemas/*.json`, `plans/master-plan.md`, or
+> `solana-crypto-trader-plan.md`; never `git commit`/`git push` (stage explicit paths only, never
+> `.claude/`, never `git add -A`); never start M6+ (network) or M8/M9 (signing/submit — separate
+> explicit human approval).

@@ -7,6 +7,28 @@ do not authorize any new capability (no signing, no submission — see
 
 ---
 
+## D-0012 — Q7 amendment: high-frequency research track added to the master-plan pair (M-HF)
+**Context.** questions.md Q7 (decided 2026-07-07) deferred-then-planned the operator's actual
+ambition — a high-volume (thousands of trades/day) autonomous Solana bot — pending the M4 gate.
+The M4 gate was declared 2026-07-09; the operator recorded the M5 GO the same day and directed the
+Q7 planning to proceed in parallel. The design was produced by a 3-design + 3-adversarial-lens +
+adjudication workflow (7 Sonnet agents, 2026-07-09): the reuse-first design won (the only one that
+preserved the holdout-seal pattern at intraday granularity); its majors are addressed via recorded
+grafts (typed provenance; standalone streaming/scale gate; splitmix64 determinism proven at
+introduction; fail-closed landing tables; base-rung adverse-selection pricing; HF-kind spec lints).
+**Decision.** `plans/master-plan.md` §19 gains an "M-HF: High-frequency research track" section and
+the "Arbitrage / XEMM / MEV" disposition is amended from notes-only to a formal parallel research
+track; the root `solana-crypto-trader-plan.md` was updated in the same pass and the pair verified
+byte-identical via `cmp` (Q6 rule: edit both or neither). The detailed milestone plan is
+`plans/m-hf-track.md` (supersedes `highfrequency-algo-plan.md` §3's card sketch; that file's §1–§2
+remain reference text). Wave-1 cards M-HF-C1/C2 in task-queue.md stand as drafted; entry now waits
+only on HF-Q1/HF-Q2 (C1–C2.6 are synthetic-only and may be unblocked ahead of HF-Q1 by operator
+note).
+**Consequences.** HF is a gated research track, not a scope creep: it reuses the M4 battery, adds
+no execution capability, leaves M8/M9 approvals untouched, and ends at an advance-or-reject
+research decision where reject-all is a valid outcome. The M5 gate text (master-plan.md:903-909)
+is unchanged and its line numbers are preserved (the M-HF section inserts after it).
+
 ## D-0011 — M4 "strategy-family comparison" = the cross-family canonical report; per-family aggregation rows move to M5 (M4)
 **Context.** The 2026-07-09 pre-declaration re-review confirmed a major: `plans/m4-sweep.md` §10
 sketched a per-family aggregation row (best/median/worst across param neighbors) with no

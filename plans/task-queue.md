@@ -1574,6 +1574,337 @@ edit; you find yourself wanting to sketch M5 implementation steps (don't — tha
 
 ---
 
+## M5 — task cards (ACTIVE — operator GO recorded 2026-07-09; execute in order, one card per fresh session)
+
+The M5 research decision, per the operator's written resolutions in `plans/questions.md` (Q3, Q5,
+and the M5 GO block, all 2026-07-09). Sequence: ingestion → hygiene + span confirmation → Q5
+number-freeze → CLI wiring → decisive sweep → decision card. Every signature quoted below was
+**copied verbatim from source on 2026-07-09 at commit `bd0b3e2`** — if what you find differs,
+escalate, don't adapt.
+
+**Common rules, guardrails, and escalate-ifs are IDENTICAL to the M4 section above** (fresh session
+per card; only the card's files; flip status + one worklog line; full-workspace gate
+`cargo fmt --all --check` && `cargo clippy --all-targets --all-features -- -D warnings` &&
+`cargo test --workspace --all-features`, 0 failed; `cargo fmt --all` after pasting snippets;
+Decimal/integer money; byte-identical parallel==sequential; **no new dependencies**; **no execution
+code** — no keys/signing/submit/RPC, and **no HTTP client code in any crate** (the only network
+touch in all of M5 is the operator running the C1 shell script by hand); never edit
+`schemas/*.json`, `plans/master-plan.md`, `solana-crypto-trader-plan.md`, or `fixtures/`). Two
+additions for M5:
+- **Real data is operator-provisioned and gitignored.** `data/raw/` is ignored by `.gitignore`
+  (lines 43-48). No card ever stages anything under `data/`; the checked-in artifact is the
+  validation record `plans/m5-data-validation.md`.
+- **The holdout seal rules stand until M5-C6**: `evaluate_on_holdout` is called at most once, only
+  by the M5-C6 decision card, only for an `advanceable` candidate, only after the Q5 freeze (M5-C3).
+  If the decisive sweep rejects all candidates, the holdout is **never read at all** (counter
+  stays 0) and no holdout-calling code is ever written.
+
+---
+
+### M5-C1 — Operator ingestion script for Binance SOLUSDC daily klines — `TODO`
+
+**Goal.** A one-time, operator-run snapshot of daily SOLUSDC klines from `data.binance.vision` into
+gitignored files (Q3 resolution; serves M5 gate master-plan.md:905-909 by making a real-data
+decision possible).
+
+**Files.** `scripts/ingest-binance-solusdc-1d.sh` (new; the `scripts/` directory does not exist yet
+— create it). Nothing else; no Rust changes.
+
+**Current state (verbatim).** `.gitignore:43-48`:
+```
+/data/raw/
+/data/normalized/
+/data/**/*.parquet
+/data/**/*.csv
+/data/**/*.db
+/data/**/*.sqlite
+```
+
+**Steps.**
+1. Create `scripts/ingest-binance-solusdc-1d.sh`, `chmod +x`, with `#!/usr/bin/env bash` and
+   `set -euo pipefail`. Arguments: `START_MONTH END_MONTH` (inclusive, `YYYY-MM`), plus an optional
+   `--dry-run` flag that only prints the URLs it would fetch.
+2. For each month in the range, download
+   `https://data.binance.vision/data/spot/monthly/klines/SOLUSDC/1d/SOLUSDC-1d-<YYYY-MM>.zip`
+   and its `.CHECKSUM` sibling into `data/raw/binance/SOLUSDC-1d/` (create with `mkdir -p`),
+   verify with `shasum -a 256 -c`, unzip the CSV alongside, and delete the zip. A missing month
+   (HTTP 404, e.g. before the pair listed) is reported and **skipped**, not fatal; any checksum
+   failure IS fatal.
+3. On completion print: months fetched, months skipped, CSV file count, and
+   `shasum -a 256 data/raw/binance/SOLUSDC-1d/*.csv | shasum -a 256` (one combined content hash the
+   operator can paste into the validation record).
+4. The script must refuse to run if `git check-ignore data/raw/` fails (belt-and-braces: never
+   ingest into a stageable path).
+
+**Gate.** `bash -n scripts/ingest-binance-solusdc-1d.sh` (syntax-clean); `scripts/ingest-… 2021-01
+2021-02 --dry-run` prints exactly two monthly zip URLs and fetches nothing; full-workspace gate
+still green (no Rust touched); `git status` shows only the script.
+
+**Guardrails (restated).** The script is run BY THE OPERATOR, by hand, once — no card, test, CI
+job, or Rust code may invoke it. No credentials anywhere (data.binance.vision is keyless). Nothing
+under `data/` is ever staged. No new dependencies; no HTTP code in any crate.
+
+**Escalate-if.** `.gitignore:43-48` differs from the verbatim block above; the card seems to need
+any Rust change; anything suggests adding an HTTP client crate.
+
+---
+
+### M5-C2 — `machina data-validate`: Binance CSV → `Vec<Bar>` loader + hygiene record — `TODO`
+
+**Goal.** Deterministically load the snapshot CSVs into validated `Bar`s and print the hygiene
+record (row count, date span, digest) that M5-C3's freeze sitting consumes (Q3 resolution: hygiene
+failures shrink the span — never patch or forward-fill).
+
+**Files.** `crates/market-data/src/binance_csv.rs` (new) + one `pub mod`/re-export line in
+`crates/market-data/src/lib.rs`; `crates/cli/src/main.rs` (new `data-validate` subcommand).
+*(Sanctioned 3-file card.)*
+
+**Current state (verbatim).**
+- `market-data/src/validation.rs:116`:
+  `pub fn validate_series_spacing(bars: &[Bar], expected_interval_secs: i64) -> Result<(), DataError> {`
+- `cli/src/main.rs:33-43` dispatch:
+```rust
+    match args.next().as_deref() {
+        Some("demo") => demo(),
+        Some("sweep") => sweep_cmd(args),
+        Some("sweep-verify") => sweep_verify(),
+        Some("--help" | "-h" | "help") | None => usage(),
+        Some(other) => {
+            eprintln!("unknown command: {other}\n");
+            usage();
+            std::process::exit(2);
+        }
+    }
+```
+
+**Steps.**
+1. `binance_csv.rs`: `pub fn load_dir(dir: &Path) -> Result<Vec<Bar>, BinanceCsvError>` —
+   read `*.csv` files in the directory **sorted by file name** (byte order, deterministic), parse
+   each line by splitting on `,`: Binance kline columns are
+   `open_time,open,high,low,close,volume,close_time,…` (12 columns; only the first 6 are used).
+   Skip a line whose first field does not parse as `i64` **only if it is the first line of a file**
+   (header tolerance); anywhere else it is an error. `open_time` may be in milliseconds (13
+   digits) or microseconds (16 digits) — normalize to whole seconds by magnitude
+   (`>= 10^15 → /1_000_000`, `>= 10^12 → /1_000`); a value that is not an exact multiple of its
+   divisor is an error (never silently truncate a misaligned timestamp). Prices/volume parse as
+   `Decimal` (`rust_decimal` is already a dependency; **std + existing deps only — no csv crate**).
+2. After loading all files, sort by `ts` is **not** applied — files sorted by name and rows in file
+   order must already be ascending; validation catches violations (no silent reordering).
+3. Also in `binance_csv.rs`: `pub fn fnv1a64(bars: &[Bar]) -> u64` — FNV-1a over each bar's
+   `ts.unix()` and the canonical `to_string()` of its five Decimal fields, in order (pure integer
+   math; this is the record's cross-run digest).
+4. CLI: `machina data-validate --dir PATH [--interval-secs 86400]` → `load_dir`, then
+   `validate_series_spacing(&bars, interval)`; on success print exactly:
+   `data-validate: OK — <n> bars, <first YYYY-MM-DD>..<last YYYY-MM-DD>, spacing <interval>s, fnv1a64 0x<hex>`
+   and exit 0; on any failure print the error and exit 1. **Gap handling:** if
+   `validate_series_spacing` rejects, also print the timestamp of the first offending bar so the
+   operator can shrink the span (Q3 rule) — the tool never patches.
+5. Tests (in `binance_csv.rs` + a CLI test): a tiny in-repo **string literal** fixture (not a file
+   under `fixtures/` — do not touch that tree): valid 3-line CSV parses; header line tolerated;
+   ms and µs timestamps normalize identically; misaligned timestamp rejected; out-of-order rows
+   rejected by validation; digest is stable (pin the exact hex).
+
+**Gate.** New tests green; full-workspace gate green (expect **> 301** tests, 0 failed);
+`cargo run -p cli -- demo | shasum` unchanged (`ae064f79242f823ffd8f55bf9104e3e1b45d425a`);
+`cargo run -p cli -- sweep | shasum` unchanged (`7ad3df7de2e2c1139be427e9c953b57d4e289cb3`);
+`git status` → no `Cargo.toml`/`Cargo.lock` modified (proves zero new deps).
+
+**Guardrails (restated).** Decimal for prices/volume — never f64; no network/HTTP; no new deps; no
+silent forward-fill, reordering, or dedup — hygiene failures are errors; never edit `schemas/*`,
+`fixtures/`, or the plan pair; holdout untouched.
+
+**Escalate-if.** The dispatch block or `validate_series_spacing` signature differs from the
+verbatim blocks; a real snapshot line has other than 12 columns (report the line, don't adapt);
+you feel the need for a csv/serde-csv dependency; demo/sweep hashes move.
+
+---
+
+### M5-C3 — Q5 number-freeze sitting (OPERATOR + planner — not an executor card) — `TODO`
+
+**Goal.** Freeze the final M5 research policy against the confirmed real span, BEFORE any strategy
+result is computed (Q5 resolution's one-way ratchet).
+
+**Files.** `config/strategies/m5-frozen.toml` (new, checked in — no secrets);
+`plans/m5-data-validation.md` (new); `plans/questions.md` (Q5 freeze addendum);
+`plans/worklog.md`. *(Plan/config only — no Rust.)*
+
+**Steps.**
+1. Operator runs `scripts/ingest-binance-solusdc-1d.sh` for the full listable range, then
+   `cargo run -p cli -- data-validate --dir data/raw/binance/SOLUSDC-1d`. If hygiene fails at the
+   early edge, re-ingest from the first clean month (shrink, never patch) until OK.
+2. Record in `plans/m5-data-validation.md`: source URL pattern, months fetched/skipped, the
+   script's combined sha256, `data-validate`'s exact OK line (count, span, fnv1a64), the CEX-proxy
+   caveat verbatim from Q3, and the date of the sitting.
+3. Compute the holdout boundary: `holdout.start` = the UTC date at the 80% point of the confirmed
+   span (rounded to the 1st of the next month for legibility); `validation.start` = one year before
+   `holdout.start`. Confirm the dev/val length supports ≥ `min_windows` rolling 365/90/90/5 windows
+   (windows ≈ floor((dev_val_len − 365 − 5 − 90)/90) + 1); adjust `min_windows` ONLY downward-never,
+   upward-if-needed is allowed before the freeze.
+4. Write `config/strategies/m5-frozen.toml`: copy `strategy-lab.example.toml`, set the real
+   partition dates, `[walk_forward]` rolling 365/90/90/5, `[advancement]` = drawdown_budget "0.35",
+   turnover_budget "12", baseline_margin "0.02", dispersion_budget "0.40", neighbor_tolerance
+   "0.15", min_windows (final), and the grids **frozen as-is** from the template (Q4: illustrative,
+   now frozen for this cycle). Header comment: "FROZEN 2026-MM-DD per Q5 — immutable for the M5
+   cycle."
+5. Append the freeze (final dates + numbers + window count) to questions.md Q5 and one worklog line.
+
+**Gate.** `data-validate` OK line matches the record; the frozen TOML parses
+(`SweepSpec::from_toml_str` — verified implicitly by M5-C4's tests); every number matches the Q5
+resolution; freeze recorded before any sweep of real data exists anywhere.
+
+**Guardrails.** After this card, `m5-frozen.toml` is immutable for the cycle (one-way ratchet). No
+strategy may be run on the real data before this card completes — if any real-data strategy result
+exists first, STOP: the freeze is contaminated; escalate to the operator on the record.
+
+---
+
+### M5-C4 — Wire `--config` / `--data` into `machina sweep` (+ provenance note) — `TODO`
+
+**Goal.** The sweep CLI runs the frozen spec on the real snapshot — same deterministic pipeline,
+zero behavior change for the existing template/synthetic path (M4 gates must not move).
+
+**Files.** `crates/cli/src/main.rs`; `crates/sweep/src/report.rs` (additive provenance-note
+constructor only). *(2 files.)*
+
+**Current state (verbatim).**
+- `cli/src/main.rs:57-59`:
+```rust
+fn parse_sweep_args(
+    mut args: impl Iterator<Item = String>,
+) -> Result<(Parallelism, Option<String>), String> {
+```
+- `cli/src/main.rs:130` `fn sweep_report_json(parallelism: Parallelism) -> String {` — builds the
+  spec from the embedded `STRATEGY_LAB_TEMPLATE`, bars from `sweep_series()`, cost model
+  `dex_fee_bps: 5, slippage_bps: 20, base_fee_lamports: 5_000, priority_fee_lamports: 50_000`,
+  then asserts `outcome.sealed.holdout_read_count() == 0`.
+- `sweep/src/spec.rs:107` `pub fn from_toml_str(s: &str) -> Result<Self, SpecError> {`
+- `sweep/src/runner.rs:314-321`:
+```rust
+pub fn run_sweep(
+    spec: &SweepSpec,
+    bars: Vec<Bar>,
+    base_cost: &CostModel,
+    initial_cash_usdc: Decimal,
+    periods_per_year: f64,
+    parallelism: Parallelism,
+) -> Result<SweepOutcome, SweepError> {
+```
+- `sweep/src/report.rs:132` `pub note: String,` (a free string in the schema; `report.rs:156` sets
+  it from a fixed `REPORT_NOTE`).
+
+**Steps.**
+1. Extend `parse_sweep_args` to also accept `--config PATH` and `--data DIR` (both or neither —
+   one without the other is a usage error). Return type grows accordingly; all existing arg tests
+   stay green unchanged plus new ones for the pairing rule.
+2. In the sweep path: with `--config/--data`, read the TOML with `std::fs::read_to_string`,
+   `SweepSpec::from_toml_str`, load bars via `market_data::binance_csv::load_dir`, validate with
+   `validate_series_spacing(&bars, 86_400)`, and run the SAME `run_sweep` call with the SAME
+   hardcoded cost model (the M4 modeled-cost assumptions, unchanged and now frozen with the cycle);
+   keep the `holdout_read_count() == 0` assert on this path too.
+3. `report.rs`: add an additive constructor (e.g. `SweepReport::with_provenance(…, provenance:
+   &str)`) that appends ` | data: <provenance>` to the fixed note. `SweepReport::new` delegates and
+   stays byte-identical for existing callers. The CLI real-data path passes
+   `binance data.binance.vision SOLUSDC 1d snapshot (CEX-proxy; see plans/m5-data-validation.md), fnv1a64 0x<hex>`.
+   The schema is untouched (`note` is a free string); the existing note tests must still pass.
+4. Tests: pairing-rule arg tests; a report test that `with_provenance` keeps the robustness
+   disclaimer AND carries the provenance suffix; template path output byte-identical (existing
+   determinism tests untouched).
+
+**Gate.** Full-workspace gate green, 0 failed; `machina sweep | shasum` UNCHANGED
+(`7ad3df7de2e2c1139be427e9c953b57d4e289cb3`) and `sweep-verify: OK` (the no-flag path must be
+byte-identical to before this card); `machina sweep --config config/strategies/m5-frozen.toml
+--data data/raw/binance/SOLUSDC-1d | shasum` twice → identical; no `Cargo.toml`/`Cargo.lock`
+changes.
+
+**Guardrails (restated).** No new deps; no schema edit; Decimal money; the holdout assert stays on
+every CLI path; `evaluate_on_holdout` is NOT wired anywhere in this card; never stage `data/`.
+
+**Escalate-if.** Any verbatim block above mismatches; the no-flag sweep hash moves (your change
+leaked into the M4 path — stop); the frozen TOML fails to parse (C3's file is wrong — report,
+don't fix silently); tempted to touch `schemas/sweep-report.schema.json`.
+
+---
+
+### M5-C5 — The decisive sweep run (mechanical; evidence captured) — `TODO`
+
+**Goal.** Produce the one canonical real-data sweep report the M5 decision reads (master-plan
+deliverables :895-903).
+
+**Files.** `plans/m5-sweep-report.json` (new, checked in — deterministic research artifact);
+`plans/worklog.md`.
+
+**Steps.**
+1. Confirm preconditions: M5-C3 + C4 DONE; `data-validate` OK line matches
+   `plans/m5-data-validation.md` exactly (fnv1a64 included).
+2. Run, capturing shasums:
+   `cargo run -q -p cli -- sweep --config config/strategies/m5-frozen.toml --data data/raw/binance/SOLUSDC-1d --out plans/m5-sweep-report.json`;
+   repeat to a temp path and `cmp` (byte-identical); run again with `--threads 8` to a temp path
+   and `cmp` (parallel == sequential on real data).
+3. Worklog line: the report shasum, the three-run identity, trial_count, and the counts of
+   `advanceable` vs `rejected` verdicts. **Do not interpret the results in this card.**
+
+**Gate.** Three byte-identical runs; report validates against `schemas/sweep-report.schema.json`
+(the existing `sweep` test suite's validator path — or `cargo test -p sweep schema` green on the
+committed report if a test reads it); worklog updated.
+
+**Guardrails.** Read-only with respect to code. No threshold, config, or data edit after seeing
+results — the ratchet is closed. Never stage `data/`.
+
+**Escalate-if.** Runs are not byte-identical (determinism regression — STOP, do not declare);
+`data-validate` no longer matches the record (snapshot drifted — STOP).
+
+---
+
+### M5-C6 — M5 decision card: the single holdout read + advance-or-reject-all declaration (OPERATOR + planner) — `TODO`
+
+**Goal.** Deliver M5's gate (master-plan.md:903-909, quoted verbatim during declaration): "One
+candidate is selected for mainnet shadow because it satisfies predefined robustness and drawdown
+criteria, or all candidates are rejected and the project returns to research. No execution work
+starts merely because the software exists."
+
+**Files.** `plans/current-state.md`, `plans/handoff.md`, `plans/worklog.md`,
+`plans/questions.md`; **only if** an advanceable candidate exists: `crates/cli/src/main.rs`
+(one-shot `m5-decide` subcommand, added by a dedicated fresh-session sub-card the planner writes
+at that time).
+
+**Current state (verbatim, partition.rs:448-454).**
+```rust
+pub fn evaluate_on_holdout(
+    sealed: Sealed,
+    chosen: &ParamPoint,
+    cost: &CostModel,
+    initial_cash_usdc: Decimal,
+    periods_per_year: f64,
+) -> Result<CellResult, SimError> {
+```
+
+**Steps.**
+1. Read `plans/m5-sweep-report.json` verdicts.
+2. **Branch A — all candidates `rejected` (expected default).** The holdout is NEVER read: no code
+   is written, `holdout_read_count` stays 0, the seal survives intact for a future cycle. Declare
+   reject-all in current-state + worklog quoting each candidate's `failed_criteria`
+   (observed-vs-threshold pairs) and master-plan.md:905-907's reject arm. Point
+   current-state/handoff at the **HF research track** as the operator-chosen "return to research"
+   (Q7). A clean reject-all is a SUCCESS of the gates, not a failure of the project.
+3. **Branch B — ≥1 `advanceable`.** The planner writes (then a fresh executor runs) a sub-card
+   adding `machina m5-decide --config … --data …`: re-runs the pipeline, takes the single
+   best-ranked advanceable `ParamPoint`, calls `evaluate_on_holdout` ONCE (the signature above;
+   base cost model), prints the holdout `CellResult` + `read_count == 1` proof, and exits. Run it
+   ONCE. Record the holdout result in the declaration; selection is judged against the FROZEN
+   thresholds — the holdout result is reported as-is (pass or fail, no re-tuning, no second read,
+   under any circumstances).
+4. Either branch: declaration in current-state + worklog against master-plan.md:903-909 verbatim;
+   questions.md gets the outcome; the M5 section of this queue flips to CLOSED.
+
+**Guardrails.** `evaluate_on_holdout` at most once, ever, this cycle — Branch A calls it zero
+times. No execution work follows from either branch without its own milestone approval (M6+ gates;
+M8/M9 separate explicit human approval). Never weaken a frozen threshold to flip a verdict.
+
+**Escalate-if.** Any impulse to re-run the sweep with different numbers after seeing results; any
+second holdout read; any verdict ambiguity (e.g. report/schema mismatch) — STOP and record.
+
+---
+
 ## M-HF wave 1 — task cards (**BLOCKED**: drafted ahead of the gate — do not execute)
 
 *(Drafted 2026-07-07 on operator instruction after the entry-condition check found all three
@@ -2468,7 +2799,7 @@ for a reason whose mechanical fix would change behavior; any pre-existing test f
 
 | ID | Status | Milestone | File scope | Gate | Notes |
 |----|--------|-----------|------------|------|-------|
-| — | DEFERRED | M5 | research decision | — | Trial count, stability, advance/reject gate. **Blocked on operator: Q3 (real data) + Q5 (frozen thresholds) + explicit go.** No implementation queued (see M4-C10). |
+| — | ACTIVE | M5 | research decision | — | **Unblocked 2026-07-09**: Q3 + Q5 resolved and M5 GO recorded in questions.md. Cards M5-C1…C6 above are the queue. |
 | — | DEFERRED | M6 | `crates/route-model`, `crates/risk`, `crates/solana-execution` (no-sign) | — | Jupiter shadow quote collector. Re-verify plan §22 sources first. |
 | — | DEFERRED | M7 | `crates/wallet-state` | — | read-only mainnet shadow. No signing key. |
 | — | BLOCKED | M8/M9 | devnet/canary signing+submit | — | **Requires separate explicit human approval. Do not start.** |

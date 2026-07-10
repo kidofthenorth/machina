@@ -908,6 +908,43 @@ Gate:
   drawdown criteria, or all candidates are rejected and the project returns to research.
 - No execution work starts merely because the software exists.
 
+### M-HF: High-frequency research track (parallel research track — Q7 amendment, 2026-07-09)
+
+A parallel research track, not a renumbering: it reuses the M4 engine (windows, cost ladder,
+holdout-seal pattern, advancement battery) at intraday resolution and ends, like M5, at a research
+decision. It exists because the operator's recorded ambition (questions.md Q7) is a high-volume
+bot — thousands of small-edge trades/day — and that hypothesis deserves the same honest battery,
+not a permanent shelf. Detailed plan: `plans/m-hf-track.md`. Runs after the M4 gate,
+alongside/after M5; it never weakens any existing gate.
+
+Deliver:
+
+- Intraday/slot-resolution data model with hygiene gates and typed synthetic-vs-real provenance.
+- Deterministic synthetic microstructure generator (no runtime RNG).
+- Latency-aware fill engine: landing-slot pipeline, fill at market state at landing, deterministic
+  landing/drop tables; the M2 simulator proven as the latency = 1 special case by regression.
+- Per-trade cost model: venue fee + depth-walk slippage + congestion-regime priority + tip — never
+  base fee alone; adverse-selection (sandwich/pickoff) terms priced at the base rung; MEV modeled
+  strictly as a cost to us, never a capability.
+- Extended sensitivity ladder (hot congestion, adversarial worst-case, doubled latency) and an
+  HF advancement battery replacing the raw turnover ceiling with a cost-drag-share ceiling and
+  per-trade-edge floor (additively; the M4 battery is byte-identical when the new fields are
+  unset).
+- HF strategy families as intent-only Strategy impls, starting with the cheapest-to-test
+  hypotheses; streaming evaluation with bounded memory and a measured wall-clock budget.
+- An explicit advance-or-reject research decision on real intraday data with frozen thresholds.
+
+Gate:
+
+- All existing gates hold: determinism across thread counts, sealed holdout (intraday partition
+  seal is a structural clone of the M4 seal, embargo in slot units), fixed-point money, zero
+  execution code.
+- Thresholds, walk-forward sizing, and landing/priority tables frozen before the decisive sweep
+  (same anti-overfitting ratchet as M5).
+- The declaration names its structural optimism biases (deterministic-hash adversary targeting)
+  and sweeps auction-model assumptions; a clean reject-all is a valid, successful outcome.
+- No execution work starts merely because the software exists; M8/M9 approvals are untouched.
+
 ### M6: Jupiter shadow quote collector
 
 Deliver:
@@ -1767,7 +1804,10 @@ Reason:
 
 Disposition:
 
-- Notes-only until the main SOL/USDC allocation system is proven.
+- Notes-only until the M4 validation engine was proven. Amended 2026-07-09 (Q7, D-0012): now a
+  formal parallel research track — see §19 "M-HF" and `plans/m-hf-track.md`. The reasons above are
+  why it is researched under the pessimistic adversarial fill model rather than assumed away; the
+  default expected outcome remains rejection, and rejection is a valid result.
 
 #### Copy trading / wallet following / sniper bots
 

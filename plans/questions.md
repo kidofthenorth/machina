@@ -4,9 +4,11 @@ Only **real** operator decisions live here. Each has a safe default already appl
 block autonomous M0–M4 *engine* work. Format: Question · Why it matters · Safe default (applied) ·
 What's blocked.
 
-> Status: **0 blocking**, 5 non-blocking open, 2 resolved (Q6, Q7). The executor proceeded on safe defaults. Note: Q5's
-> walk-forward sizing + rejection thresholds must be **frozen by the operator before the M5 research
-> decision** (post-hoc choice = overfitting); they do not block the M4 engine.
+> Status: **0 blocking**, 6 non-blocking open (Q1, Q2, Q4, HF-Q1, HF-Q2, HF-Q3), 4 resolved
+> (Q3, Q5, Q6, Q7) + **M5 GO recorded 2026-07-09** (see the M5 block after Q7). Q5's numbers get
+> their final freeze at span confirmation (same sitting as the ingestion hygiene check, before any
+> strategy result) — the one-way ratchet is stated in the Q5 resolution. The Q7 amendment was made
+> 2026-07-09 (D-0012, plans/m-hf-track.md); HF-Q1/Q2/Q3 gate the HF track's later cards.
 
 ---
 
@@ -24,13 +26,21 @@ What's blocked.
   rest stageable but **do not** stage it (operator stages explicit paths only).
 - **Blocked:** nothing.
 
-## Q3 — Real OHLCV data source for SOL/USDC (non-blocking for now)
+## Q3 — Real OHLCV data source for SOL/USDC — **RESOLVED 2026-07-09**
 - **Why it matters.** Honest backtests (M4–M5) need archived candles. Options in the plan: Birdeye,
   CoinGecko/GeckoTerminal, Bitquery. Some need an API key (a paid credential the executor must not
   create or store).
-- **Safe default (applied).** M1–M3 use **tiny synthetic, checked-in fixtures only**; no network and
-  no credentials. Real-data ingestion is deferred to a later, operator-approved task.
-- **Blocked:** real-data backtests and any M4+ statistical claims. M0–M3 are unaffected.
+- **Safe default (previously applied).** M1–M4 used **tiny synthetic, checked-in fixtures only**; no
+  network and no credentials.
+- **Resolution (operator, 2026-07-09, verbatim).** Binance data.binance.vision daily SOLUSDC klines
+  are the M5 data source, ingested as a one-time operator-run snapshot into gitignored files with a
+  checked-in validation record (date range, row counts, content hash). The CEX-proxy caveat is
+  acknowledged and must be recorded in the sweep report's provenance notes; execution realism is
+  owned by M6 shadow + the S10 cost ladder. If early-history hygiene fails (gaps/thin candles),
+  shrink the span to where hygiene passes — never patch or forward-fill. GeckoTerminal daily pool
+  data is a shape/sanity cross-check only, not an equality check. Birdeye is pencilled as the HF
+  track's intraday source (HF-Q1, decided later; re-verify its depth and redistribution terms then).
+- **Blocked:** nothing. The M5 queue's ingestion cards implement this.
 
 ## Q4 — Strategy parameter values + sweep grids (non-blocking)
 - **Why it matters.** `config/strategies/strategy-lab.example.toml` contains illustrative parameters
@@ -40,7 +50,15 @@ What's blocked.
   M4–M5. No value here is a recommendation.
 - **Blocked:** nothing; no profitability is claimed.
 
-## Q5 — M4 research policy: walk-forward sizing + rejection thresholds (non-blocking for the engine; FREEZE before M5)
+## Q5 — M4 research policy: walk-forward sizing + rejection thresholds — **RESOLVED 2026-07-09 (rules now, numbers at span confirmation)**
+
+- **Resolution (operator, 2026-07-09, verbatim).** RESOLVED (rules now, numbers at span
+  confirmation): the proposed set is approved — rolling 365/90/90/5; drawdown_budget 0.35;
+  turnover_budget 12; baseline_margin 0.02; dispersion_budget 0.40; neighbor_tolerance 0.15;
+  min_windows 6; holdout = final ~20% by date. Final partition date and min_windows are to be
+  confirmed against the ingested span and frozen in the same sitting as the hygiene check, before
+  any strategy result is computed. One-way ratchet: after that freeze, immutable for this M5 cycle.
+- *(Original question kept below for the record.)*
 - **Why it matters.** M4 needs (a) walk-forward window sizing & kind (`train/test/step/embargo`,
   Rolling vs Anchored) and (b) numeric rejection thresholds (max-drawdown budget, turnover ceiling,
   baseline-outperformance margin, walk-forward dispersion, neighbor-parameter tolerance). Plan §14
@@ -97,6 +115,42 @@ What's blocked.
 - **Blocked:** the HF plan amendment waits on the M4 gate declaration (card M4-C9). Nothing in the
   current M4-C1…C10 queue changes. M8/M9 signing/submission gates are unaffected and still require
   separate explicit human approval.
+
+## M5 — GO (operator, 2026-07-09, verbatim)
+
+M5 — GO: author the M5 card queue (ingestion → hygiene validation + span confirmation → Q5
+number-freeze card → wiring → decisive sweep → M5 decision card with the single call-once
+evaluate_on_holdout for any advanceable candidate, ending in an explicit advance-or-reject-all
+declaration against master-plan.md:903-907; reject-all routes to the HF track). Q7 HF planning
+starts in parallel now — the master-plan pair amendment (lockstep, cmp-verified, with a DECISIONS
+entry) and the HF milestone plan, via a multi-design + adversarial-review workflow on Sonnet
+subagents.
+
+## HF-Q1 — Intraday data source + credential handling (extends Q3; blocks M-HF-C9/C10 only)
+- **Why it matters.** The HF track's real-data cards need archived intraday/slot-level history.
+  Q3's research pencilled **Birdeye** (Solana-native, 1s/15s/30s OHLCV; free tier for validation,
+  ~$39/mo Lite for a real pull) — but its historical depth and redistribution terms were
+  unconfirmed and must be re-verified at decision time. Any key is a paid credential the operator
+  provisions; executors never touch it.
+- **Safe default (applied).** M-HF-C1…C8 run on synthetic fixtures only (typed
+  `Provenance::Synthetic`); no source needed. C1–C2.6 may be unblocked ahead of this decision by a
+  written operator note here.
+- **Blocked:** M-HF-C9 (real ingestion) and C10 (the HF research decision).
+
+## HF-Q2 — Allowlist additions for HF families (USDT, LSTs)
+- **Why it matters.** `tri_arb_v1` needs USDT; `statarb_pairs_v1` needs an LST (mSOL/jitoSOL).
+  The allowlist is a hard trading gate; additions are operator decisions, never executor defaults.
+- **Safe default (applied).** No additions; families needing them are skipped until recorded here.
+- **Blocked:** those families' M-HF-C7+ runs only.
+
+## HF-Q3 — Freeze the HF research policy before the decisive HF sweep (same ratchet as Q5)
+- **What must be frozen, in one sitting, before any real-intraday strategy result is computed:**
+  intraday walk-forward sizing (train/test/step/embargo in bars/slots), the landing/priority
+  percentile tables, `cost_drag_share_ceiling`, `per_trade_edge_floor`, auction
+  `margin_fraction`/`competitor_floor` (C10 additionally sensitivity-sweeps these), and
+  `max_lookback_bars`.
+- **Safe default (applied).** Unfrozen; all pre-C10 work uses illustrative values marked NOT tuned.
+- **Blocked:** M-HF-C10 (the HF research gate declaration).
 
 ## Escalation policy
 A genuinely blocking decision (anything touching keys, signing, submission, real funds, paid

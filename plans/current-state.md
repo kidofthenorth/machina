@@ -1,6 +1,6 @@
 # Current state
 
-Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-06.
+Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-09 (M5 GO).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -13,9 +13,14 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   sweep core, walk-forward windows, holdout seal, cost/fee-sensitivity ladder, advancement/rejection
   report + schema, CLI `sweep`/`sweep-verify`, D-0009/D-0010/D-0011 recorded); **gate declared
   2026-07-09 (card M4-C9)**; 301 tests green. Plan: [m4-sweep.md](m4-sweep.md).
-- **DOING:** — (between milestones; M5 requires operator decisions — see handoff).
-- **NEXT after M4:** M5 research-decision gate. M6 needs plan §22 source re-check; M8/M9
-  (signing/submit) need **separate explicit human approval**.
+- **DOING:** M5 (research decision) — **operator GO recorded 2026-07-09** (questions.md: Q3 Binance
+  data.binance.vision daily SOLUSDC snapshot; Q5 thresholds approved, final numbers frozen at span
+  confirmation; M5 GO block). Cards **M5-C1…C6** in [task-queue.md](task-queue.md) §M5. In parallel:
+  the Q7 HF-track master-plan amendment + milestone plan (operator-level planning, in flight).
+- **NEXT:** execute M5-C1 (ingestion script) → …→ M5-C6 (decision card: the single call-once
+  `evaluate_on_holdout`, advance-or-reject-all vs master-plan.md:903-909; reject-all routes to the
+  HF track). M6 needs plan §22 source re-check; M8/M9 (signing/submit) need **separate explicit
+  human approval**.
 
 ## Completed artifacts
 - Workspace: 8 crates — research-core, market-data, portfolio, metrics, strategies, results, sweep, cli.
@@ -71,14 +76,14 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   explicit paths only, never `.claude/`, never `git add -A`.
 
 ## Known blockers / open items
-- **0 blocking.** Operator questions (all non-blocking, safe defaults applied): plans/questions.md.
-- **HF research track (Q7 follow-on): wave-1 cards drafted, BLOCKED.** 2026-07-07: the entry-condition
-  check found none of the three conditions met (M4 gate undeclared; HF doc unapproved + no amendment;
-  HF-Q1/Q2/Q3 unrecorded), so on operator instruction M-HF-C1/C2 were drafted **ahead of the gate**
-  into [task-queue.md](task-queue.md) §"M-HF wave 1" with the entry conditions restated as a hard
-  precondition. Audit notes appended to [highfrequency-algo-plan.md](highfrequency-algo-plan.md)
-  (read before approving). Waves 2+ (C3–C10) are deliberately not drafted; the sweep/strategies/
-  invariants audit areas must be re-run before wave-2 expansion (see worklog 2026-07-07).
+- **0 blocking.** 2026-07-09: Q3 + Q5 RESOLVED and M5 GO recorded (plans/questions.md). Remaining
+  open questions (Q1, Q2, Q4) are cosmetic/non-blocking.
+- **HF research track (Q7): amendment MADE 2026-07-09 (D-0012).** Master-plan pair amended in
+  lockstep (cmp-verified); formal milestone plan authored at [m-hf-track.md](m-hf-track.md) via a
+  3-design + adversarial-review + adjudication workflow (7 Sonnet agents; reuse-first won).
+  Wave-1 cards M-HF-C1/C2 stand; entry now waits only on **HF-Q1/HF-Q2** (questions.md) — C1–C2.6
+  are synthetic-only and the operator may unblock them ahead of HF-Q1 by written note. Wave-2+
+  card drafting still requires the sweep/strategies/invariants audit re-run flagged 2026-07-07.
 - Accepted nit (no action): CostModelDto lamports are `i64` vs schema `minimum:0` — latent only, no
   negative-producing path (audit JS-1).
 - Deferred to later milestones: real OHLCV ingestion (needs operator data-source choice, Q3); M6
@@ -86,13 +91,9 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-**STOP — operator decisions required before M5 (the research decision).** In order:
-1. Freeze the walk-forward sizing and rejection thresholds (questions.md Q5) — they are
-   illustrative in `strategy-lab.example.toml` and must be frozen BEFORE the decisive sweep
-   (post-hoc choice = overfitting).
-2. Choose the real OHLCV data source for SOL/USDC (questions.md Q3) — all M4 runs used synthetic
-   series; no statistical claim is valid until real multi-year data is ingested and validated.
-3. Give an explicit M5 go decision. M5's gate (master-plan.md:903-907): select ONE candidate for
-   mainnet shadow because it satisfies predefined criteria, or reject all and return to research.
+Execute **M5-C1** (task-queue.md §M5) in a fresh executor session — the operator ingestion script.
+The former STOP is lifted: Q3/Q5/M5-GO are recorded in questions.md (2026-07-09). The Q5 number
+freeze (M5-C3) must still complete BEFORE any strategy touches real data — that ordering is a card
+precondition, not a suggestion.
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).
