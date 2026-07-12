@@ -707,3 +707,17 @@ recorded inline (not full logs).
   (python tomllib; full `SweepSpec::from_toml_str` parse is M5-C4's gate, per the card). M5-C3
   flipped to DONE. Next: M5-C4
   (`--config`/`--data` sweep wiring), fresh executor session.
+- 2026-07-12 (executor, M5-C4): extended `parse_sweep_args` in `crates/cli/src/main.rs` with paired
+  `--config PATH`/`--data DIR` (both-or-neither, usage error otherwise); added
+  `sweep_report_json_real` (reads the TOML, `SweepSpec::from_toml_str`, `market_data::binance_csv
+  ::load_dir`, `validate_series_spacing`, same hardcoded M4 cost model, same `run_sweep`, same
+  `holdout_read_count() == 0` assert). Added additive `SweepReport::with_provenance(self, &str) ->
+  Self` in `crates/sweep/src/report.rs` (consumes an already-built report, appends
+  ` | data: <provenance>` to the note; `new` untouched). Gate: full workspace green (no test-count
+  regression); `machina sweep | shasum` unchanged `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` twice;
+  `machina demo | shasum` unchanged `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; `sweep-verify: OK`
+  (18990 bytes); real-data run `machina sweep --config config/strategies/m5-frozen.toml --data
+  data/raw/binance/SOLUSDC-1d` → `b2bbcc8dceadd6034759f0e102aec9882fc7d342` twice (byte-identical)
+  and matching at `--threads 8`; provenance note carries `fnv1a64 0x65a1e18b7554a1c5`, matching the
+  M5-C3 freeze record exactly; `trial_count` 180; no `Cargo.toml`/`Cargo.lock` changes. M5-C4
+  flipped to DONE. Next: M5-C5 (the decisive sweep run — mechanical, evidence captured).

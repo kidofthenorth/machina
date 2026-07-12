@@ -50,18 +50,24 @@ fn usage() {
     println!(
         "machina — paper-first Solana research platform (research mode only)\n\n\
          USAGE:\n  machina demo    Run the deterministic demo (no network, no keys)\n  \
-         machina sweep [--threads N] [--out PATH]    Deterministic parameter sweep (research only)\n  \
+         machina sweep [--threads N] [--out PATH] [--config PATH --data DIR]    Deterministic parameter sweep (research only)\n  \
          machina sweep-verify    Assert parallel == sequential byte-identical (CI-gate mirror)\n\n\
          This binary has no key, RPC, or transaction-submission path. See docs/invariants.md."
     );
 }
 
+/// `(parallelism, --out path, (--config path, --data dir))` — the last pair is `None` unless both
+/// flags were given together.
+type SweepArgs = (Parallelism, Option<String>, Option<(String, String)>);
+
 /// Parse `sweep` options. Pure so it is unit-testable; `sweep_cmd` maps `Err` to `exit(2)`.
-fn parse_sweep_args(
-    mut args: impl Iterator<Item = String>,
-) -> Result<(Parallelism, Option<String>), String> {
+/// `--config`/`--data` must be given together (both or neither) — one without the other is a
+/// usage error.
+fn parse_sweep_args(mut args: impl Iterator<Item = String>) -> Result<SweepArgs, String> {
     let mut threads: Option<usize> = None;
     let mut out: Option<String> = None;
+    let mut config: Option<String> = None;
+    let mut data: Option<String> = None;
     while let Some(a) = args.next() {
         match a.as_str() {
             "--threads" => {
@@ -79,6 +85,18 @@ fn parse_sweep_args(
                         .ok_or_else(|| "--out needs a path".to_string())?,
                 );
             }
+            "--config" => {
+                config = Some(
+                    args.next()
+                        .ok_or_else(|| "--config needs a path".to_string())?,
+                );
+            }
+            "--data" => {
+                data = Some(
+                    args.next()
+                        .ok_or_else(|| "--data needs a path".to_string())?,
+                );
+            }
             other => return Err(format!("unknown sweep option: {other}")),
         }
     }
@@ -87,15 +105,23 @@ fn parse_sweep_args(
         Some(0) => return Err("--threads must be >= 1".to_string()),
         Some(n) => Parallelism::Threads(NonZeroUsize::new(n).expect("n >= 1")),
     };
-    Ok((parallelism, out))
+    let real_data = match (config, data) {
+        (Some(c), Some(d)) => Some((c, d)),
+        (None, None) => None,
+        _ => return Err("--config and --data must be given together".to_string()),
+    };
+    Ok((parallelism, out, real_data))
 }
 
 fn sweep_cmd(args: impl Iterator<Item = String>) {
-    let (parallelism, out) = parse_sweep_args(args).unwrap_or_else(|message| {
+    let (parallelism, out, real_data) = parse_sweep_args(args).unwrap_or_else(|message| {
         eprintln!("{message}");
         std::process::exit(2)
     });
-    let json = sweep_report_json(parallelism);
+    let json = match real_data {
+        Some((config, data)) => sweep_report_json_real(&config, &data, parallelism),
+        None => sweep_report_json(parallelism),
+    };
     match out {
         Some(p) => {
             std::fs::write(&p, &json).expect("write report file");
@@ -233,6 +259,54 @@ fn sweep_report_json(parallelism: Parallelism) -> String {
         "M4 must never read the holdout"
     );
     outcome.report.to_json()
+}
+
+/// Run the sweep on the frozen `--config` spec + real `--data` snapshot (M5-C4). Same pipeline and
+/// hardcoded cost model as the template path (M4's modeled-cost assumptions, unchanged and now
+/// frozen with the cycle); proves the holdout stayed sealed before returning. NEVER calls
+/// `evaluate_on_holdout` (M5-C6 only).
+fn sweep_report_json_real(config_path: &str, data_dir: &str, parallelism: Parallelism) -> String {
+    let toml = std::fs::read_to_string(config_path).unwrap_or_else(|e| {
+        eprintln!("failed to read --config {config_path}: {e}");
+        std::process::exit(2)
+    });
+    let spec = SweepSpec::from_toml_str(&toml).unwrap_or_else(|e| {
+        eprintln!("failed to parse --config {config_path}: {e}");
+        std::process::exit(2)
+    });
+    let bars = load_dir(Path::new(data_dir)).unwrap_or_else(|e| {
+        eprintln!("failed to load --data {data_dir}: {e}");
+        std::process::exit(2)
+    });
+    validate_series_spacing(&bars, 86_400).unwrap_or_else(|e| {
+        eprintln!("--data {data_dir} failed hygiene validation: {e}");
+        std::process::exit(2)
+    });
+    let digest = fnv1a64(&bars);
+    let cost = CostModel {
+        dex_fee_bps: 5,
+        slippage_bps: 20,
+        base_fee_lamports: 5_000,
+        priority_fee_lamports: 50_000,
+    };
+    let outcome = run_sweep(
+        &spec,
+        bars,
+        &cost,
+        Decimal::from(10_000),
+        PERIODS_PER_YEAR,
+        parallelism,
+    )
+    .expect("sweep runs");
+    assert_eq!(
+        outcome.sealed.holdout_read_count(),
+        0,
+        "M5 must never read the holdout outside the M5-C6 decision card"
+    );
+    let provenance = format!(
+        "binance data.binance.vision SOLUSDC 1d snapshot (CEX-proxy; see plans/m5-data-validation.md), fnv1a64 0x{digest:x}"
+    );
+    outcome.report.with_provenance(&provenance).to_json()
 }
 
 /// Deterministic synthetic daily series spanning the template's [partitions] dates
@@ -504,20 +578,41 @@ mod tests {
 
     #[test]
     fn parse_sweep_args_defaults_to_sequential_with_no_output_path() {
-        let (parallelism, out) = parse_sweep_args(std::iter::empty()).unwrap();
+        let (parallelism, out, real_data) = parse_sweep_args(std::iter::empty()).unwrap();
         assert_eq!(parallelism, Parallelism::Sequential);
         assert_eq!(out, None);
+        assert_eq!(real_data, None);
     }
 
     #[test]
     fn parse_sweep_args_reads_threads_and_out() {
         let args = ["--threads", "2", "--out", "x.json"].map(String::from);
-        let (parallelism, out) = parse_sweep_args(args.into_iter()).unwrap();
+        let (parallelism, out, real_data) = parse_sweep_args(args.into_iter()).unwrap();
         assert_eq!(
             parallelism,
             Parallelism::Threads(NonZeroUsize::new(2).unwrap())
         );
         assert_eq!(out, Some("x.json".to_string()));
+        assert_eq!(real_data, None);
+    }
+
+    #[test]
+    fn parse_sweep_args_reads_config_and_data_together() {
+        let args = ["--config", "c.toml", "--data", "d/"].map(String::from);
+        let (_, _, real_data) = parse_sweep_args(args.into_iter()).unwrap();
+        assert_eq!(real_data, Some(("c.toml".to_string(), "d/".to_string())));
+    }
+
+    #[test]
+    fn parse_sweep_args_rejects_config_without_data() {
+        let args = ["--config", "c.toml"].map(String::from);
+        assert!(parse_sweep_args(args.into_iter()).is_err());
+    }
+
+    #[test]
+    fn parse_sweep_args_rejects_data_without_config() {
+        let args = ["--data", "d/"].map(String::from);
+        assert!(parse_sweep_args(args.into_iter()).is_err());
     }
 
     #[test]

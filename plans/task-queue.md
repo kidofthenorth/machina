@@ -1758,7 +1758,7 @@ exists first, STOP: the freeze is contaminated; escalate to the operator on the 
 
 ---
 
-### M5-C4 — Wire `--config` / `--data` into `machina sweep` (+ provenance note) — `TODO`
+### M5-C4 — Wire `--config` / `--data` into `machina sweep` (+ provenance note) — `DONE`
 
 **Goal.** The sweep CLI runs the frozen spec on the real snapshot — same deterministic pipeline,
 zero behavior change for the existing template/synthetic path (M4 gates must not move).

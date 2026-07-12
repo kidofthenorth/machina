@@ -172,6 +172,15 @@ impl SweepReport {
     pub fn to_value(&self) -> serde_json::Value {
         serde_json::to_value(self).expect("SweepReport serializes")
     }
+
+    /// Rebuild the note with a provenance suffix appended (e.g. which real-data snapshot fed the
+    /// sweep). Every other field is unchanged; additive only — `new`'s existing callers and output
+    /// are unaffected.
+    #[must_use]
+    pub fn with_provenance(mut self, provenance: &str) -> Self {
+        self.note = format!("{} | data: {provenance}", self.note);
+        self
+    }
 }
 
 #[cfg(test)]
@@ -257,6 +266,16 @@ mod tests {
         let r = sample_report();
         assert!(r.note.contains("not a profitability verdict"));
         assert!(r.note.to_lowercase().contains("robustness"));
+    }
+
+    #[test]
+    fn with_provenance_keeps_disclaimer_and_appends_suffix() {
+        let r = sample_report().with_provenance("binance snapshot, fnv1a64 0xabc123");
+        assert!(r.note.contains("not a profitability verdict"));
+        assert!(r.note.to_lowercase().contains("robustness"));
+        assert!(r
+            .note
+            .ends_with("| data: binance snapshot, fnv1a64 0xabc123"));
     }
 
     #[test]
