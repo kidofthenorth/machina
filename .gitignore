@@ -33,6 +33,8 @@ secrets/
 # ── Real config (only *.example.toml templates are tracked) ──────────────────
 config/**/*.toml
 !config/**/*.example.toml
+# M5-C3 exception: the frozen research policy is a checked-in artifact (no secrets; Q5 ratchet).
+!config/strategies/m5-frozen.toml
 
 # ── Rust build artifacts ─────────────────────────────────────────────────────
 /target

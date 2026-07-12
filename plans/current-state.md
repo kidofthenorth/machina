@@ -13,11 +13,14 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   sweep core, walk-forward windows, holdout seal, cost/fee-sensitivity ladder, advancement/rejection
   report + schema, CLI `sweep`/`sweep-verify`, D-0009/D-0010/D-0011 recorded); **gate declared
   2026-07-09 (card M4-C9)**; 301 tests green. Plan: [m4-sweep.md](m4-sweep.md).
-- **DOING:** M5 (research decision) — **operator GO recorded 2026-07-09** (questions.md: Q3 Binance
-  data.binance.vision daily SOLUSDC snapshot; Q5 thresholds approved, final numbers frozen at span
-  confirmation; M5 GO block). Cards **M5-C1…C6** in [task-queue.md](task-queue.md) §M5. In parallel:
-  the Q7 HF-track master-plan amendment + milestone plan (operator-level planning, in flight).
-- **NEXT:** execute M5-C1 (ingestion script) → …→ M5-C6 (decision card: the single call-once
+- **DOING:** M5 (research decision) — **operator GO recorded 2026-07-09**. Cards **M5-C1…C6** in
+  [task-queue.md](task-queue.md) §M5: **C1 (ingestion script), C2 (`data-validate`), C3 (Q5 freeze
+  sitting) DONE**. Real data confirmed 2026-07-11: 916 bars 2023-12-28..2026-06-30, fnv1a64
+  `0x65a1e18b7554a1c5` ([m5-data-validation.md](m5-data-validation.md)); policy **frozen** in
+  `config/strategies/m5-frozen.toml` (rolling 365/60/60/5, min_windows 6, holdout 2026-01-01
+  onward — one-way ratchet closed, immutable this cycle).
+- **NEXT:** execute M5-C4 (`--config`/`--data` sweep wiring) → C5 (decisive sweep) → M5-C6
+  (decision card: the single call-once
   `evaluate_on_holdout`, advance-or-reject-all vs master-plan.md:903-909; reject-all routes to the
   HF track). M6 needs plan §22 source re-check; M8/M9 (signing/submit) need **separate explicit
   human approval**.
@@ -71,9 +74,9 @@ through the milestone gates (money-moving capability stays gated by explicit hum
 - Allowlist-gated; next-bar execution (final-bar signal cannot open a position); strategies = intent.
 
 ## Commit state
-- Operator committed through the M5-GO planning batch; **HEAD = `286b785` (2026-07-09, "review
-  fixes on aaa2e28 — M5-C6 gets a pre-declaration review"), working tree clean**. Operator commits
-  only — executors never commit/push; stage explicit paths only, never `.claude/`, never `git add -A`.
+- Operator committed through M5-C2; **HEAD = `0d8efaa` (2026-07-10, "M5-C2 done")**; the M5-C3
+  freeze-sitting diff is staged pending operator commit. Operator commits only — executors never
+  commit/push; stage explicit paths only, never `.claude/`, never `git add -A`.
 
 ## Known blockers / open items
 - **0 blocking.** 2026-07-09: Q3 + Q5 RESOLVED and M5 GO recorded (plans/questions.md). Remaining
@@ -95,9 +98,8 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-Execute **M5-C1** (task-queue.md §M5) in a fresh executor session — the operator ingestion script.
-The former STOP is lifted: Q3/Q5/M5-GO are recorded in questions.md (2026-07-09). The Q5 number
-freeze (M5-C3) must still complete BEFORE any strategy touches real data — that ordering is a card
-precondition, not a suggestion.
+Execute **M5-C4** (task-queue.md §M5) in a fresh executor session — wire `--config`/`--data` into
+`machina sweep`. The Q5 freeze (M5-C3) is DONE (2026-07-11): frozen numbers are immutable this
+cycle; the M4 no-flag sweep path must stay byte-identical (`7ad3df7d…`).
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

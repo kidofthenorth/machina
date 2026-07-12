@@ -1719,7 +1719,7 @@ you feel the need for a csv/serde-csv dependency; demo/sweep hashes move.
 
 ---
 
-### M5-C3 — Q5 number-freeze sitting (OPERATOR + planner — not an executor card) — `TODO`
+### M5-C3 — Q5 number-freeze sitting (OPERATOR + planner — not an executor card) — `DONE`
 
 **Goal.** Freeze the final M5 research policy against the confirmed real span, BEFORE any strategy
 result is computed (Q5 resolution's one-way ratchet).

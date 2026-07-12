@@ -691,3 +691,19 @@ recorded inline (not full logs).
   Gap-failure path (prints the first offending bar's timestamp, exit 1, never patches). M5-C2
   flipped to DONE. Next: M5-C3 (Q5 number-freeze sitting — operator + planner, not an executor
   card).
+- 2026-07-11 (OPERATOR + planner sitting, M5-C3): Q5 number freeze. Operator ingested by hand
+  (44 months fetched / 27 skipped-404; delisting gap 2022-10..2023-11); `data-validate` FAILED on
+  the gap → operator ruled shrink-to-later-island (dropped 2021-09..2022-09; Q3: never patch);
+  post-shrink `data-validate: OK — 916 bars, 2023-12-28..2026-06-30, spacing 86400s, fnv1a64
+  0x65a1e18b7554a1c5`; combined CSV sha256 `1c7e70bc…8e25`. Partitions frozen (holdout
+  2026-01-01..2026-06-30, 181 bars / 19.8%; validation 2025-01-01; dev/val 735 bars). Conflict
+  ruled by operator: 365/90/90/5 yields only 4 windows < min_windows 6 → frozen **rolling
+  365/60/60/5, min_windows 6** (6 windows exactly; OOS total unchanged 360d). Thresholds frozen
+  per Q5; grids as-is (Q4). Artifacts: `config/strategies/m5-frozen.toml` (immutable this cycle),
+  `plans/m5-data-validation.md` (hygiene record), questions.md Q5 freeze addendum. No strategy
+  result existed on real data before the freeze. `.gitignore` gained a one-line negation
+  (`!config/strategies/m5-frozen.toml`) — the blanket `config/**/*.toml` secrets guard would have
+  swallowed the card's checked-in artifact; the frozen file holds no secrets. TOML syntax verified
+  (python tomllib; full `SweepSpec::from_toml_str` parse is M5-C4's gate, per the card). M5-C3
+  flipped to DONE. Next: M5-C4
+  (`--config`/`--data` sweep wiring), fresh executor session.

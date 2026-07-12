@@ -58,6 +58,19 @@ What's blocked.
   min_windows 6; holdout = final ~20% by date. Final partition date and min_windows are to be
   confirmed against the ingested span and frozen in the same sitting as the hygiene check, before
   any strategy result is computed. One-way ratchet: after that freeze, immutable for this M5 cycle.
+- **FREEZE ADDENDUM (operator sitting, 2026-07-11 — card M5-C3).** Confirmed span: **916 bars,
+  2023-12-28..2026-06-30** (fnv1a64 `0x65a1e18b7554a1c5`; combined CSV sha256 `1c7e70bc…8e25`; full
+  record in plans/m5-data-validation.md, incl. the Q3 span-shrink ruling that dropped the
+  2021-09..2022-09 pre-delisting island). Partitions frozen: development 2023-12-28..2024-12-31,
+  validation 2025-01-01..2025-12-31, holdout 2026-01-01..2026-06-30 (181 bars, 19.8%). The span
+  supports at most 4 rolling 365/90/90/5 windows in the 735-bar dev/val vs min_windows 6, so the
+  operator ruled: **walk-forward = rolling 365/60/60/5** (test/step 90→60; train 365 and
+  min_windows 6 preserved; total out-of-sample coverage unchanged at 360 days) ⇒ exactly
+  **6 windows** ≥ min_windows 6. Thresholds frozen as approved: drawdown_budget 0.35,
+  turnover_budget 12, baseline_margin 0.02, dispersion_budget 0.40, neighbor_tolerance 0.15.
+  Grids frozen as-is from the template (Q4). Artifact: `config/strategies/m5-frozen.toml` —
+  **immutable for this M5 cycle from this sitting on**; frozen before any strategy result existed
+  on real data.
 - *(Original question kept below for the record.)*
 - **Why it matters.** M4 needs (a) walk-forward window sizing & kind (`train/test/step/embargo`,
   Rolling vs Anchored) and (b) numeric rejection thresholds (max-drawdown budget, turnover ceiling,

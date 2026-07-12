@@ -1,0 +1,74 @@
+# ── M5 FROZEN research policy ────────────────────────────────────────────────
+# FROZEN 2026-07-11 per Q5 — immutable for the M5 cycle (one-way ratchet).
+# Frozen at the span-confirmation sitting (plans/m5-data-validation.md) BEFORE
+# any strategy result was computed on real data. Confirmed span: 916 daily bars,
+# 2023-12-28..2026-06-30, fnv1a64 0x65a1e18b7554a1c5.
+#
+# Deviation from the Q5 illustrative geometry, ruled by the operator 2026-07-11:
+# the span supports at most 4 rolling 365/90/90/5 windows in an 80% dev/val, so
+# test_len/step move 90 → 60 (train stays 365, min_windows stays 6; total
+# out-of-sample coverage unchanged at 360 days). Recorded in questions.md Q5.
+#
+# Strategy naming: <family>_v<n>. Strategies produce TARGET WEIGHTS (intent) only;
+# they never own keys, call RPC, or touch execution (plan §5).
+
+allowlist_version = "2026-06-29"   # must match the active allowlist; embedded in results
+base_symbol = "SOL"
+quote_symbol = "USDC"
+bar_interval = "1d"
+
+# Real-data partitions (Q5: holdout = final ~20% by date, boundary rounded to
+# the 1st of the next month). dev/val = 735 bars; holdout = 181 bars (19.8%).
+[partitions]
+development = { start = "2023-12-28", end = "2024-12-31" }
+validation  = { start = "2025-01-01", end = "2025-12-31" }
+holdout     = { start = "2026-01-01", end = "2026-06-30" }
+
+# Baselines every experiment is compared against (plan §8, §14).
+[baselines]
+hold_usdc = true
+buy_and_hold_sol = true
+static_50_50 = true
+dca_sol = true
+
+# ── trend_alloc_v1 ───────────────────────────────────────────────────────────
+# Grids frozen AS-IS from the template (Q4: illustrative, now frozen for this
+# cycle). Long-only SOL/USDC allocation by trend bucket.
+[trend_alloc_v1]
+enabled = true
+sma_period = 50
+weight_above = "0.75"
+weight_below = "0.00"
+sma_periods = [20, 50]
+weights_above = ["0.75", "0.50"]
+weights_below = ["0.00"]
+
+# ── threshold_rebalance_v1 ───────────────────────────────────────────────────
+# Grids frozen AS-IS from the template (Q4: illustrative, now frozen for this
+# cycle). Maintains a target SOL weight; rebalances only past the drift band.
+[threshold_rebalance_v1]
+enabled = true
+target_sol_weight = "0.50"
+rebalance_band = "0.10"
+target_sol_weights = ["0.25", "0.50", "0.75"]
+rebalance_bands = ["0.05", "0.10"]
+
+# ── walk-forward schedule (FROZEN) ───────────────────────────────────────────
+# Rolling 365/60/60/5 over the 735-bar dev/val ⇒ exactly 6 windows:
+# floor((735 − 365 − 5 − 60)/60) + 1 = 6.
+[walk_forward]
+kind = "rolling"
+train_len = 365
+test_len = 60
+step = 60
+embargo = 5
+
+# ── advancement thresholds (FROZEN) ──────────────────────────────────────────
+# Decimal strings; turnover budget is against the UN-annualized ratio.
+[advancement]
+drawdown_budget = "0.35"
+turnover_budget = "12"
+baseline_margin = "0.02"
+dispersion_budget = "0.40"
+neighbor_tolerance = "0.15"
+min_windows = 6
