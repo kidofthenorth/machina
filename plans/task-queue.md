@@ -2910,7 +2910,7 @@ for a reason whose mechanical fix would change behavior; any pre-existing test f
 
 ---
 
-### M-HF-C2.5 — Reuse proof: existing families through the existing engine on 1s bars — `TODO`
+### M-HF-C2.5 — Reuse proof: existing families through the existing engine on 1s bars — `DONE` *(2026-07-13; zero src/manifest changes — the reuse-first bet holds)*
 
 **Goal.** Prove the reuse-first bet (m-hf-track.md §1/§5 row C2.5) with ZERO source changes: the
 existing daily-bar families run through the existing `run_sweep` pipeline on C2's synthetic

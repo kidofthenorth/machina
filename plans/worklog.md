@@ -837,3 +837,29 @@ recorded inline (not full logs).
   bet-fails outcome (any needed src change ⇒ STOP, re-plan on record). Stale M5 table row in the
   queue tail fixed (ACTIVE → CLOSED). Next: M-HF-C2.5, fresh executor session; adversarial review
   follows it per m-hf-track §5.
+- 2026-07-13 (executor, M-HF-C2.5): **DONE — reuse-first bet holds, zero `src/` changes.** Step 0
+  gate was green before touching any file (339 passed, 0 failed; fmt/clippy clean; demo shasum
+  `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template sweep shasum
+  `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`). Verified every signature the card cites
+  (`run_sweep`, `SweepOutcome`, `SweepSpec`, `PartitionSpec::by_index`, `WalkForward::new`,
+  `AdvancementThresholds`, `ParamGrid::{TrendAlloc,ThresholdRebalance}`,
+  `market_data::synthetic::{generate,SyntheticSpec}`, `SweepReport::{to_json,to_value,trial_count,
+  verdicts}`, `Sealed::holdout_read_count`) against source before writing anything — all matched
+  verbatim. Added `crates/sweep/tests/hf_reuse_proof.rs` (new, test-only) with the card's 4 tests
+  typed in as specified. Confirmed the card's own arithmetic against `WalkForward::windows`
+  directly: rolling train=900/test=300/step=300/embargo=5 over the 3,600-bar dev+val series
+  yields exactly 8 windows (`floor((3600-900-5-300)/300)+1 = 8`), 2 grids of 4 points each = 8
+  candidate points ⇒ 8 verdicts, trial_count = 3 scenarios × 8 windows × 8 points = 192 ≥ the
+  card's 64 floor — no test-expectation correction was needed, all four assertions passed as
+  drafted on the first run. One incidental fix: removed an unused `Decimal` import flagged by the
+  compiler (not present in the card's prose, a mechanical warning-to-error cleanup only). Gate:
+  `cargo fmt --all --check` clean; `cargo clippy --all-targets --all-features -- -D warnings`
+  clean; `cargo test -p sweep --test hf_reuse_proof` 4/4 new, all green; `cargo test --workspace
+  --all-features` 343 passed, 0 failed (339 + 4 new); `cargo run -p cli -- demo | shasum`
+  unchanged (`ae064f79…`); `cargo run -p cli -- sweep | shasum` unchanged (`7ad3df7d…`); `cargo
+  run -p cli -- sweep-verify` OK (byte-identical sequential/2/8 threads + repeat). `git status`
+  shows exactly `crates/sweep/tests/hf_reuse_proof.rs` (untracked) plus this worklog/queue edit —
+  no `src/`, no `Cargo.toml`/`Cargo.lock`, no schema/fixture/plan-pair file touched. Holdout read
+  count 0 throughout (asserted by a dedicated test). Nothing staged/committed (operator commits).
+  Next: adversarial review checkpoint (m-hf-track §5) before C2.6 or C3 is drafted — this is the
+  fill/cost/adversarial-terms checkpoint's predecessor, not itself the checkpoint.
