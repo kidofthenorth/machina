@@ -769,3 +769,14 @@ recorded inline (not full logs).
   passive income earned through gates; this cycle's evidence says these two families on daily bars
   are not the strategy that earns it. M5-C6 DONE; queue §M5 CLOSED. Next: M-HF research track
   entry, gated on HF-Q1/HF-Q2 (questions.md) + the wave-1 card reconciliation (m-hf-track.md §5).
+- 2026-07-12 (OPERATOR + planner, M-HF entry sitting): three rulings recorded in questions.md —
+  (1) C1–C2.6 unblocked ahead of HF-Q1 by written operator note (synthetic-only; the safe-default
+  provision); (2) **HF-Q2 RESOLVED: USDT + jitoSOL research-allowlist additions** (tri_arb_v1 and
+  statarb_pairs_v1 both testable at C7+; jitoSOL over mSOL for liquidity; file edit lands with the
+  wave-2 card that needs it); (3) HF-Q1 deferred to wave 2 (re-verify Birdeye at decision time;
+  blocks C9/C10 only). Wave-1 reconciliation patch DONE (planner): C1 gains the `IntraBar = Bar`
+  alias + typed `Provenance::{Synthetic, Real}` enum (+ a serde/alias test, re-exports); C2's
+  `synthetic: bool` replaced by `provenance: Provenance` with a pure-integer FNV-1a `spec_hash`
+  (no serde_json in src — it's a dev-dep); C1's verbatim block re-verified at `3365907` (M5-C2
+  had added `binance_csv` to market-data's lib.rs — quote refreshed). §M-HF header ACTIVE; C1/C2
+  flipped BLOCKED→TODO. Next: M-HF-C1, fresh executor session.

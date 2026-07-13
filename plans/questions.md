@@ -4,11 +4,11 @@ Only **real** operator decisions live here. Each has a safe default already appl
 block autonomous M0–M4 *engine* work. Format: Question · Why it matters · Safe default (applied) ·
 What's blocked.
 
-> Status: **0 blocking**, 6 non-blocking open (Q1, Q2, Q4, HF-Q1, HF-Q2, HF-Q3), 4 resolved
-> (Q3, Q5, Q6, Q7). **M5 is CLOSED — gate declared 2026-07-12: reject-all, holdout unread** (see
-> the M5 OUTCOME block after Q7). Q5's numbers were frozen 2026-07-11 at span confirmation (Q5
-> addendum) and stay immutable. The Q7 amendment was made 2026-07-09 (D-0012,
-> plans/m-hf-track.md); HF-Q1/Q2 gate M-HF entry; HF-Q3 gates its decisive sweep.
+> Status: **0 blocking**, 5 non-blocking open (Q1, Q2, Q4, HF-Q1, HF-Q3), 5 resolved
+> (Q3, Q5, Q6, Q7, HF-Q2). **M5 is CLOSED — gate declared 2026-07-12: reject-all, holdout unread**
+> (see the M5 OUTCOME block after Q7). **M-HF wave 1 is ACTIVE:** C1–C2.6 unblocked by operator
+> note (HF-Q1, 2026-07-12); HF-Q2 resolved (USDT + jitoSOL research allowlist); HF-Q1 deferred to
+> wave 2 (blocks C9/C10); HF-Q3 gates the decisive HF sweep (C10), same ratchet as Q5.
 
 ---
 
@@ -159,13 +159,23 @@ execution work starts. Next research work: M-HF entry, gated on HF-Q1/HF-Q2 belo
 - **Safe default (applied).** M-HF-C1…C8 run on synthetic fixtures only (typed
   `Provenance::Synthetic`); no source needed. C1–C2.6 may be unblocked ahead of this decision by a
   written operator note here.
+- **OPERATOR NOTE (2026-07-12, recorded at the M-HF entry sitting).** C1–C2.6 are unblocked ahead
+  of HF-Q1 per the safe-default provision above (synthetic-only; no source, credentials, or
+  network). HF-Q1 itself is deliberately deferred to wave 2: Birdeye's historical depth and
+  redistribution terms are re-verified at decision time, closer to M-HF-C9, so the information is
+  fresh. C9/C10 remain blocked on this question.
 - **Blocked:** M-HF-C9 (real ingestion) and C10 (the HF research decision).
 
-## HF-Q2 — Allowlist additions for HF families (USDT, LSTs)
+## HF-Q2 — Allowlist additions for HF families (USDT, LSTs) — **RESOLVED 2026-07-12**
+- **Resolution (operator, 2026-07-12).** Add **USDT and jitoSOL** to the *research* allowlist:
+  `tri_arb_v1` (USDT leg) and `statarb_pairs_v1` (jitoSOL/SOL pair) both stay testable at C7+.
+  jitoSOL chosen over mSOL for deeper current liquidity and an active on-chain market for the
+  statarb hypothesis. This is a research-allowlist decision only — no trading capability exists;
+  any live-trading allowlist is a separate, later gate (M8/M9 approvals). The actual allowlist
+  file edit lands with the wave-2 card that first needs it (C7), quoted verbatim there.
 - **Why it matters.** `tri_arb_v1` needs USDT; `statarb_pairs_v1` needs an LST (mSOL/jitoSOL).
   The allowlist is a hard trading gate; additions are operator decisions, never executor defaults.
-- **Safe default (applied).** No additions; families needing them are skipped until recorded here.
-- **Blocked:** those families' M-HF-C7+ runs only.
+- **Blocked:** nothing (was: those families' M-HF-C7+ runs).
 
 ## HF-Q3 — Freeze the HF research policy before the decisive HF sweep (same ratchet as Q5)
 - **What must be frozen, in one sitting, before any real-intraday strategy result is computed:**

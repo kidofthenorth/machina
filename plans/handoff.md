@@ -1,12 +1,12 @@
 # Handoff — for a new chat continuing machina
 
-You are picking up a build where **M5 is CLOSED — gate declared 2026-07-12: ALL 10 candidates
-REJECTED (Branch A), holdout read zero times, seal intact.** A clean reject-all is a success of
-the gates; the project returns to research via the **M-HF track** (Q7/D-0012), whose entry is
-still gated on **HF-Q1/HF-Q2** (questions.md) plus the wave-1 card reconciliation
-(m-hf-track.md §5). This is the single entry point. Read the pointer files below, confirm the
-gates are green, and do NOT start M-HF cards, M6+, or any execution work without the operator's
-written unblock. **Do not commit or push — the operator commits.**
+You are picking up a build where **M5 is CLOSED (reject-all, holdout unread) and the M-HF
+research track is ACTIVE** (entered 2026-07-12: operator note unblocked the synthetic-only cards
+C1–C2.6; HF-Q2 resolved; wave-1 cards reconciled). This is the single entry point. Read the
+pointer files below, confirm the gates are green, then execute the next TODO card in
+task-queue.md §M-HF wave 1 — and nothing beyond it. Never start M6+ (network) or M8/M9
+(signing/submit — separate explicit human approval). **Do not commit or push — the operator
+commits.**
 
 ---
 
@@ -149,10 +149,11 @@ failed the frozen +0.02 baseline margin and edge-vanishes-under-doubled-costs (t
 `plans/m5-data-validation.md`). `evaluate_on_holdout` was never called; the 2026-01-01..2026-06-30
 holdout survives unseen for a future cycle. Step-0 review: PASS (6 agents).
 
-**There is no active executor queue.** The next research work is the **M-HF track**
-([m-hf-track.md](m-hf-track.md)); its wave-1 cards are BLOCKED pending HF-Q1/HF-Q2 (questions.md)
-and the §5 card reconciliation — a planner session must resolve those before any executor card is
-issued. Neither daily-bar family advances; M6 (shadow) has no candidate and does not start.
+**The active queue is task-queue.md §M-HF wave 1** (entered 2026-07-12): C1–C2.6 unblocked by
+operator note; HF-Q2 resolved (USDT + jitoSOL research allowlist); C1/C2 reconciled against
+m-hf-track.md §1/§2 and TODO. C2.5/C2.6 are not yet drafted (planner work after C2). HF-Q1
+(deferred to wave 2) blocks C9/C10; HF-Q3 blocks C10. Neither daily-bar family advances; M6
+(shadow) has no candidate and does not start.
 
 The Q7 HF amendment was made 2026-07-09 (D-0012): master-plan pair amended in lockstep
 (cmp-verified); milestone plan at [m-hf-track.md](m-hf-track.md). M-HF execution still waits on
@@ -200,20 +201,33 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 
 ---
 
-## Seed prompt for the new chat — no executor work is queued
+## Seed prompt for the new chat — execute the next M-HF wave-1 card
 
-> You are picking up **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused crypto
-> trading-**research** platform in Rust built toward **genuine autonomous passive income** (truly
-> autonomous, so truly passive), earned through milestone gates.
+> You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
+> crypto trading-**research** platform in Rust built toward **genuine autonomous passive income**
+> (truly autonomous, so truly passive), earned through milestone gates. The current phase is HF
+> research on SYNTHETIC data only: no keys/signing/RPC/network anywhere; every HF strategy family
+> is a hypothesis to test — no card claims a known-profitable algorithm, and rejecting them all
+> cleanly is a successful outcome.
 >
-> **State (2026-07-12):** M5 gate DECLARED — Branch A, all 10 candidates rejected; holdout read
-> zero times, seal intact; queue §M5 CLOSED. Workspace green at **313 tests, 0 failed**; demo
-> shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template sweep shasum
+> **State (2026-07-12):** M5 CLOSED (reject-all; holdout unread, seal intact). M-HF wave 1 ACTIVE.
+> Workspace green at **313 tests, 0 failed**; demo shasum
+> `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template sweep shasum
 > `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify: OK`.
 >
-> **There is no TODO executor card.** The next work is the M-HF research track
-> (`plans/m-hf-track.md`), BLOCKED on HF-Q1/HF-Q2 (`plans/questions.md`) and the §5 wave-1 card
-> reconciliation — planner + operator work, not executor work. If you were opened as an executor:
-> report this and stop. Do not start M-HF, M6+ (network), or M8/M9 (signing/submit — separate
-> explicit human approval); never `git commit`/`git push`; never stage `data/` or `.claude/`;
-> `config/strategies/m5-frozen.toml` and the M5 evidence artifacts are immutable records.
+> Your task is **the next TODO card in `plans/task-queue.md` §M-HF wave 1** (C1 → C2, in order).
+> Read the section's entry conditions, common rules, and the card. It is self-contained — do not
+> open files it doesn't name. Step 0 of every card: run the full-workspace gate BEFORE touching
+> any file; if it is already red, STOP and report. C2.5+ are not drafted — if the next card isn't
+> C1 or C2, say so and stop.
+>
+> When the gate passes: flip the card, one worklog line, stop — the next card gets a fresh chat.
+> If any escalate-if triggers: STOP, record the mismatch in the worklog, report.
+>
+> Non-negotiables (unchanged): `Decimal`/integer only for money — never f64; no new dependencies;
+> determinism (no RNG/clock in canonical runs); the M4/M5 holdout machinery and
+> `config/strategies/m5-frozen.toml` are immutable records; never stage anything under `data/`;
+> never edit `schemas/*.json`, `fixtures/` (existing files), `plans/master-plan.md`, or
+> `solana-crypto-trader-plan.md`; never `git commit`/`git push` (stage explicit paths only, never
+> `.claude/`, never `git add -A`); never start M6+ (network) or M8/M9 (signing/submit — separate
+> explicit human approval).

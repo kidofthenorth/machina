@@ -1932,7 +1932,7 @@ major from the step-0 review — STOP and record.
 
 ---
 
-## M-HF wave 1 — task cards (**BLOCKED**: reconciliation against the adjudicated design pending)
+## M-HF wave 1 — task cards (**ACTIVE 2026-07-12** — C1/C2 reconciled + unblocked by operator note; C2.5/C2.6 to be drafted after C2 lands)
 
 *(Drafted 2026-07-07 on operator instruction after the entry-condition check found all three
 conditions unmet — see worklog. These cards serve machina's goal — genuine autonomous passive
@@ -1954,12 +1954,11 @@ solana-crypto-trader-plan.md`; `grep -n "^## D-0012" DECISIONS.md`; `grep -n "HF
 2. **Operator approval + amendment** — ✅ **SATISFIED 2026-07-09 (D-0012).** The master-plan
    amendment was made (`plans/master-plan.md` §19 "M-HF" + amended Arbitrage/XEMM/MEV disposition;
    root `solana-crypto-trader-plan.md` edited in lockstep, `cmp`-verified byte-identical, per Q6).
-3. **HF-Q decisions recorded in plans/questions.md** — **still open.** HF-Q1 (intraday data source)
-   blocks only M-HF-C9/C10; HF-Q2 (USDT/LST allowlist additions) blocks M-HF-C7's statarb family;
-   HF-Q3 (frozen intraday walk-forward sizing + HF advancement thresholds, incl. the
-   turnover-criterion replacement, incl. auction-margin sensitivity) blocks the M-HF-C10 sweep. **No
-   HF-Q blocks C1–C2.6** (synthetic fixtures carry them), but see the reconciliation note below —
-   that gap blocks C1 regardless of HF-Q status.
+3. **HF-Q decisions recorded in plans/questions.md** — **partially resolved 2026-07-12.**
+   HF-Q2 RESOLVED (USDT + jitoSOL research-allowlist additions approved). HF-Q1 deferred to wave 2
+   by design (blocks only M-HF-C9/C10; Birdeye terms re-verified at decision time), and **C1–C2.6
+   are unblocked ahead of it by written operator note under HF-Q1** (2026-07-12). HF-Q3 (frozen
+   intraday policy, same ratchet as Q5) still blocks the M-HF-C10 sweep, as designed.
 
 **Reconciliation note (stated, not inferred) — C1/C2 as drafted are the PRE-adjudication text,
 unmodified.** The card bodies below were copied verbatim from source on 2026-07-07 at commit
@@ -1970,12 +1969,12 @@ contains the typed `Provenance::{Synthetic,Real}` enum `m-hf-track.md` §2/§5 r
 `IntraBar = research_core::Bar` alias `m-hf-track.md` §5 names as C1's required addition ("zero
 logic" — a doc comment + `pub use`). Everything else in C1/C2 (the `TradePrint`/`SlotSnapshot`
 types, the strict/loose hygiene split, C2's `Congestion` enum and its `splitmix64` primitive) lines
-up with the adjudicated design's §1–§3 and needs no rework. **Before M-HF-C1 executes, a planner
-session must patch its card text** to (a) fold in the `IntraBar` alias per `m-hf-track.md` §1, and
-(b) replace the `synthetic: bool` field with the typed `Provenance` enum per §2, then re-verify the
-"Current state (verbatim)" block against source as of that session's commit. This is a small,
-mechanical patch, not a redesign — the types, hygiene functions, and fixtures below are otherwise
-sound and were reviewed as such.
+up with the adjudicated design's §1–§3 and needs no rework. **Reconciliation patch DONE 2026-07-12
+(planner session):** (a) the `IntraBar = Bar` alias folded into C1 per `m-hf-track.md` §1; (b) the
+typed `Provenance::{Synthetic, Real}` enum added to C1 and C2's `synthetic: bool` replaced with it
+per §2 (C2 gains a pure-integer `spec_hash` — FNV-1a over the spec's fields, no serde_json in src);
+(c) C1's "Current state (verbatim)" block re-verified against source at `3365907` (market-data
+lib.rs had gained `binance_csv` in M5-C2 — quote updated).
 
 **Wave discipline.** C1–C2 are drafted now because they need only today's `crates/research-core` +
 `crates/market-data`. `m-hf-track.md` §5 inserts **C2.5** (reuse-proof: existing engine on 1s bars,
@@ -2013,7 +2012,7 @@ differs, escalate, don't adapt.
 
 ---
 
-### M-HF-C1 — Intraday domain types + series hygiene (trade prints, slot snapshots, 1s bars) — `BLOCKED (pre-gate draft)`
+### M-HF-C1 — Intraday domain types + series hygiene (trade prints, slot snapshots, 1s bars) — `TODO` *(reconciled 2026-07-12 against m-hf-track.md §1/§2: IntraBar alias + typed Provenance folded in; verbatim blocks re-verified at `3365907`; unblocked by operator note, questions.md HF-Q1)*
 
 **Goal.** Give the research engine intraday primitives with the same hygiene guarantees daily bars
 already have: `TradePrint`/`SlotSnapshot` types in `research-core` (self-checking, like `Bar`),
@@ -2048,12 +2047,14 @@ Sanctioned exception to the ~3-file budget: files 1/3/5/6 are ALL NEW; the two l
 module + re-export lines. No existing file's behavior changes. **This card edits NO Cargo.toml**
 (all needed deps exist) and touches NO existing fixture.
 
-**Current state (verbatim, verified 2026-07-07 at `e821591`).**
+**Current state (verbatim, re-verified 2026-07-12 at `3365907` — M5-C2 added `binance_csv` to
+market-data since the 2026-07-07 draft).**
 `crates/research-core/src/lib.rs:12-15` modules (alphabetical): `pub mod bar; pub mod money;
 pub mod time; pub mod token;` — re-exports at :17-25 include `pub use bar::{Bar, BarError};` and
-`pub use rust_decimal::Decimal;`. `crates/market-data/src/lib.rs:10-16` (entire public surface):
+`pub use rust_decimal::Decimal;`. `crates/market-data/src/lib.rs:10-17` (entire public surface):
 ```rust
 pub mod allowlist;
+pub mod binance_csv;
 pub mod validation;
 
 pub use allowlist::{Allowlist, AllowlistEntry};
@@ -2118,6 +2119,23 @@ has `research-core`, `rust_decimal`, `serde`, `toml` (dev: `rust_decimal_macros`
        Buy,
        Sell,
    }
+
+   /// Where a series came from — a typed field, not prose (m-hf-track §2). A result computed
+   /// over any synthetic input can never render as real: reports roll this up as a computed
+   /// fact, never a hand-written label.
+   #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+   #[serde(tag = "kind", rename_all = "lowercase")]
+   pub enum Provenance {
+       /// Deterministic generated data; `spec_hash` identifies the generating spec exactly.
+       Synthetic { spec_hash: u64 },
+       /// Operator-ingested archived data; `source_id` names the snapshot record.
+       Real { source_id: String },
+   }
+
+   /// 1-second bars need no new type: an intraday bar IS a [`crate::Bar`] at finer spacing —
+   /// a series-level interval fact asserted by `validate_series_spacing(bars, 1)`, not a
+   /// type-level one. Zero logic (m-hf-track §1).
+   pub type IntraBar = crate::Bar;
 
    /// One executed trade on one venue. Ordered and deduplicated by `(slot, seq)` within a venue
    /// (`seq` disambiguates multiple prints landing in the same slot).
@@ -2213,9 +2231,14 @@ has `research-core`, `rust_decimal`, `serde`, `toml` (dev: `rust_decimal_macros`
      `"side":"buy"`; parsing it back equals the original.
    - `snapshot_serde_round_trips` — snapshot JSON round-trips to an equal value and its `ts`
      serializes as a bare integer (assert the JSON contains `"ts":1609459200`).
+   - `provenance_serde_round_trips_tagged` — `Provenance::Synthetic { spec_hash: 42 }` serializes
+     to JSON containing `"kind":"synthetic"` and round-trips equal; `Provenance::Real { source_id:
+     "binance-solusdc-1d".into() }` round-trips equal. Also pin the alias with a one-line assert
+     that an `IntraBar` value constructed as a `Bar` compares equal to itself via the alias type
+     (compile-time proof the alias is `Bar`).
 2. In `crates/research-core/src/lib.rs`: add `pub mod intraday;` between `pub mod bar;` and
-   `pub mod money;`; add `pub use intraday::{IntradayItemError, Side, SlotSnapshot, TradePrint};`
-   directly after the `pub use bar::{Bar, BarError};` line.
+   `pub mod money;`; add `pub use intraday::{IntraBar, IntradayItemError, Provenance, Side,
+   SlotSnapshot, TradePrint};` directly after the `pub use bar::{Bar, BarError};` line.
 3. Create `crates/market-data/src/intraday.rs`:
    ```rust
    //! Intraday series hygiene: trade prints and slot snapshots (HF plan §2.1). Same discipline as
@@ -2518,7 +2541,7 @@ fails; you find yourself wanting to modify `DataError`, `validation.rs`, or any 
 
 ---
 
-### M-HF-C2 — Deterministic synthetic microstructure generator — `BLOCKED (pre-gate draft; requires M-HF-C1 DONE)`
+### M-HF-C2 — Deterministic synthetic microstructure generator — `TODO` *(reconciled 2026-07-12: `synthetic: bool` replaced by the typed `Provenance` enum per m-hf-track §2; requires M-HF-C1 DONE)*
 
 **Goal.** A generator for synthetic intraday research data — OU mean-reverting mid price +
 impact-decay events + regime-switching congestion — emitting 1s bars, trade prints, slot snapshots,
@@ -2554,14 +2577,15 @@ of market-data — library code must construct constants with `Decimal::new(mant
    //! Every output is a pure function of its [`SyntheticSpec`]: the "noise" is a fixed quantile
    //! table indexed by a SplitMix64 integer hash stream seeded from the spec — no entropy source,
    //! no clock, no `rand` dependency (invariant 3: no wall-clock/RNG in canonical runs). Same spec
-   //! → byte-identical output. Every bundle carries `synthetic: true` into serialization, so no
+   //! → byte-identical output. Every bundle carries a typed `Provenance::Synthetic { spec_hash }`
+   //! into serialization, so no
    //! synthetic series can masquerade as real data, and none of it may ever ground a statistical
    //! claim about real markets (invariant 11's no-profitability-claims rule, extended here to
    //! synthetic-vs-real labeling; real ingestion is M-HF-C9, gated on HF-Q1).
 
    use crate::intraday::{validate_prints, validate_snapshots};
    use crate::validation::validate_series_spacing;
-   use research_core::intraday::{Side, SlotSnapshot, TradePrint};
+   use research_core::intraday::{Provenance, Side, SlotSnapshot, TradePrint};
    use research_core::{Bar, Decimal, Timestamp};
    use serde::Serialize;
 
@@ -2625,17 +2649,52 @@ of market-data — library code must construct constants with `Decimal::new(mant
 
    impl std::error::Error for SyntheticError {}
 
-   /// One generated bundle. `synthetic` is always `true` and serializes into every export.
+   /// One generated bundle. `provenance` is always `Provenance::Synthetic { spec_hash }` and
+   /// serializes into every export — synthetic data must self-identify, typed, not prose
+   /// (m-hf-track §2).
    #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
    pub struct SyntheticIntraday {
-       /// Always true — synthetic data must self-identify (HF plan §2.1).
-       pub synthetic: bool,
+       /// Always `Provenance::Synthetic { spec_hash: spec_hash(&spec) }`.
+       pub provenance: Provenance,
        pub spec: SyntheticSpec,
        pub bars_1s: Vec<Bar>,
        pub prints: Vec<TradePrint>,
        pub snapshots: Vec<SlotSnapshot>,
        /// One label per step.
        pub congestion: Vec<Congestion>,
+   }
+
+   /// Identify the generating spec exactly: FNV-1a (64-bit) over every field's canonical string,
+   /// in declaration order, 0xFF-separated (same constants and separator discipline as
+   /// `binance_csv::fnv1a64`). Pure integer math; NO serde_json (dev-dep only in this crate).
+   fn spec_hash(spec: &SyntheticSpec) -> u64 {
+       const OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+       const PRIME: u64 = 0x0000_0100_0000_01b3;
+       let fields = [
+           spec.seed.to_string(),
+           spec.steps.to_string(),
+           spec.start_unix.to_string(),
+           spec.start_slot.to_string(),
+           spec.venue.clone(),
+           spec.mid0.to_string(),
+           spec.anchor.to_string(),
+           spec.reversion.to_string(),
+           spec.vol_step.to_string(),
+           spec.impact_every.to_string(),
+           spec.impact_size.to_string(),
+           spec.impact_decay.to_string(),
+           spec.regime_period.to_string(),
+       ];
+       let mut hash = OFFSET_BASIS;
+       for field in &fields {
+           for byte in field.as_bytes() {
+               hash ^= u64::from(*byte);
+               hash = hash.wrapping_mul(PRIME);
+           }
+           hash ^= 0xFF; // field separator: avoids concatenation ambiguity between fields
+           hash = hash.wrapping_mul(PRIME);
+       }
+       hash
    }
 
    /// SplitMix64 — a deterministic integer hash sequence, NOT an entropy source.
@@ -2770,7 +2829,9 @@ of market-data — library code must construct constants with `Decimal::new(mant
        validate_prints(&prints).map_err(|e| SyntheticError::SelfCheck(e.to_string()))?;
        validate_snapshots(&snapshots).map_err(|e| SyntheticError::SelfCheck(e.to_string()))?;
        Ok(SyntheticIntraday {
-           synthetic: true,
+           provenance: Provenance::Synthetic {
+               spec_hash: spec_hash(spec),
+           },
            spec: spec.clone(),
            bars_1s,
            prints,
@@ -2828,7 +2889,8 @@ of market-data — library code must construct constants with `Decimal::new(mant
 math only — never f64 anywhere. Determinism is the deliverable: the ONLY "randomness" is SplitMix64
 on `spec.seed` — a pure integer function; no `rand`, no OS entropy, no clock, no new dependencies
 (D-0002). Byte-identity is asserted by test — if it fails, the bug is in YOUR code; never weaken
-the assert. Synthetic data must self-identify (`synthetic: true` stays a serialized field) and must
+the assert. Synthetic data must self-identify (the typed `Provenance::Synthetic { spec_hash }`
+field stays serialized) and must
 never be presented as real market data or ground a statistical claim (invariant 11's rule, extended
 to synthetic-vs-real labeling). Library code writes no files. Parallel==sequential byte-identity of
 the sweep untouched at thread counts {1,2,3,7,8} (don't touch
