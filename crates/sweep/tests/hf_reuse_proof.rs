@@ -104,12 +104,13 @@ fn existing_engine_runs_unmodified_on_1s_bars() {
         8,
         "expected one verdict per candidate point (4 TrendAlloc + 4 ThresholdRebalance)"
     );
-    // Anti-vacuous floor: >= 8 windows x 8 points; the BeforeCosts/Base/Doubled scenario ladder
-    // multiplies it further, so this is a floor, not the exact product.
-    assert!(
-        outcome.report.trial_count >= 64,
-        "expected trial_count >= 64, got {}",
-        outcome.report.trial_count
+    // Exact cell count: 8 windows x 3 scenarios (BeforeCosts/Base/Doubled) x 8 points. Pinned
+    // exactly (post-C2.5 review finding): a floor of >=64 would miss a silently skipped family
+    // (96 would still pass), and verdicts.len() alone derives from grid cardinality, not from
+    // cells actually evaluated.
+    assert_eq!(
+        outcome.report.trial_count, 192,
+        "expected exactly 8 windows x 3 scenarios x 8 points = 192 evaluated cells"
     );
 }
 

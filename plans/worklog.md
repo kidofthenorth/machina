@@ -863,3 +863,17 @@ recorded inline (not full logs).
   count 0 throughout (asserted by a dedicated test). Nothing staged/committed (operator commits).
   Next: adversarial review checkpoint (m-hf-track §5) before C2.6 or C3 is drafted — this is the
   fill/cost/adversarial-terms checkpoint's predecessor, not itself the checkpoint.
+- 2026-07-13 (planner verify + post-C2.5 adversarial review): C2.5 re-verified fresh (343 passed
+  0 failed; fmt/clippy clean; demo/sweep hashes unchanged; commit a6a9e35's own stat proves
+  test-file-only). Note: a6a9e35 was committed with C2's reused message — content correct, message
+  amended by the operator on planner instruction (unpushed; main ahead of origin). **Review — the
+  m-hf-track §5 post-C2.5 risk point — ran (6 Sonnet agents, 4 lenses + 2 skeptics/finding): the
+  reuse-first bet HOLDS; 1 confirmed MINOR** — `verdicts.len()==8` derives from grid cardinality
+  (runner.rs `points` from `spec.grids`), so a silently skipped family's cells wouldn't move it;
+  skeptics measured the true cell count 192 (8 windows × 3 scenarios × 8 points). Per the fixed
+  decision rule (minor + ≤10 lines of test code): the `trial_count >= 64` floor was replaced with
+  exact `assert_eq!(trial_count, 192)` in hf_reuse_proof.rs — a family skip now fails the test
+  (96 ≠ 192). Re-run: 4/4 green, workspace 343, 0 failed. The other 3 lenses returned zero
+  findings (zero-src-change integrity; test quality; plan conformance incl. the §7 honest-limits
+  caveat — no overclaim in the records). Next: draft M-HF-C2.6 (streaming/scale proof +
+  storage-format DECISIONS entry, D-0013), then C3+ per §5.
