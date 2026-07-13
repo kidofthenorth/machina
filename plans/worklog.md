@@ -802,3 +802,38 @@ recorded inline (not full logs).
   1 new test file — no existing fixture or file touched. No new dependencies; no Cargo.toml edited;
   no execution code; `crates/sweep` untouched. Nothing staged/committed (operator commits). Next:
   M-HF-C2, fresh executor session.
+- 2026-07-13 (executor, M-HF-C2): **DONE.** Step 0 gate was green before touching any file (332
+  tests, 0 failed; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum
+  `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`). C1's exports (Provenance/Side/SlotSnapshot/TradePrint,
+  validate_prints/validate_snapshots/validate_snapshots_contiguous/IntradayError,
+  validate_series_spacing) matched the card's "Current state" block exactly. Added
+  `crates/market-data/src/synthetic.rs` (SyntheticSpec/Congestion/SyntheticError/SyntheticIntraday +
+  `generate`/`spec_hash` (pure-integer FNV-1a, no serde_json)/`splitmix64`/`noise_table` + 7 unit
+  tests) verbatim per the card, with one adaptation: the card's step-2 test prose still described
+  the pre-reconciliation `out.synthetic: bool` field (`output_self_identifies_as_synthetic` checking
+  `"synthetic":true`), which the 2026-07-12 reconciliation had already replaced with the typed
+  `Provenance` enum in the card's own step-1 code block — rewrote that one test to assert
+  `matches!(out.provenance, Provenance::Synthetic { .. })` and that the JSON contains
+  `"kind":"synthetic"`, preserving the test's intent (self-identification) against the corrected
+  struct; the other six tests typed in unmodified. Two-line `lib.rs` addition
+  (`pub mod synthetic;` + the `pub use synthetic::{...}` line). Gate: `cargo test -p market-data
+  synthetic` 7/7 new; `cargo test -p market-data` unit+integration all green (C1's tests
+  unchanged); `cargo fmt --all --check` clean; `cargo clippy --all-targets --all-features
+  -- -D warnings` clean; `cargo test --workspace --all-features` 339 passed, 0 failed;
+  `cargo run -q -p cli -- demo | shasum` unchanged twice; `cargo run -q -p cli -- sweep | shasum`
+  unchanged. `git status` shows exactly the card's files: 1 modified lib.rs, 1 new src file — no
+  Cargo.toml/Cargo.lock changes, no existing fixture/schema/plan-pair file touched. Nothing
+  staged/committed (operator commits). Next: C2.5 (reuse-proof), planner-drafted, not this session's
+  scope.
+- 2026-07-13 (planner verify + card-draft): M-HF-C2 re-verified fresh (339 passed 0 failed; fmt/
+  clippy clean; demo/sweep hashes unchanged; no manifests; no rand; serde_json under cfg(test)
+  only at synthetic.rs:275; provenance = typed Synthetic{spec_hash} at :264; the executor's one
+  test adaptation was correct — the card's step-2 prose was pre-reconciliation, its step-1 code
+  authoritative). **Card M-HF-C2.5 drafted** (queue §M-HF wave 1): reuse-proof, ONE new test file
+  `crates/sweep/tests/hf_reuse_proof.rs`, ZERO src/manifest changes (sweep already deps on
+  market-data; jsonschema already a dev-dep); 4,000 synthetic 1s bars, by_index(3000,3600)
+  partition, rolling 900/300/300/5 ⇒ 8 windows, 8 candidate points; gates: 8 verdicts +
+  determinism across {1,2,3,7,8} + schema-valid + holdout counter 0. Escalate-if pre-commits the
+  bet-fails outcome (any needed src change ⇒ STOP, re-plan on record). Stale M5 table row in the
+  queue tail fixed (ACTIVE → CLOSED). Next: M-HF-C2.5, fresh executor session; adversarial review
+  follows it per m-hf-track §5.

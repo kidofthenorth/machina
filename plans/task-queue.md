@@ -2541,7 +2541,7 @@ fails; you find yourself wanting to modify `DataError`, `validation.rs`, or any 
 
 ---
 
-### M-HF-C2 — Deterministic synthetic microstructure generator — `TODO` *(reconciled 2026-07-12: `synthetic: bool` replaced by the typed `Provenance` enum per m-hf-track §2; requires M-HF-C1 DONE)*
+### M-HF-C2 — Deterministic synthetic microstructure generator — `DONE` *(2026-07-13; reconciled 2026-07-12: `synthetic: bool` replaced by the typed `Provenance` enum per m-hf-track §2; requires M-HF-C1 DONE)*
 
 **Goal.** A generator for synthetic intraday research data — OU mean-reverting mid price +
 impact-decay events + regime-switching congestion — emitting 1s bars, trade prints, slot snapshots,
@@ -2910,11 +2910,115 @@ for a reason whose mechanical fix would change behavior; any pre-existing test f
 
 ---
 
+### M-HF-C2.5 — Reuse proof: existing families through the existing engine on 1s bars — `TODO`
+
+**Goal.** Prove the reuse-first bet (m-hf-track.md §1/§5 row C2.5) with ZERO source changes: the
+existing daily-bar families run through the existing `run_sweep` pipeline on C2's synthetic
+1-second series, producing a valid, deterministic `SweepReport`. **This is the load-bearing card
+of the whole HF track — if it cannot pass without touching `src/`, the bet is wrong and the track
+re-plans on the record.**
+
+**Files.** `crates/sweep/tests/hf_reuse_proof.rs` (new — ONE file; test-only). No `src/` change in
+any crate; no `Cargo.toml` change (`sweep` already depends on `market-data`, where the C2
+generator lives; `jsonschema` + `rust_decimal_macros` are already dev-deps of `sweep`).
+
+**Current state (verbatim, verified 2026-07-13 at the M-HF-C2 verification).**
+- `sweep/src/runner.rs:314-321`:
+```rust
+pub fn run_sweep(
+    spec: &SweepSpec,
+    bars: Vec<Bar>,
+    base_cost: &CostModel,
+    initial_cash_usdc: Decimal,
+    periods_per_year: f64,
+    parallelism: Parallelism,
+) -> Result<SweepOutcome, SweepError> {
+```
+- `sweep/src/runner.rs:274-277`: `pub struct SweepOutcome { pub report: SweepReport, pub sealed:
+  Sealed, }` — `Sealed::holdout_read_count()` must be 0 after the sweep.
+- `sweep/src/spec.rs:64-71` — `SweepSpec` is all-pub: `{ allowlist_version: String, partition:
+  PartitionSpec, walk_forward: WalkForward, thresholds: AdvancementThresholds, grids:
+  Vec<ParamGrid> }`.
+- `sweep/src/config.rs` — `PartitionSpec::by_index(val_start, holdout_start)` constructor.
+- `sweep/src/window.rs:105-111` — `WalkForward::new(kind, train_len, test_len, step, embargo) ->
+  Result<Self, WindowError>`; `WindowKind::Rolling`.
+- `sweep/src/advance.rs:19-32` — `AdvancementThresholds { drawdown_budget, turnover_budget,
+  baseline_margin, dispersion_budget, neighbor_tolerance: Decimal…, min_windows: u32 }`.
+- `sweep/src/param.rs:95-107` — `ParamGrid::TrendAlloc { sma_periods: Vec<usize>, weights_above:
+  Vec<Decimal>, weights_below: Vec<Decimal> }`, `ParamGrid::ThresholdRebalance {
+  target_sol_weights: Vec<Decimal>, bands: Vec<Decimal> }`.
+- `market-data/src/synthetic.rs` (C2, DONE) — `pub fn generate(spec: &SyntheticSpec) ->
+  Result<SyntheticIntraday, SyntheticError>`; the 1s bars are `out.bars_1s: Vec<Bar>`;
+  `SyntheticSpec` fields as in card M-HF-C2.
+- Schema-validation convention to mirror: `crates/sweep/tests/schema_validation.rs` (loads
+  `schemas/sweep-report.schema.json`, compiles with `jsonschema`, validates `report.to_value()`).
+- Determinism-test convention to mirror: `crates/sweep/tests/determinism.rs` (EXPLICIT thread
+  counts, never `available_parallelism`).
+
+**Steps.**
+1. Create `crates/sweep/tests/hf_reuse_proof.rs` with a module doc stating the bet: "1s bars need
+   no new bar type; a 1s signal executing at the next 1s bar's open IS next-bar execution at
+   finer grain (m-hf-track §1). This test proves the existing engine runs unmodified on 1s bars —
+   ZERO source changes; if it ever needs one, the reuse-first bet is wrong."
+2. Helper `hf_bars() -> Vec<Bar>`: `market_data::synthetic::generate(&spec).unwrap().bars_1s`
+   with `SyntheticSpec { seed: 7, steps: 4_000, start_unix: 1_609_459_200, start_slot: 100_000,
+   venue: "venue_a".to_string(), mid0: dec!(100), anchor: dec!(100), reversion: dec!(0.05),
+   vol_step: dec!(0.2), impact_every: 50, impact_size: dec!(1.5), impact_decay: dec!(0.5),
+   regime_period: 100 }` → exactly 4,000 1-second bars.
+3. Helper `hf_spec() -> SweepSpec`: `allowlist_version: "2026-06-29"`, `partition:
+   PartitionSpec::by_index(3_000, 3_600)` (dev 3,000 / val 600 / holdout 400 — a holdout exists
+   so the seal is exercised), `walk_forward: WalkForward::new(WindowKind::Rolling, 900, 300, 300,
+   5).unwrap()` (windows over the 3,600-bar dev/val: floor((3600−900−5−300)/300)+1 = **8**),
+   `thresholds: AdvancementThresholds { drawdown_budget: dec!(0.35), turnover_budget: dec!(12),
+   baseline_margin: dec!(0.02), dispersion_budget: dec!(0.40), neighbor_tolerance: dec!(0.15),
+   min_windows: 6 }` (illustrative, NOT tuned — this card proves plumbing, not strategy quality),
+   `grids: vec![ParamGrid::TrendAlloc { sma_periods: vec![20, 50], weights_above:
+   vec![dec!(0.75), dec!(0.5)], weights_below: vec![dec!(0)] }, ParamGrid::ThresholdRebalance {
+   target_sol_weights: vec![dec!(0.25), dec!(0.5)], bands: vec![dec!(0.05), dec!(0.1)] }]`
+   → 4 + 4 = **8 candidate points**.
+4. Helper `run(parallelism) -> (String, u32)`: `run_sweep(&hf_spec(), hf_bars(), &CostModel {
+   dex_fee_bps: 5, slippage_bps: 20, base_fee_lamports: 5_000, priority_fee_lamports: 50_000 },
+   dec!(10_000), 31_536_000.0, parallelism).unwrap()` → return `(outcome.report.to_json(),
+   outcome.sealed.holdout_read_count())`.
+5. Exactly these four tests:
+   - `existing_engine_runs_unmodified_on_1s_bars` — sequential run: `trial_count > 0`; **8
+     verdicts** (one per candidate point), each with a status; anti-vacuous `trial_count >= 64`
+     (≥ 8 windows × 8 points; the scenario ladder may multiply it further — assert `>=`, don't
+     pin the exact product).
+   - `hf_sweep_deterministic_across_thread_counts` — `run(Sequential)` JSON byte-identical to
+     `run(Threads(N))` for N in {1, 2, 3, 7, 8} (explicit counts) and to a repeated sequential
+     run.
+   - `hf_report_validates_against_schema` — mirror `schema_validation.rs`: the report's
+     `to_value()` validates against `schemas/sweep-report.schema.json`.
+   - `holdout_stays_sealed_on_1s_bars` — `holdout_read_count == 0` from `run(Sequential)` (a
+     dedicated test so the seal claim is first-class).
+   If the engine's real numbers disagree with this card's arithmetic (window count, verdict
+   count, trial floor): fix the TEST's expectation to the observed-and-verified value and record
+   the correction in the worklog — NEVER change `src/` to make the card's arithmetic true.
+6. `cargo fmt --all`; run the new tests; run the full-workspace gate.
+
+**Gate.** New tests green; full-workspace gate green (expect **> 339** tests, 0 failed); demo
+shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` and template sweep shasum
+`7ad3df7de2e2c1139be427e9c953b57d4e289cb3` unchanged; `git status` shows ONLY
+`crates/sweep/tests/hf_reuse_proof.rs` (+ queue/worklog edits) — no `src/`, no manifests.
+
+**Guardrails (restated).** ZERO source changes — this card's entire value is proving none are
+needed. Decimal money; explicit thread counts; no new deps; holdout counter 0; never edit
+`schemas/*`, existing fixtures, the plan pair, or `config/strategies/m5-frozen.toml`.
+
+**Escalate-if.** ANY assertion cannot pass without changing a `src/` file — STOP: that is the
+reuse-first bet failing, the single outcome this card exists to detect; record exactly which seam
+broke in the worklog and report (the planner re-plans per m-hf-track §5). Also escalate if:
+`run_sweep` rejects the 1s series for a reason other than your own spec arithmetic; the report
+would validate only after a schema edit (forbidden); demo/sweep hashes move.
+
+---
+
 ## Deferred / blocked (unchanged)
 
 | ID | Status | Milestone | File scope | Gate | Notes |
 |----|--------|-----------|------------|------|-------|
-| — | ACTIVE | M5 | research decision | — | **Unblocked 2026-07-09**: Q3 + Q5 resolved and M5 GO recorded in questions.md. Cards M5-C1…C6 above are the queue. |
+| — | CLOSED | M5 | research decision | — | **Gate declared 2026-07-12: reject-all, holdout unread.** §M-HF wave 1 above is the active queue. |
 | — | DEFERRED | M6 | `crates/route-model`, `crates/risk`, `crates/solana-execution` (no-sign) | — | Jupiter shadow quote collector. Re-verify plan §22 sources first. |
 | — | DEFERRED | M7 | `crates/wallet-state` | — | read-only mainnet shadow. No signing key. |
 | — | BLOCKED | M8/M9 | devnet/canary signing+submit | — | **Requires separate explicit human approval. Do not start.** |

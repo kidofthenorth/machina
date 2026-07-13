@@ -10,12 +10,14 @@
 pub mod allowlist;
 pub mod binance_csv;
 pub mod intraday;
+pub mod synthetic;
 pub mod validation;
 
 pub use allowlist::{Allowlist, AllowlistEntry};
 pub use intraday::{
     validate_prints, validate_snapshots, validate_snapshots_contiguous, IntradayError,
 };
+pub use synthetic::{generate, Congestion, SyntheticError, SyntheticIntraday, SyntheticSpec};
 pub use validation::{
     validate_series, validate_series_spacing, validate_token_decimals, DataError,
 };
