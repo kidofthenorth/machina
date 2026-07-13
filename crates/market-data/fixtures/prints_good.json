@@ -1,0 +1,6 @@
+[
+  {"venue": "venue_a", "slot": 1000, "seq": 0, "ts": 1609459200, "side": "buy",  "price": "100.25", "size": "1.5"},
+  {"venue": "venue_a", "slot": 1000, "seq": 1, "ts": 1609459200, "side": "sell", "price": "100.20", "size": "0.75"},
+  {"venue": "venue_a", "slot": 1002, "seq": 0, "ts": 1609459201, "side": "buy",  "price": "100.30", "size": "2.0"},
+  {"venue": "venue_a", "slot": 1005, "seq": 0, "ts": 1609459202, "side": "sell", "price": "100.10", "size": "0.5"}
+]

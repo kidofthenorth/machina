@@ -780,3 +780,25 @@ recorded inline (not full logs).
   (no serde_json in src — it's a dev-dep); C1's verbatim block re-verified at `3365907` (M5-C2
   had added `binance_csv` to market-data's lib.rs — quote refreshed). §M-HF header ACTIVE; C1/C2
   flipped BLOCKED→TODO. Next: M-HF-C1, fresh executor session.
+- 2026-07-13 (executor, M-HF-C1): **DONE.** Step 0 gate was green before touching any file (313
+  tests, demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`). All verbatim blocks (research-core
+  lib.rs:12-25, bar.rs:12-21, time.rs:11-12; market-data lib.rs:10-17, validation.rs:84/113-115/116,
+  fixture_validation.rs load pattern; both Cargo.tomls) matched source exactly — no adaptation
+  needed. Added `crates/research-core/src/intraday.rs` (Side/Provenance/IntraBar=Bar alias/
+  TradePrint/SlotSnapshot/IntradayItemError + 5 unit tests — the card's prose said "exactly these
+  four tests" but enumerated 5 including `provenance_serde_round_trips_tagged`; implemented all 5
+  as individually specified, noting the count mismatch here rather than dropping a named test) and
+  its two-line lib.rs addition; `crates/market-data/src/intraday.rs` (IntradayError +
+  validate_prints/validate_snapshots/validate_snapshots_contiguous + 8 unit tests) and its two-line
+  lib.rs addition; six new fixtures under `crates/market-data/fixtures/`
+  (prints_good/unsorted/duplicate/bad_size, snapshots_good/slot_gap); and
+  `crates/market-data/tests/intraday_validation.rs` (6 integration tests). Gate: `cargo test
+  -p research-core` 41/41 (incl. the 5 new); `cargo test -p market-data` unit 43/43 (incl. 8 new) +
+  integration 6/6 new + 7/7 pre-existing unchanged; `cargo fmt --all --check` clean; `cargo clippy
+  --all-targets --all-features -- -D warnings` clean; `cargo test --workspace --all-features`
+  0 failed; `cargo run -p cli -- demo | shasum` unchanged (`ae064f79242f823ffd8f55bf9104e3e1b45d425a`,
+  twice); `cargo run -p cli -- sweep-verify` OK (byte-identical across 1/2/8 threads + repeat).
+  `git status` shows exactly the card's files: 2 modified lib.rs, 6 new fixtures, 2 new src files,
+  1 new test file — no existing fixture or file touched. No new dependencies; no Cargo.toml edited;
+  no execution code; `crates/sweep` untouched. Nothing staged/committed (operator commits). Next:
+  M-HF-C2, fresh executor session.

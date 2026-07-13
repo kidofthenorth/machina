@@ -25,9 +25,12 @@ through the milestone gates (money-moving capability stays gated by explicit hum
 - **DOING:** the **M-HF research track** (Q7/D-0012, [m-hf-track.md](m-hf-track.md)) — entered
   2026-07-12: C1–C2.6 unblocked by operator note; HF-Q2 resolved (USDT + jitoSOL research
   allowlist); wave-1 cards C1/C2 reconciled against m-hf-track §1/§2 (IntraBar alias, typed
-  Provenance) and flipped TODO. HF-Q1 (deferred to wave 2) blocks C9/C10; HF-Q3 blocks C10.
-  M6+ does NOT start (reject-all ⇒ no shadow candidate); M8/M9 (signing/submit) need **separate
-  explicit human approval**.
+  Provenance) and flipped TODO. **C1 DONE 2026-07-13** (intraday domain types + series hygiene:
+  `TradePrint`/`SlotSnapshot`/`Provenance`/`IntraBar` in research-core; `validate_prints`/
+  `validate_snapshots`/`validate_snapshots_contiguous` in market-data; six fixtures; full-workspace
+  gate green, demo/sweep determinism unchanged). HF-Q1 (deferred to wave 2) blocks C9/C10; HF-Q3
+  blocks C10. M6+ does NOT start (reject-all ⇒ no shadow candidate); M8/M9 (signing/submit) need
+  **separate explicit human approval**.
 
 ## Completed artifacts
 - Workspace: 8 crates — research-core, market-data, portfolio, metrics, strategies, results, sweep, cli.
@@ -107,8 +110,8 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-Execute **M-HF-C1** (task-queue.md §M-HF wave 1) in a fresh executor session — intraday domain
-types + series hygiene (synthetic-only; no data source, no network). Then M-HF-C2; C2.5/C2.6 must
-be drafted by a planner session before they execute. M6 has no candidate and does not start.
+Execute **M-HF-C2** (task-queue.md §M-HF wave 1) in a fresh executor session — deterministic
+synthetic microstructure generator (requires M-HF-C1, now DONE). Then C2.5/C2.6 must be drafted
+by a planner session before they execute. M6 has no candidate and does not start.
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

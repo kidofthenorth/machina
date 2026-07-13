@@ -10,11 +10,13 @@
 //!   construction / via explicit checks rather than silently accepting bad data.
 
 pub mod bar;
+pub mod intraday;
 pub mod money;
 pub mod time;
 pub mod token;
 
 pub use bar::{Bar, BarError};
+pub use intraday::{IntraBar, IntradayItemError, Provenance, Side, SlotSnapshot, TradePrint};
 pub use money::{
     apply_bps, lamports_to_sol, quantize_floor, LAMPORTS_PER_SOL, SOL_DECIMALS, USDC_DECIMALS,
 };

@@ -2012,7 +2012,7 @@ differs, escalate, don't adapt.
 
 ---
 
-### M-HF-C1 — Intraday domain types + series hygiene (trade prints, slot snapshots, 1s bars) — `TODO` *(reconciled 2026-07-12 against m-hf-track.md §1/§2: IntraBar alias + typed Provenance folded in; verbatim blocks re-verified at `3365907`; unblocked by operator note, questions.md HF-Q1)*
+### M-HF-C1 — Intraday domain types + series hygiene (trade prints, slot snapshots, 1s bars) — `DONE` *(2026-07-13; reconciled 2026-07-12 against m-hf-track.md §1/§2: IntraBar alias + typed Provenance folded in; verbatim blocks re-verified at `3365907`; unblocked by operator note, questions.md HF-Q1)*
 
 **Goal.** Give the research engine intraday primitives with the same hygiene guarantees daily bars
 already have: `TradePrint`/`SlotSnapshot` types in `research-core` (self-checking, like `Bar`),
