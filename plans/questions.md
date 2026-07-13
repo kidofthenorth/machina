@@ -5,10 +5,10 @@ block autonomous M0–M4 *engine* work. Format: Question · Why it matters · Sa
 What's blocked.
 
 > Status: **0 blocking**, 6 non-blocking open (Q1, Q2, Q4, HF-Q1, HF-Q2, HF-Q3), 4 resolved
-> (Q3, Q5, Q6, Q7) + **M5 GO recorded 2026-07-09** (see the M5 block after Q7). Q5's numbers get
-> their final freeze at span confirmation (same sitting as the ingestion hygiene check, before any
-> strategy result) — the one-way ratchet is stated in the Q5 resolution. The Q7 amendment was made
-> 2026-07-09 (D-0012, plans/m-hf-track.md); HF-Q1/Q2/Q3 gate the HF track's later cards.
+> (Q3, Q5, Q6, Q7). **M5 is CLOSED — gate declared 2026-07-12: reject-all, holdout unread** (see
+> the M5 OUTCOME block after Q7). Q5's numbers were frozen 2026-07-11 at span confirmation (Q5
+> addendum) and stay immutable. The Q7 amendment was made 2026-07-09 (D-0012,
+> plans/m-hf-track.md); HF-Q1/Q2 gate M-HF entry; HF-Q3 gates its decisive sweep.
 
 ---
 
@@ -138,6 +138,17 @@ declaration against master-plan.md:903-907; reject-all routes to the HF track). 
 starts in parallel now — the master-plan pair amendment (lockstep, cmp-verified, with a DECISIONS
 entry) and the HF milestone plan, via a multi-design + adversarial-review workflow on Sonnet
 subagents.
+
+**M5 OUTCOME (2026-07-12, card M5-C6): GATE DECLARED — Branch A, ALL 10 CANDIDATES REJECTED; the
+project returns to research via the HF track (Q7/D-0012).** Decisive sweep
+`plans/m5-sweep-report.json` (sha256 `424e713f…fb40`, three-run byte-identical; 180 trials):
+every candidate failed the frozen +0.02 baseline margin and edge-vanishes-under-doubled-costs;
+both 0.75-target rebalancers also breached the 0.35 drawdown budget and 0.40 single-period
+dependence. Thresholds were frozen 2026-07-11 before any real-data result (Q5 addendum above) —
+no number moved after results existed. **The holdout was read zero times** (no
+`evaluate_on_holdout` call site exists); the seal survives for a future cycle. Step-0
+pre-declaration review: PASS (6 agents). A clean reject-all is a success of the gates; no
+execution work starts. Next research work: M-HF entry, gated on HF-Q1/HF-Q2 below.
 
 ## HF-Q1 — Intraday data source + credential handling (extends Q3; blocks M-HF-C9/C10 only)
 - **Why it matters.** The HF track's real-data cards need archived intraday/slot-level history.

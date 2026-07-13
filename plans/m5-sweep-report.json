@@ -1,0 +1,537 @@
+{
+  "schema_version": "1.1.0",
+  "note": "Robustness filter only — not a profitability verdict. 'advanceable' means a candidate survived the robustness battery (costs, doubled costs, walk-forward, baselines) and is eligible for M5 review; it is never evidence the strategy is profitable. In-sample results never establish an edge. | data: binance data.binance.vision SOLUSDC 1d snapshot (CEX-proxy; see plans/m5-data-validation.md), fnv1a64 0x65a1e18b7554a1c5",
+  "trial_count": 180,
+  "thresholds": {
+    "drawdown_budget": "0.35",
+    "turnover_budget": "12",
+    "baseline_margin": "0.02",
+    "dispersion_budget": "0.40",
+    "neighbor_tolerance": "0.15",
+    "min_windows": 6
+  },
+  "candidates": [
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.25;band=0.05",
+      "max_drawdown": "0.1381808459473354743614361564",
+      "turnover": "0.4117132286483089279141059872",
+      "fee_sensitivity": {
+        "before_costs": {
+          "total_return": "-0.0155071925650695335887376491",
+          "turnover": "0.4120242628235773179423540331",
+          "n_trades": 12,
+          "fees_paid_quote": "0",
+          "slippage_paid_quote": "0",
+          "priority_fees_paid_sol": "0"
+        },
+        "base": {
+          "total_return": "-0.0162609555949747002554043158",
+          "turnover": "0.4117132286483089279141059872",
+          "n_trades": 12,
+          "fees_paid_quote": "9.148355776415918322858516804",
+          "slippage_paid_quote": "36.59846486530635581143406715",
+          "priority_fees_paid_sol": "0.0006"
+        },
+        "doubled": {
+          "total_return": "-0.0170114111796300752554043158",
+          "turnover": "0.4114026698951113562806479478",
+          "n_trades": 12,
+          "fees_paid_quote": "18.25396670257516607873353358",
+          "slippage_paid_quote": "73.03583382056192279493413428",
+          "priority_fees_paid_sol": "0.0012"
+        },
+        "return_drag_costs": "0.0007537630299051666666666667",
+        "return_drag_doubled": "0.000750455584655375",
+        "survives_doubled": false
+      }
+    },
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.25;band=0.1",
+      "max_drawdown": "0.1498489724893709546871957979",
+      "turnover": "0.2678513390076052097291494526",
+      "fee_sensitivity": {
+        "before_costs": {
+          "total_return": "-0.018123328065349",
+          "turnover": "0.2677225593713516001145517747",
+          "n_trades": 6,
+          "fees_paid_quote": "0",
+          "slippage_paid_quote": "0",
+          "priority_fees_paid_sol": "0"
+        },
+        "base": {
+          "total_return": "-0.018702760868804",
+          "turnover": "0.2678513390076052097291494526",
+          "n_trades": 6,
+          "fees_paid_quote": "7.4850299401197604790419161371",
+          "slippage_paid_quote": "29.9401197604790419161676645",
+          "priority_fees_paid_sol": "0.0003"
+        },
+        "doubled": {
+          "total_return": "-0.0192798887566161666666666667",
+          "turnover": "0.267979729667628139353193576",
+          "n_trades": 6,
+          "fees_paid_quote": "14.940239043824701195219123516",
+          "slippage_paid_quote": "59.760956175298804780876494",
+          "priority_fees_paid_sol": "0.0006"
+        },
+        "return_drag_costs": "0.000579432803455",
+        "return_drag_doubled": "0.0005771278878121666666666667",
+        "survives_doubled": false
+      }
+    },
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.5;band=0.05",
+      "max_drawdown": "0.2685872053124435916950577288",
+      "turnover": "0.7543359476261037227810435872",
+      "fee_sensitivity": {
+        "before_costs": {
+          "total_return": "-0.0310032406607067206726734987",
+          "turnover": "0.7529484637885346002346500917",
+          "n_trades": 18,
+          "fees_paid_quote": "0",
+          "slippage_paid_quote": "0",
+          "priority_fees_paid_sol": "0"
+        },
+        "base": {
+          "total_return": "-0.0325101619408814403404932144",
+          "turnover": "0.7543359476261037227810435872",
+          "n_trades": 18,
+          "fees_paid_quote": "18.374835238841326963866585973",
+          "slippage_paid_quote": "73.510146047709916899689825813",
+          "priority_fees_paid_sol": "0.0009"
+        },
+        "doubled": {
+          "total_return": "-0.0340101657091374753802169943",
+          "turnover": "0.7557242792803130179377999047",
+          "n_trades": 18,
+          "fees_paid_quote": "36.662635370201511543521880315",
+          "slippage_paid_quote": "146.69344708987167611098144887",
+          "priority_fees_paid_sol": "0.0018"
+        },
+        "return_drag_costs": "0.0015069212801747196678197157",
+        "return_drag_doubled": "0.0015000037682560350397237799",
+        "survives_doubled": false
+      }
+    },
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.5;band=0.1",
+      "max_drawdown": "0.2775723140813268143033301499",
+      "turnover": "0.6740192064166253393642658355",
+      "fee_sensitivity": {
+        "before_costs": {
+          "total_return": "-0.033461567845399",
+          "turnover": "0.6727531728917925215452355005",
+          "n_trades": 8,
+          "fees_paid_quote": "0",
+          "slippage_paid_quote": "0",
+          "priority_fees_paid_sol": "0"
+        },
+        "base": {
+          "total_return": "-0.0346837931022968333333333333",
+          "turnover": "0.6740192064166253393642658355",
+          "n_trades": 8,
+          "fees_paid_quote": "15.817542543236661676646706581",
+          "slippage_paid_quote": "63.2701701729466467065868263",
+          "priority_fees_paid_sol": "0.0004"
+        },
+        "doubled": {
+          "total_return": "-0.0359019041865300833333333333",
+          "turnover": "0.6752841120823858795658464388",
+          "n_trades": 8,
+          "fees_paid_quote": "31.580266337848550796812749006",
+          "slippage_paid_quote": "126.3210653513942031872509958",
+          "priority_fees_paid_sol": "0.0008"
+        },
+        "return_drag_costs": "0.0012222252568978333333333333",
+        "return_drag_doubled": "0.00121811108423325",
+        "survives_doubled": false
+      }
+    },
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.75;band=0.05",
+      "max_drawdown": "0.3796783439046598918802351033",
+      "turnover": "1.0916523284342555880303981386",
+      "fee_sensitivity": {
+        "before_costs": {
+          "total_return": "-0.050181020709526699978061816",
+          "turnover": "1.0890327357810795066639386772",
+          "n_trades": 13,
+          "fees_paid_quote": "0",
+          "slippage_paid_quote": "0",
+          "priority_fees_paid_sol": "0"
+        },
+        "base": {
+          "total_return": "-0.0521838511579897893677096369",
+          "turnover": "1.0916523284342555880303981386",
+          "n_trades": 13,
+          "fees_paid_quote": "24.235081086847029740859927084",
+          "slippage_paid_quote": "96.94500497229314342343970785",
+          "priority_fees_paid_sol": "0.00065"
+        },
+        "doubled": {
+          "total_return": "-0.0541052963934413585283027718",
+          "turnover": "1.0939631862310573802748900445",
+          "n_trades": 13,
+          "fees_paid_quote": "48.369417488058646050630770777",
+          "slippage_paid_quote": "193.4962709541134495125230828",
+          "priority_fees_paid_sol": "0.0013"
+        },
+        "return_drag_costs": "0.0020028304484630893896478209",
+        "return_drag_doubled": "0.0019214452354515691605931349",
+        "survives_doubled": false
+      }
+    },
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.75;band=0.1",
+      "max_drawdown": "0.3877330511556499856550659283",
+      "turnover": "1.0274520451086052023386510951",
+      "fee_sensitivity": {
+        "before_costs": {
+          "total_return": "-0.0490766750650237083333333333",
+          "turnover": "1.0253383782520255514522299917",
+          "n_trades": 8,
+          "fees_paid_quote": "0",
+          "slippage_paid_quote": "0",
+          "priority_fees_paid_sol": "0"
+        },
+        "base": {
+          "total_return": "-0.0508694251479528333333333333",
+          "turnover": "1.0274520451086052023386510951",
+          "n_trades": 8,
+          "fees_paid_quote": "23.199338162901956087824351314",
+          "slippage_paid_quote": "92.7973526516078243512974048",
+          "priority_fees_paid_sol": "0.0004"
+        },
+        "doubled": {
+          "total_return": "-0.0526556002050842083333333333",
+          "turnover": "1.0295647503550235032101424361",
+          "n_trades": 8,
+          "fees_paid_quote": "46.311855994990540338645418345",
+          "slippage_paid_quote": "185.24742397996216135458167305",
+          "priority_fees_paid_sol": "0.0008"
+        },
+        "return_drag_costs": "0.001792750082929125",
+        "return_drag_doubled": "0.001786175057131375",
+        "survives_doubled": false
+      }
+    },
+    {
+      "candidate_label": "trend_alloc_v1/sma=20;above=0.5;below=0",
+      "max_drawdown": "0.1760815684777508377099513221",
+      "turnover": "3.6451089852674103846901605311",
+      "fee_sensitivity": {
+        "before_costs": {
+          "total_return": "-0.0320211313206558651031373796",
+          "turnover": "3.6501102574804042207796715291",
+          "n_trades": 104,
+          "fees_paid_quote": "0",
+          "slippage_paid_quote": "0",
+          "priority_fees_paid_sol": "0"
+        },
+        "base": {
+          "total_return": "-0.037776473431777066949909116",
+          "turnover": "3.6451089852674103846901605311",
+          "n_trades": 104,
+          "fees_paid_quote": "69.387005125735472914803502313",
+          "slippage_paid_quote": "277.78273777442534531677250254",
+          "priority_fees_paid_sol": "0.0052"
+        },
+        "doubled": {
+          "total_return": "-0.0434819431065711286415139834",
+          "turnover": "3.6401061517909220306709798674",
+          "n_trades": 104,
+          "fees_paid_quote": "138.08017105553699353764252302",
+          "slippage_paid_quote": "553.2558099863012654881711179",
+          "priority_fees_paid_sol": "0.0104"
+        },
+        "return_drag_costs": "0.0057553421111212018467717364",
+        "return_drag_doubled": "0.0057054696747940616916048674",
+        "survives_doubled": false
+      }
+    },
+    {
+      "candidate_label": "trend_alloc_v1/sma=20;above=0.75;below=0",
+      "max_drawdown": "0.2546856655578290525493865062",
+      "turnover": "5.2680181102470488890166550393",
+      "fee_sensitivity": {
+        "before_costs": {
+          "total_return": "-0.0480224871066337689868254084",
+          "turnover": "5.27636426564788646203804804",
+          "n_trades": 104,
+          "fees_paid_quote": "0",
+          "slippage_paid_quote": "0",
+          "priority_fees_paid_sol": "0"
+        },
+        "base": {
+          "total_return": "-0.0563408225448917697965457648",
+          "turnover": "5.2680181102470488890166550393",
+          "n_trades": 104,
+          "fees_paid_quote": "101.05902282038212013725565221",
+          "slippage_paid_quote": "404.57722864273136113351702522",
+          "priority_fees_paid_sol": "0.0052"
+        },
+        "doubled": {
+          "total_return": "-0.0645670332054827035698769017",
+          "turnover": "5.2596492969397724418597728683",
+          "n_trades": 104,
+          "fees_paid_quote": "200.87440713277675321048174849",
+          "slippage_paid_quote": "804.855576846560331392604697",
+          "priority_fees_paid_sol": "0.0104"
+        },
+        "return_drag_costs": "0.0083183354382580008097203564",
+        "return_drag_doubled": "0.0082262106605909337733311369",
+        "survives_doubled": false
+      }
+    },
+    {
+      "candidate_label": "trend_alloc_v1/sma=50;above=0.5;below=0",
+      "max_drawdown": "0.0454500089176231392246878625",
+      "turnover": "0.6130961660132646255538549661",
+      "fee_sensitivity": {
+        "before_costs": {
+          "total_return": "0.0204541236240732157758443107",
+          "turnover": "0.6125244288037399469993567316",
+          "n_trades": 20,
+          "fees_paid_quote": "0",
+          "slippage_paid_quote": "0",
+          "priority_fees_paid_sol": "0"
+        },
+        "base": {
+          "total_return": "0.0199451336659207247975221729",
+          "turnover": "0.6130961660132646255538549661",
+          "n_trades": 20,
+          "fees_paid_quote": "5.7853292544426433838477861587",
+          "slippage_paid_quote": "23.145364857868389622216841695",
+          "priority_fees_paid_sol": "0.001"
+        },
+        "doubled": {
+          "total_return": "0.0194370663525466491094299812",
+          "turnover": "0.6136645054136909460121645575",
+          "n_trades": 20,
+          "fees_paid_quote": "11.55781674744477766572227829",
+          "slippage_paid_quote": "46.247440103132908068654004888",
+          "priority_fees_paid_sol": "0.002"
+        },
+        "return_drag_costs": "0.0005089899581524909783221378",
+        "return_drag_doubled": "0.0005080673133740756880921917",
+        "survives_doubled": false
+      }
+    },
+    {
+      "candidate_label": "trend_alloc_v1/sma=50;above=0.75;below=0",
+      "max_drawdown": "0.0681720098961935143794358939",
+      "turnover": "0.8311125487612203241129171406",
+      "fee_sensitivity": {
+        "before_costs": {
+          "total_return": "0.0304763244376783522790316339",
+          "turnover": "0.8305237197710693993664274097",
+          "n_trades": 20,
+          "fees_paid_quote": "0",
+          "slippage_paid_quote": "0",
+          "priority_fees_paid_sol": "0"
+        },
+        "base": {
+          "total_return": "0.0297430049323365301165799132",
+          "turnover": "0.8311125487612203241129171406",
+          "n_trades": 20,
+          "fees_paid_quote": "8.085891455629822838577954464",
+          "slippage_paid_quote": "32.346607942622866985039490591",
+          "priority_fees_paid_sol": "0.001"
+        },
+        "doubled": {
+          "total_return": "0.0290117858122694574492956355",
+          "turnover": "0.8316991193100716100681240384",
+          "n_trades": 20,
+          "fees_paid_quote": "16.146983274735408280708915493",
+          "slippage_paid_quote": "64.600089841073766306842014069",
+          "priority_fees_paid_sol": "0.002"
+        },
+        "return_drag_costs": "0.0007333195053418221624517207",
+        "return_drag_doubled": "0.0007312191200670726672842777",
+        "survives_doubled": false
+      }
+    }
+  ],
+  "verdicts": [
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.25;band=0.05",
+      "status": "rejected",
+      "failed_criteria": [
+        {
+          "kind": "fails_baseline_comparison",
+          "observed": "-0.0981657354570116201191701929",
+          "threshold": "0.02"
+        },
+        {
+          "kind": "edge_vanishes_under_doubled_costs",
+          "observed": "-0.0170114111796300752554043158",
+          "threshold": "0.0804780668820700082261097082"
+        }
+      ]
+    },
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.25;band=0.1",
+      "status": "rejected",
+      "failed_criteria": [
+        {
+          "kind": "fails_baseline_comparison",
+          "observed": "-0.1006075407308409198637658771",
+          "threshold": "0.02"
+        },
+        {
+          "kind": "edge_vanishes_under_doubled_costs",
+          "observed": "-0.0192798887566161666666666667",
+          "threshold": "0.0804780668820700082261097082"
+        }
+      ]
+    },
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.5;band=0.05",
+      "status": "rejected",
+      "failed_criteria": [
+        {
+          "kind": "fails_baseline_comparison",
+          "observed": "-0.1144149418029183602042590915",
+          "threshold": "0.02"
+        },
+        {
+          "kind": "edge_vanishes_under_doubled_costs",
+          "observed": "-0.0340101657091374753802169943",
+          "threshold": "0.0804780668820700082261097082"
+        }
+      ]
+    },
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.5;band=0.1",
+      "status": "rejected",
+      "failed_criteria": [
+        {
+          "kind": "fails_baseline_comparison",
+          "observed": "-0.1165885729643337531970992104",
+          "threshold": "0.02"
+        },
+        {
+          "kind": "edge_vanishes_under_doubled_costs",
+          "observed": "-0.0359019041865300833333333333",
+          "threshold": "0.0804780668820700082261097082"
+        }
+      ]
+    },
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.75;band=0.05",
+      "status": "rejected",
+      "failed_criteria": [
+        {
+          "kind": "fails_baseline_comparison",
+          "observed": "-0.1340886310200267092314755140",
+          "threshold": "0.02"
+        },
+        {
+          "kind": "edge_vanishes_under_doubled_costs",
+          "observed": "-0.0541052963934413585283027718",
+          "threshold": "0.0804780668820700082261097082"
+        },
+        {
+          "kind": "depends_on_one_period",
+          "observed": "0.572679457658875000000000",
+          "threshold": "0.40"
+        },
+        {
+          "kind": "drawdown_exceeds_budget",
+          "observed": "0.3796783439046598918802351033",
+          "threshold": "0.35"
+        }
+      ]
+    },
+    {
+      "candidate_label": "threshold_rebalance_v1/target=0.75;band=0.1",
+      "status": "rejected",
+      "failed_criteria": [
+        {
+          "kind": "fails_baseline_comparison",
+          "observed": "-0.1327742050099897531970992104",
+          "threshold": "0.02"
+        },
+        {
+          "kind": "edge_vanishes_under_doubled_costs",
+          "observed": "-0.0526556002050842083333333333",
+          "threshold": "0.0804780668820700082261097082"
+        },
+        {
+          "kind": "depends_on_one_period",
+          "observed": "0.5636702662339137500000000",
+          "threshold": "0.40"
+        },
+        {
+          "kind": "drawdown_exceeds_budget",
+          "observed": "0.3877330511556499856550659283",
+          "threshold": "0.35"
+        }
+      ]
+    },
+    {
+      "candidate_label": "trend_alloc_v1/sma=20;above=0.5;below=0",
+      "status": "rejected",
+      "failed_criteria": [
+        {
+          "kind": "fails_baseline_comparison",
+          "observed": "-0.1196812532938139868136749931",
+          "threshold": "0.02"
+        },
+        {
+          "kind": "edge_vanishes_under_doubled_costs",
+          "observed": "-0.0434819431065711286415139834",
+          "threshold": "0.0804780668820700082261097082"
+        }
+      ]
+    },
+    {
+      "candidate_label": "trend_alloc_v1/sma=20;above=0.75;below=0",
+      "status": "rejected",
+      "failed_criteria": [
+        {
+          "kind": "fails_baseline_comparison",
+          "observed": "-0.1382456024069286896603116419",
+          "threshold": "0.02"
+        },
+        {
+          "kind": "edge_vanishes_under_doubled_costs",
+          "observed": "-0.0645670332054827035698769017",
+          "threshold": "0.0804780668820700082261097082"
+        }
+      ]
+    },
+    {
+      "candidate_label": "trend_alloc_v1/sma=50;above=0.5;below=0",
+      "status": "rejected",
+      "failed_criteria": [
+        {
+          "kind": "fails_baseline_comparison",
+          "observed": "-0.0619596461961161950662437042",
+          "threshold": "0.02"
+        },
+        {
+          "kind": "edge_vanishes_under_doubled_costs",
+          "observed": "0.0194370663525466491094299812",
+          "threshold": "0.0804780668820700082261097082"
+        }
+      ]
+    },
+    {
+      "candidate_label": "trend_alloc_v1/sma=50;above=0.75;below=0",
+      "status": "rejected",
+      "failed_criteria": [
+        {
+          "kind": "fails_baseline_comparison",
+          "observed": "-0.0521617749297003897471859639",
+          "threshold": "0.02"
+        },
+        {
+          "kind": "edge_vanishes_under_doubled_costs",
+          "observed": "0.0290117858122694574492956355",
+          "threshold": "0.0804780668820700082261097082"
+        }
+      ]
+    }
+  ]
+}

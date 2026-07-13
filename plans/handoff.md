@@ -1,9 +1,12 @@
 # Handoff — for a new chat continuing machina
 
-You are picking up a build where **M4 is DONE and gate-declared**; M5 requires an explicit operator
-decision first. This is the single entry point. Read the five pointer files below, confirm the gates
-are green, then follow the STOP block in [current-state.md](current-state.md) — do not proceed into
-M5 without it. **Do not commit or push — the operator commits.**
+You are picking up a build where **M5 is CLOSED — gate declared 2026-07-12: ALL 10 candidates
+REJECTED (Branch A), holdout read zero times, seal intact.** A clean reject-all is a success of
+the gates; the project returns to research via the **M-HF track** (Q7/D-0012), whose entry is
+still gated on **HF-Q1/HF-Q2** (questions.md) plus the wave-1 card reconciliation
+(m-hf-track.md §5). This is the single entry point. Read the pointer files below, confirm the
+gates are green, and do NOT start M-HF cards, M6+, or any execution work without the operator's
+written unblock. **Do not commit or push — the operator commits.**
 
 ---
 
@@ -120,7 +123,7 @@ Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronolo
 ```bash
 cargo fmt --all --check                                  # clean
 cargo clippy --all-targets --all-features -- -D warnings # clean
-cargo test --workspace --all-features                    # 301 passed, 0 failed (2026-07-09, card M4-C9 gate declaration)
+cargo test --workspace --all-features                    # 313 passed, 0 failed (2026-07-12, M5 gate declaration)
 cargo run -p cli -- demo                                 # deterministic, schema-valid RunResult (shasum ae064f79242f823ffd8f55bf9104e3e1b45d425a, identical on repeat)
 cargo run -p cli -- sweep                                # deterministic sweep report (shasum 7ad3df7de2e2c1139be427e9c953b57d4e289cb3, identical ×2 and at --threads 8)
 cargo run -p cli -- sweep-verify                         # sweep-verify: OK — byte-identical across sequential, 2 and 8 threads, and repeat (18990 bytes); exit 0
@@ -129,24 +132,27 @@ pattern='solana-sdk|solana-client|solana-program|solana-rpc|jupiter|jito|ed25519
 grep -REn --include='Cargo.toml' "$pattern" . | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || echo OK
 ```
 
-Repo state (2026-07-09): **M4 gate declared (card M4-C9).** The operator has committed through card
-M4-C9 (HEAD = `98724e2`, "GATE DECLARED 2026-07-09 — M4 sweep/walk-forward complete"); card M4-C10
-(this handoff pointer) is this session's plan-only edit, pending operator commit. **Never** `git add
--A`; **never** stage `.claude/`. Stage explicit paths only. (Run `git status` to confirm current HEAD
-and what's staged.)
+Repo state (2026-07-12): **M5 gate declared (card M5-C6, Branch A reject-all).** The operator has
+committed through M5-C5; the C6 declaration diff (plan files only) is staged pending operator
+commit. Additional M5 evidence artifacts now checked in: `plans/m5-sweep-report.json`,
+`plans/m5-data-validation.md`, `config/strategies/m5-frozen.toml` (immutable records). The real
+snapshot lives in gitignored `data/raw/binance/SOLUSDC-1d` (916 bars; never staged). **Never**
+`git add -A`; **never** stage `.claude/`. Stage explicit paths only. (Run `git status` to confirm
+current HEAD and what's staged.)
 
-## What's next — M5 is GO (operator decisions recorded 2026-07-09)
+## What's next — M5 is CLOSED (gate declared 2026-07-12); the HF track is the road ahead
 
-**M4 is DONE — gate declared 2026-07-09 (card M4-C9).** The former STOP is lifted: questions.md
-records the Q3 resolution (Binance data.binance.vision daily SOLUSDC snapshot, CEX-proxy caveat
-acknowledged), the Q5 resolution (thresholds approved; final numbers frozen at span confirmation,
-one-way ratchet), and the **M5 GO**.
+**M5 outcome: reject-all (Branch A).** Decisive real-data sweep `plans/m5-sweep-report.json`
+(sha256 `424e713f…fb40`, three-run byte-identical; 180 trials, 10 verdicts): every candidate
+failed the frozen +0.02 baseline margin and edge-vanishes-under-doubled-costs (thresholds frozen
+2026-07-11 in `config/strategies/m5-frozen.toml` BEFORE any real-data result — see
+`plans/m5-data-validation.md`). `evaluate_on_holdout` was never called; the 2026-01-01..2026-06-30
+holdout survives unseen for a future cycle. Step-0 review: PASS (6 agents).
 
-**The active queue is task-queue.md §M5 — cards M5-C1…C6, in order, one card per fresh session:**
-ingestion script → `data-validate` hygiene → Q5 number-freeze sitting (operator) → `--config`/
-`--data` sweep wiring → decisive sweep → decision card (the single call-once `evaluate_on_holdout`
-for an advanceable candidate; **reject-all reads the holdout zero times** and routes to the HF
-track). The declaration is judged against master-plan.md:903-909.
+**There is no active executor queue.** The next research work is the **M-HF track**
+([m-hf-track.md](m-hf-track.md)); its wave-1 cards are BLOCKED pending HF-Q1/HF-Q2 (questions.md)
+and the §5 card reconciliation — a planner session must resolve those before any executor card is
+issued. Neither daily-bar family advances; M6 (shadow) has no candidate and does not start.
 
 The Q7 HF amendment was made 2026-07-09 (D-0012): master-plan pair amended in lockstep
 (cmp-verified); milestone plan at [m-hf-track.md](m-hf-track.md). M-HF execution still waits on
@@ -194,30 +200,20 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 
 ---
 
-## Seed prompt for the new chat — execute the next M5 card
+## Seed prompt for the new chat — no executor work is queued
 
-> You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
-> crypto trading-**research** platform in Rust built toward **genuine autonomous passive income**
-> (truly autonomous, so truly passive), earned through milestone gates. The current phase is
-> research: no keys/signing/RPC/network anywhere in the tree (the only network touch in all of M5
-> is the operator running the M5-C1 shell script by hand).
+> You are picking up **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused crypto
+> trading-**research** platform in Rust built toward **genuine autonomous passive income** (truly
+> autonomous, so truly passive), earned through milestone gates.
 >
-> **State:** M4 gate declared 2026-07-09; workspace green at **301 tests, 0 failed**; demo shasum
-> `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum
-> `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify: OK`. Operator resolutions Q3/Q5 + M5
-> GO are recorded in `plans/questions.md` (2026-07-09).
+> **State (2026-07-12):** M5 gate DECLARED — Branch A, all 10 candidates rejected; holdout read
+> zero times, seal intact; queue §M5 CLOSED. Workspace green at **313 tests, 0 failed**; demo
+> shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template sweep shasum
+> `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify: OK`.
 >
-> Your task is **the next TODO card in `plans/task-queue.md` §M5** (M5-C1 → C6, in order). Read the
-> M4 section's common rules, then the card. It is self-contained — do not open files it doesn't
-> name; do not do more than it says. M5-C3 and M5-C6 are operator+planner cards — if the next card
-> is one of those, say so and stop.
->
-> When the gate passes: flip the card, one worklog line, stop — the next card gets a fresh chat.
-> If any escalate-if triggers: STOP, record the mismatch in the worklog, report.
->
-> Non-negotiables (unchanged): `Decimal`/integer only for money — never f64; the holdout stays
-> sealed — `evaluate_on_holdout` is called at most once, only by the M5-C6 decision card, never by
-> you; never stage anything under `data/`; never edit `schemas/*.json`, `plans/master-plan.md`, or
-> `solana-crypto-trader-plan.md`; never `git commit`/`git push` (stage explicit paths only, never
-> `.claude/`, never `git add -A`); never start M6+ (network) or M8/M9 (signing/submit — separate
-> explicit human approval).
+> **There is no TODO executor card.** The next work is the M-HF research track
+> (`plans/m-hf-track.md`), BLOCKED on HF-Q1/HF-Q2 (`plans/questions.md`) and the §5 wave-1 card
+> reconciliation — planner + operator work, not executor work. If you were opened as an executor:
+> report this and stop. Do not start M-HF, M6+ (network), or M8/M9 (signing/submit — separate
+> explicit human approval); never `git commit`/`git push`; never stage `data/` or `.claude/`;
+> `config/strategies/m5-frozen.toml` and the M5 evidence artifacts are immutable records.

@@ -13,17 +13,19 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   sweep core, walk-forward windows, holdout seal, cost/fee-sensitivity ladder, advancement/rejection
   report + schema, CLI `sweep`/`sweep-verify`, D-0009/D-0010/D-0011 recorded); **gate declared
   2026-07-09 (card M4-C9)**; 301 tests green. Plan: [m4-sweep.md](m4-sweep.md).
-- **DOING:** M5 (research decision) — **operator GO recorded 2026-07-09**. Cards **M5-C1…C6** in
-  [task-queue.md](task-queue.md) §M5: **C1 (ingestion script), C2 (`data-validate`), C3 (Q5 freeze
-  sitting) DONE**. Real data confirmed 2026-07-11: 916 bars 2023-12-28..2026-06-30, fnv1a64
-  `0x65a1e18b7554a1c5` ([m5-data-validation.md](m5-data-validation.md)); policy **frozen** in
-  `config/strategies/m5-frozen.toml` (rolling 365/60/60/5, min_windows 6, holdout 2026-01-01
-  onward — one-way ratchet closed, immutable this cycle).
-- **NEXT:** execute M5-C4 (`--config`/`--data` sweep wiring) → C5 (decisive sweep) → M5-C6
-  (decision card: the single call-once
-  `evaluate_on_holdout`, advance-or-reject-all vs master-plan.md:903-909; reject-all routes to the
-  HF track). M6 needs plan §22 source re-check; M8/M9 (signing/submit) need **separate explicit
-  human approval**.
+- **DONE:** M5 (research decision) — **GATE DECLARED 2026-07-12 (card M5-C6): Branch A — ALL 10
+  CANDIDATES REJECTED; the project returns to research.** Judged against master-plan.md:903-909
+  verbatim. Evidence: [m5-sweep-report.json](m5-sweep-report.json) (sha256 `424e713f…fb40`, ×3
+  byte-identical; 180 trials; every candidate fails the +0.02 baseline margin and
+  edge-vanishes-under-doubled-costs). Thresholds were frozen 2026-07-11 BEFORE any real-data
+  result ([m5-data-validation.md](m5-data-validation.md); `config/strategies/m5-frozen.toml`).
+  **Holdout read count: 0** — the seal and the 2026-01-01..2026-06-30 holdout survive unseen.
+  Step-0 pre-declaration review: PASS (6 agents). A clean reject-all is a success of the gates:
+  neither daily-bar family earns mainnet shadow; **no execution work starts.**
+- **NEXT:** the **M-HF research track** (Q7/D-0012, [m-hf-track.md](m-hf-track.md)) — the
+  operator-chosen "return to research." Entry gated on **HF-Q1/HF-Q2** (questions.md) and the
+  wave-1 card reconciliation (m-hf-track.md §5). M6+ does NOT start (reject-all ⇒ no shadow
+  candidate); M8/M9 (signing/submit) need **separate explicit human approval**.
 
 ## Completed artifacts
 - Workspace: 8 crates — research-core, market-data, portfolio, metrics, strategies, results, sweep, cli.
@@ -67,6 +69,11 @@ through the milestone gates (money-moving capability stays gated by explicit hum
 - M4 gate declaration (card M4-C9, 2026-07-09) → full step-1 battery re-run fresh, all pass; two prior
   C9 pre-declaration reviews' findings resolved and reverified before declaring (D-0010 fee-sensitivity
   fix; D-0011 family-comparison descope, m4-sweep §10 amended).
+- M5 gate declaration (card M5-C6, 2026-07-12) → fresh battery: fmt/clippy clean; **313 passed, 0
+  failed**; demo `ae064f79…` + template sweep `7ad3df7d…` unchanged; sweep-verify OK; real-data
+  sweep three-run byte-identical (incl. `--threads 8`); checked-in report sha256 `424e713f…fb40`
+  byte-identical to a fresh run; `data-validate` matches the freeze record exactly; step-0
+  adversarial review PASS (6 agents); holdout read count 0.
 
 ## Safety posture (all upheld)
 - No keys / signing / submit / RPC / network in the tree (no such crate is even depended upon).
@@ -74,9 +81,9 @@ through the milestone gates (money-moving capability stays gated by explicit hum
 - Allowlist-gated; next-bar execution (final-bar signal cannot open a position); strategies = intent.
 
 ## Commit state
-- Operator committed through M5-C2; **HEAD = `0d8efaa` (2026-07-10, "M5-C2 done")**; the M5-C3
-  freeze-sitting diff is staged pending operator commit. Operator commits only — executors never
-  commit/push; stage explicit paths only, never `.claude/`, never `git add -A`.
+- Operator committed through M5-C5; the M5-C6 declaration diff (plan files only) is staged pending
+  operator commit. Operator commits only — executors never commit/push; stage explicit paths only,
+  never `.claude/`, never `git add -A`.
 
 ## Known blockers / open items
 - **0 blocking.** 2026-07-09: Q3 + Q5 RESOLVED and M5 GO recorded (plans/questions.md). Remaining
@@ -98,8 +105,8 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-Execute **M5-C4** (task-queue.md §M5) in a fresh executor session — wire `--config`/`--data` into
-`machina sweep`. The Q5 freeze (M5-C3) is DONE (2026-07-11): frozen numbers are immutable this
-cycle; the M4 no-flag sweep path must stay byte-identical (`7ad3df7d…`).
+None queued — **M5 is CLOSED (reject-all, 2026-07-12)**. The next work is planner+operator: resolve
+**HF-Q1/HF-Q2** (questions.md) and run the m-hf-track.md §5 wave-1 card reconciliation before any
+M-HF executor card is issued. M6 has no candidate and does not start.
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

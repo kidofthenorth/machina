@@ -1574,7 +1574,7 @@ edit; you find yourself wanting to sketch M5 implementation steps (don't — tha
 
 ---
 
-## M5 — task cards (ACTIVE — operator GO recorded 2026-07-09; execute in order, one card per fresh session)
+## M5 — task cards (**CLOSED 2026-07-12** — gate declared: Branch A reject-all, holdout unread; see worklog + current-state)
 
 The M5 research decision, per the operator's written resolutions in `plans/questions.md` (Q3, Q5,
 and the M5 GO block, all 2026-07-09). Sequence: ingestion → hygiene + span confirmation → Q5
@@ -1825,7 +1825,7 @@ don't fix silently); tempted to touch `schemas/sweep-report.schema.json`.
 
 ---
 
-### M5-C5 — The decisive sweep run (mechanical; evidence captured) — `TODO`
+### M5-C5 — The decisive sweep run (mechanical; evidence captured) — `DONE`
 
 **Goal.** Produce the one canonical real-data sweep report the M5 decision reads (master-plan
 deliverables :895-903).
@@ -1855,7 +1855,7 @@ results — the ratchet is closed. Never stage `data/`.
 
 ---
 
-### M5-C6 — M5 decision card: the single holdout read + advance-or-reject-all declaration (OPERATOR + planner) — `TODO`
+### M5-C6 — M5 decision card: the single holdout read + advance-or-reject-all declaration (OPERATOR + planner) — `DONE` *(2026-07-12: Branch A — reject-all declared; step-0 review PASS, 6 agents; holdout read count 0)*
 
 **Goal.** Deliver M5's gate (master-plan.md:903-909, quoted verbatim during declaration): "One
 candidate is selected for mainnet shadow because it satisfies predefined robustness and drawdown

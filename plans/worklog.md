@@ -721,3 +721,51 @@ recorded inline (not full logs).
   and matching at `--threads 8`; provenance note carries `fnv1a64 0x65a1e18b7554a1c5`, matching the
   M5-C3 freeze record exactly; `trial_count` 180; no `Cargo.toml`/`Cargo.lock` changes. M5-C4
   flipped to DONE. Next: M5-C5 (the decisive sweep run — mechanical, evidence captured).
+- 2026-07-12 (executor, M5-C5): preconditions confirmed — `data-validate --dir
+  data/raw/binance/SOLUSDC-1d` reprinted `OK — 916 bars, 2023-12-28..2026-06-30, spacing 86400s,
+  fnv1a64 0x65a1e18b7554a1c5`, matching `plans/m5-data-validation.md` exactly; full-workspace gate
+  green (fmt/clippy/test, 313 tests, 0 failed) before running. Decisive run: `machina sweep
+  --config config/strategies/m5-frozen.toml --data data/raw/binance/SOLUSDC-1d --out
+  plans/m5-sweep-report.json`, sha256
+  `424e713f330e763d0016cb4fcf92b41e4c8d02bd12ba24517d0eaf12ecc0fb40`; repeated to a scratch temp
+  path (`cmp` byte-identical) and again with `--threads 8` to a second scratch temp path (`cmp`
+  byte-identical) — three-run identity confirmed, parallel == sequential on real data. Report:
+  `schema_version` 1.1.0, `trial_count` 180, thresholds match the M5-C3 freeze verbatim
+  (drawdown_budget 0.35, turnover_budget 12, baseline_margin 0.02, dispersion_budget 0.40,
+  neighbor_tolerance 0.15, min_windows 6). Verdicts: **10 rejected, 0 advanceable** (all 10
+  candidates from `m5-frozen.toml`'s grids). `cargo test -p sweep schema` green (2 passed) —
+  schema-validator path confirmed. No result interpreted here (M5-C6's call). `git status` shows
+  only `plans/m5-sweep-report.json` new. M5-C5 flipped to DONE. Next: M5-C6 (operator + planner
+  decision card — holdout read gated on an advanceable candidate; with 0 advanceable, the holdout
+  is never read).
+- 2026-07-12 (planner verify, M5-C4/C5): both cards re-verified fresh (313 tests 0 failed;
+  no-flag sweep `7ad3df7d…` + demo `ae064f79…` unchanged; sweep-verify OK; real-data sweep ×3
+  byte-identical incl. `--threads 8`; checked-in report byte-identical to a fresh `--out` run;
+  schema suite 8/8 green; `data-validate` matches the freeze record exactly).
+- 2026-07-12 (M5-C6 step 0): mandatory pre-declaration adversarial review — **PASS (6 agents)**.
+  4 Sonnet lenses (verdict-vs-report fidelity, frozen-threshold integrity, holdout-path audit,
+  declaration-vs-master-plan conformance) + 2 skeptics per finding. 1 raw finding (claimed
+  malformed report sha256) refuted by both skeptics via fresh shasum (64 hex chars, exact match).
+  Zero confirmed findings → proceed to declaration per the fixed decision rule.
+- 2026-07-12 (OPERATOR + planner, M5-C6): **M5 GATE DECLARED — Branch A: ALL CANDIDATES REJECTED;
+  the project returns to research (the HF track, Q7/D-0012).** Judged against master-plan.md:903-909
+  verbatim ("One candidate is selected for mainnet shadow because it satisfies predefined
+  robustness and drawdown criteria, **or all candidates are rejected and the project returns to
+  research**. No execution work starts merely because the software exists."). Evidence:
+  `plans/m5-sweep-report.json` (sha256 `424e713f330e763d0016cb4fcf92b41e4c8d02bd12ba24517d0eaf12ecc0fb40`,
+  three-run byte-identical), 180 trials, 10 verdicts. Failed criteria per candidate
+  (observed vs frozen threshold; full-precision decimals live in the report):
+  every candidate failed `fails_baseline_comparison` (margin vs best cost-matched baseline,
+  required ≥ +0.02): threshold_rebalance_v1 t=.25/b=.05 −0.0982 · t=.25/b=.1 −0.1006 ·
+  t=.5/b=.05 −0.1144 · t=.5/b=.1 −0.1166 · t=.75/b=.05 −0.1341 · t=.75/b=.1 −0.1328;
+  trend_alloc_v1 sma20/a=.5 −0.1197 · sma20/a=.75 −0.1382 · sma50/a=.5 −0.0620 ·
+  sma50/a=.75 −0.0522. All 10 also failed `edge_vanishes_under_doubled_costs` (threshold
+  0.0804780668820700082261097082). Both t=.75 rebalancers additionally failed
+  `drawdown_exceeds_budget` (0.3797 / 0.3877 vs 0.35) and `depends_on_one_period`
+  (0.5727 / 0.5637 vs 0.40). **Holdout read count: 0** — zero `evaluate_on_holdout` call sites in
+  the tree (audited); the seal and the 2026-01-01..2026-06-30 holdout survive unseen for a future
+  cycle. A clean reject-all is a success of the gates: neither daily-bar family earns mainnet
+  shadow this cycle; no execution work starts. The goal stands as stated — genuine autonomous
+  passive income earned through gates; this cycle's evidence says these two families on daily bars
+  are not the strategy that earns it. M5-C6 DONE; queue §M5 CLOSED. Next: M-HF research track
+  entry, gated on HF-Q1/HF-Q2 (questions.md) + the wave-1 card reconciliation (m-hf-track.md §5).
