@@ -3131,7 +3131,7 @@ fixture in, write under `data/`, or add a dependency.
 
 ---
 
-### M-HF-C3 — `run_hf` / `LatencyPipeline`: latency-aware entry point (`simulator.rs` READ-ONLY) — `TODO`
+### M-HF-C3 — `run_hf` / `LatencyPipeline`: latency-aware entry point (`simulator.rs` READ-ONLY) — `DONE` *(2026-07-13; 363 passed/0 failed/1 ignored; fixed_latency(1)==run green; thread counts {1,2,3,7,8} identical; demo/sweep shasums unchanged; simulator.rs untouched)*
 
 **Goal.** Give the research engine a latency-aware HF entry point that generalizes the simulator
 loop **without touching `run`** (m-hf-track §1 item 1, §3, §5 row C3): a signal decided from

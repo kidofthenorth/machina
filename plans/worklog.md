@@ -931,3 +931,29 @@ recorded inline (not full logs).
   table byte-identical across explicit threads {1,2,3,7,8}; M2 suite untouched; demo/sweep hashes
   unchanged. **Checkpoint reminder:** per m-hf-track §5, C3 is a named risk point (review after it
   executes) and the C3–C5 block ends in a mandatory adversarial review before C6+ is expanded.
+- 2026-07-14 (planner verify + post-C3 adversarial review): C3 re-verified fresh (363 passed 0
+  failed 1 ignored; fmt/clippy clean; demo/sweep hashes unchanged; sweep-verify OK; scope exact —
+  simulator.rs untouched; no rand/Instant/SystemTime; executor's one deviation, `div_ceil` for
+  clippy `manual_div_ceil`, arithmetic-identical + test-only, accepted). **Review — the m-hf-track
+  §5 post-C3 risk point — ran (6 Sonnet agents, 4 lenses + 2 skeptics/finding): C3 STANDS; 1
+  confirmed MINOR** — no test pinned the legal probability boundaries p=0/p=1 (all-un-landed /
+  all-landed). Equivalence lens (argument-stream identity, helper-twin char-diff, non-vacuous
+  regressions), semantics lens (all pinned decisions honored, no lookahead), and scope lens
+  returned zero findings. Fix per the fixed rule (≤10 lines test code):
+  `probability_boundaries_are_legal_and_exact` added in latency.rs. Re-run: workspace **364
+  passed, 0 failed, 1 ignored**. Next: draft M-HF-C4 (HF cost-model fields); the C3–C5 block
+  still ends in its mandatory block-level review before C6+.
+- 2026-07-13 (executor, M-HF-C3): **DONE.** Step 0 gate green before touching any file (349
+  passed, 0 failed, 1 ignored; demo `ae064f…`, sweep `7ad3df…` verified). Built per card:
+  `crates/portfolio/src/latency.rs` (LatencyPipeline/LandingOutcome/HfError, splitmix64 +
+  landing_draw + build_landing_table, verbatim simulator.rs helper twins, `run_hf` +
+  10 unit tests), `lib.rs` wiring (module + re-exports + doc line),
+  `tests/hf_regression.rs` (3 × `fixed_latency_one_equals_run_*` full-struct equality over
+  4 shapes × 2 cost models, all green name-for-name; `landing_table_identical_across_thread_counts`
+  with explicit {1,2,3,7,8}, green). simulator.rs untouched (`git diff --name-only`: only the 3
+  card files + queue/worklog). Full gate: fmt --check clean; clippy -D warnings clean (one
+  test-only `div_ceil` lint fixed in hf_regression.rs); workspace **363 passed, 0 failed,
+  1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` and sweep shasum
+  `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` unchanged; sweep-verify OK (byte-identical across
+  sequential/2/8 threads + repeat). No Cargo.toml/Cargo.lock change; no RNG/clock anywhere.
+  Per m-hf-track §5, C3 is a named risk point — adversarial review before C4 is drafted.
