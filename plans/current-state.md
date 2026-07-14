@@ -110,9 +110,10 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-Execute **M-HF-C2.5** (task-queue.md §M-HF wave 1) in a fresh executor session — the reuse-proof
-(test-only, ZERO src changes; drafted 2026-07-13 against verified signatures). C2 is DONE. An
-adversarial review follows C2.5 (m-hf-track §5 risk point) before C2.6 is drafted. M6 has no
-candidate and does not start.
+Execute **M-HF-C2.6** (task-queue.md §M-HF wave 1) in a fresh executor session — the
+streaming/scale proof (columnar format + `IntradaySource`; 31.5M-row `#[ignore]`d proof run once,
+numbers recorded; D-0013). C2.5 is DONE and its post-card adversarial review PASSED (bet holds;
+trial_count pinned to 192). After C2.6: planner drafts C3 (latency pipeline — new surface begins).
+M6 has no candidate and does not start.
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

@@ -3014,6 +3014,121 @@ would validate only after a schema edit (forbidden); demo/sweep hashes move.
 
 ---
 
+### M-HF-C2.6 — Streaming/scale proof: `IntradaySource` + columnar reader at ~31.5M rows — `TODO`
+
+**Goal.** Prove the compute/memory contract BEFORE the fill engine exists (m-hf-track §2/§5 row
+C2.6): a year of 1s bars (~31.5M rows) lives on disk in a fixed-record columnar file; sweeps
+slice only their window (`IntradaySource`), so peak memory ≈ `n_threads × max_window_bars`, never
+the whole year. Deliverables: the format + reader/writer, the trait, measured wall-clock + peak
+RSS on the full-scale fixture, and the storage-format decision recorded as **D-0013**.
+
+**Files.** `crates/market-data/src/columnar.rs` (new) + one `pub mod`/re-export line in
+`crates/market-data/src/lib.rs`; `DECISIONS.md` (new D-0013 entry, newest-first). *(Sanctioned
+3-file card; the scale fixture itself is written to a temp dir at test time and NEVER checked in
+or placed under `data/`.)*
+
+**Current state (verbatim, verified 2026-07-13 at the post-C2.5 review).**
+- `research-core/src/bar.rs:12-21` — `Bar { ts: Timestamp, open/high/low/close/volume: Decimal }`.
+- `research-core/src/time.rs:17,23` — `Timestamp::from_unix(secs: i64)`, `.as_unix() -> i64`.
+- `market-data/src/synthetic.rs` (C2) — `pub fn generate(spec: &SyntheticSpec) ->
+  Result<SyntheticIntraday, SyntheticError>`; `SyntheticSpec` fields as in card M-HF-C2.
+- `market-data` deps: research-core, rust_decimal, serde, toml (dev: rust_decimal_macros,
+  serde_json). **No new deps** — file I/O via `std::fs`/`std::io` only (m-hf-track §2:
+  memmap2/arrow would require their own recorded decision; they are NOT taken here).
+- m-hf-track §2 contract (verbatim): "an `IntradaySource` trait (`fn slice(&self, Range<usize>)
+  -> Vec<Bar>; fn len(&self)`) — cells slice only their window … Storage: fixed-record columnar
+  binary (ts + scaled integer OHLCV, ~40 bytes/row) read via `std::fs` — zero new deps".
+
+**Steps.**
+1. `columnar.rs` — the format. Header (24 bytes): magic `b"MCHC"` (4) + version `u32` = 1 (4) +
+   price/volume scale `u32` (4) + reserved `u32` = 0 (4) + row count `u64` (8). Row (48 bytes,
+   little-endian): `ts: i64` + `open/high/low/close/volume` each an `i64` mantissa at the header
+   scale. Conversion is EXACT or an error — never round:
+   ```rust
+   /// Scale `d` to an integer mantissa at `scale` decimal places; None if it doesn't fit exactly
+   /// (lossy storage is a hygiene violation, not a warning).
+   fn to_scaled_i64(d: Decimal, scale: u32) -> Option<i64> {
+       let mut scaled = d;
+       scaled.rescale(scale); // rust_decimal: adjusts exponent, may round
+       if scaled != d {
+           return None; // rescale rounded ⇒ d does not fit exactly
+       }
+       scaled.mantissa().try_into().ok()
+   }
+   fn from_scaled_i64(m: i64, scale: u32) -> Decimal {
+       Decimal::new(m, scale)
+   }
+   ```
+2. `ColumnarError` enum (Io(String), BadMagic, BadVersion(u32), ScaleOverflow { row: u64,
+   field: &'static str }, RowCountMismatch { header: u64, actual: u64 }, SliceOutOfBounds {
+   requested_end: usize, len: usize }) + Display + Error impls, same style as `binance_csv.rs`.
+3. Writer: `pub struct ColumnarWriter` — `create(path, scale) -> Result<Self>`, `append_bars(&mut
+   self, bars: &[Bar]) -> Result<()>` (streams rows through a `BufWriter`; errors on any inexact
+   scale), `finish(mut self) -> Result<u64>` (seeks back, writes the final row count into the
+   header, flushes; returns rows written). Chunked appends are the point — the caller never holds
+   more than one segment in memory.
+4. Reader + trait:
+   ```rust
+   pub trait IntradaySource {
+       fn len(&self) -> usize;
+       fn is_empty(&self) -> bool { self.len() == 0 }
+       /// Materialize exactly the requested window — never the whole file.
+       fn slice(&self, range: std::ops::Range<usize>) -> Result<Vec<Bar>, ColumnarError>;
+   }
+   pub struct ColumnarFile { /* path or BufReader-wrapped File + header fields */ }
+   impl ColumnarFile { pub fn open(path: &Path) -> Result<Self, ColumnarError> { … } }
+   impl IntradaySource for ColumnarFile { /* seek to 24 + 48*range.start, read 48*range.len() */ }
+   ```
+   Open validates magic/version and that `file_len == 24 + 48 * row_count`.
+5. Unit tests (in-file, temp-dir paths via `std::env::temp_dir()` + process id, cleaned up):
+   round-trip equality on a small C2-generated series (write → open → slice full range → assert
+   `== bars_1s`, Decimals exactly equal); slice returns exactly the requested window (spot-check
+   first/last bar of a middle window); inexact-scale value rejected at write (e.g. scale 2 with a
+   3-dp price → `ScaleOverflow`); corrupt magic and truncated file rejected at open;
+   `SliceOutOfBounds` on `len..len+1`.
+6. Scale proof — `#[test] #[ignore = "scale proof: ~31.5M rows, run explicitly"] fn
+   scale_proof_full_year_1s()`: write 365 daily segments of 86,400 bars each (chained
+   `SyntheticSpec`s: segment i uses `seed: 7 + i`, `start_unix: 1_704_067_200 + i * 86_400`,
+   steps 86_400 — content doesn't matter, scale does), `finish()` → assert row count
+   31_536_000; then via `IntradaySource::slice`, read 1,000 windows of 43,200 bars at
+   deterministic offsets and assert first/last timestamps arithmetic-correct per window. Print
+   elapsed wall-clock (`std::time::Instant` is fine here — it never touches canonical run
+   output) and the file size. Assert the slice path never allocates more than one window
+   (structural: the returned Vec is the only allocation — assert `window.len() == 43_200`).
+7. Operator/executor runs the proof once, capturing memory:
+   `/usr/bin/time -l cargo test -p market-data --release scale_proof_full_year_1s -- --ignored --nocapture 2>&1 | tail -20`
+   and records in the worklog: wall-clock (write + read phases), file size (expect ≈ 24 +
+   48 × 31_536_000 ≈ 1.41 GiB), and "maximum resident set size". The fixture is written under
+   the system temp dir and deleted at test end (`data/` is never touched).
+8. `DECISIONS.md` — prepend D-0013 (newest first, house format): context (31.5M-row annual 1s
+   series must not materialize per cell; m-hf-track §2 + adjudication must-address) → decision
+   (fixed-record columnar binary, 24-byte header + 48-byte rows, exact scaled-integer mantissas,
+   std::fs only; `IntradaySource` trait is the sweep-facing seam; memmap2/arrow REJECTED absent
+   their own recorded decision, D-0002/D-0009 precedent) → consequences (measured numbers from
+   step 7 pasted in; C8 wires the trait into the HF sweep; a format change after real data lands
+   (C9) requires a migration note).
+9. `cargo fmt --all`; full-workspace gate (the ignored test does not run in it).
+
+**Gate.** Unit tests green; full-workspace gate green (expect **> 343** tests, 0 failed; the
+`#[ignore]` proof excluded); the scale proof run ONCE with numbers recorded in worklog +
+D-0013; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` and template sweep shasum
+`7ad3df7de2e2c1139be427e9c953b57d4e289cb3` unchanged; `git status` shows only the card's 3 files
+(+ queue/worklog) — no `Cargo.toml`, nothing under `data/`, no checked-in fixture.
+
+**Guardrails (restated).** Exact-or-error scaling — never round on write; Decimal money
+elsewhere; no new deps (std::fs/io only; no memmap2/arrow/rayon); the scale fixture lives in the
+temp dir and is deleted — never under `data/`, never staged; `Instant` timing is print-only and
+must not appear in any canonical-output path; never edit `schemas/*`, existing fixtures, the plan
+pair, or `config/strategies/m5-frozen.toml`.
+
+**Escalate-if.** `rescale`/mantissa behavior differs from the step-1 sketch (quote what you find —
+don't improvise a rounding fix); the round-trip test fails with exact-looking inputs (format bug —
+stop); the scale proof cannot finish in reasonable time (record how far it got + elapsed, stop —
+the §7 fallback decision belongs to the planner at C8, not to you); any temptation to check the
+fixture in, write under `data/`, or add a dependency.
+
+---
+
 ## Deferred / blocked (unchanged)
 
 | ID | Status | Milestone | File scope | Gate | Notes |

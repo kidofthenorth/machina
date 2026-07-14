@@ -875,5 +875,14 @@ recorded inline (not full logs).
   exact `assert_eq!(trial_count, 192)` in hf_reuse_proof.rs — a family skip now fails the test
   (96 ≠ 192). Re-run: 4/4 green, workspace 343, 0 failed. The other 3 lenses returned zero
   findings (zero-src-change integrity; test quality; plan conformance incl. the §7 honest-limits
-  caveat — no overclaim in the records). Next: draft M-HF-C2.6 (streaming/scale proof +
-  storage-format DECISIONS entry, D-0013), then C3+ per §5.
+  caveat — no overclaim in the records). **Card M-HF-C2.6 drafted** (same session): columnar
+  format (24-byte header + 48-byte exact scaled-integer rows), `ColumnarWriter`/`ColumnarFile` +
+  `IntradaySource` trait in `market-data/src/columnar.rs`, std-only (memmap2/arrow rejected →
+  D-0013); unit tests + an `#[ignore]`d 31.5M-row scale proof run once with wall-clock + max-RSS
+  recorded; fixture in temp dir, never `data/`, never checked in. Next: M-HF-C2.6, fresh executor
+  session; then C3 (latency pipeline) drafting.
+- 2026-07-13 (correction): the prior entry says a6a9e35's reused commit message "was amended" —
+  it was NOT: the operator committed the review fix (34e2ca2) before amending, burying a6a9e35.
+  Ruling: leave it; content is correct, both this log and the message-content mismatch are now on
+  the record, and a 2-deep rebase for a cosmetic message isn't worth the history rewrite.
+  a6a9e35's actual content = the M-HF-C2.5 execution (hf_reuse_proof.rs + queue/worklog only).
