@@ -1,6 +1,7 @@
 # Current state
 
-Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-09 (M5 GO).
+Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-13 (M-HF
+wave 1 complete; C3 drafted).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -25,12 +26,14 @@ through the milestone gates (money-moving capability stays gated by explicit hum
 - **DOING:** the **M-HF research track** (Q7/D-0012, [m-hf-track.md](m-hf-track.md)) — entered
   2026-07-12: C1–C2.6 unblocked by operator note; HF-Q2 resolved (USDT + jitoSOL research
   allowlist); wave-1 cards C1/C2 reconciled against m-hf-track §1/§2 (IntraBar alias, typed
-  Provenance) and flipped TODO. **C1 DONE 2026-07-13** (intraday domain types + series hygiene:
-  `TradePrint`/`SlotSnapshot`/`Provenance`/`IntraBar` in research-core; `validate_prints`/
-  `validate_snapshots`/`validate_snapshots_contiguous` in market-data; six fixtures; full-workspace
-  gate green, demo/sweep determinism unchanged). HF-Q1 (deferred to wave 2) blocks C9/C10; HF-Q3
-  blocks C10. M6+ does NOT start (reject-all ⇒ no shadow candidate); M8/M9 (signing/submit) need
-  **separate explicit human approval**.
+  Provenance) and flipped TODO. **Wave 1 C1–C2.6 ALL DONE 2026-07-13** (C1 intraday types +
+  hygiene; C2 deterministic synthetic generator; C2.5 reuse proof — bet holds, post-card
+  adversarial review PASS, trial_count pinned 192; C2.6 columnar storage + `IntradaySource`,
+  D-0013, 31.5M rows / ~290 MiB peak RSS measured). **Wave-2 audit re-run DONE 2026-07-13** (no
+  blocking drift; table in worklog). **C3 drafted, TODO — the next executor card**
+  (`run_hf`/`LatencyPipeline`; simulator.rs READ-ONLY). HF-Q1 (deferred to wave 2) blocks C9/C10;
+  HF-Q3 blocks C10. M6+ does NOT start (reject-all ⇒ no shadow candidate); M8/M9 (signing/submit)
+  need **separate explicit human approval**.
 
 ## Completed artifacts
 - Workspace: 8 crates — research-core, market-data, portfolio, metrics, strategies, results, sweep, cli.
@@ -100,9 +103,10 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   they lack the typed `Provenance` enum and `IntraBar` alias `m-hf-track.md` §5 requires; a planner
   session must patch C1's card text before it executes (task-queue.md's reconciliation note). Entry
   otherwise waits only on **HF-Q1/HF-Q2** (questions.md) — C1–C2.6 are synthetic-only and the
-  operator may unblock them ahead of HF-Q1 by written note. Wave-2+ card drafting still requires
-  the sweep/strategies/invariants audit re-run flagged 2026-07-07, and must be drafted against
-  `m-hf-track.md` §5, not the superseded sketch in `highfrequency-algo-plan.md` §3.
+  operator may unblock them ahead of HF-Q1 by written note. *(Both since resolved: C1/C2
+  reconciled + unblocked 2026-07-12; the sweep/strategies/invariants audit re-run **satisfied
+  2026-07-13** — drift table in the worklog, no blocking drift.)* Wave-2+ cards are drafted
+  against `m-hf-track.md` §5, not the superseded sketch in `highfrequency-algo-plan.md` §3.
 - Accepted nit (no action): CostModelDto lamports are `i64` vs schema `minimum:0` — latent only, no
   negative-producing path (audit JS-1).
 - Deferred to later milestones: M6
@@ -110,10 +114,11 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-Execute **M-HF-C2.6** (task-queue.md §M-HF wave 1) in a fresh executor session — the
-streaming/scale proof (columnar format + `IntradaySource`; 31.5M-row `#[ignore]`d proof run once,
-numbers recorded; D-0013). C2.5 is DONE and its post-card adversarial review PASSED (bet holds;
-trial_count pinned to 192). After C2.6: planner drafts C3 (latency pipeline — new surface begins).
-M6 has no candidate and does not start.
+Execute **M-HF-C3** (task-queue.md §M-HF wave 1) in a fresh executor session —
+`run_hf`/`LatencyPipeline`; **`simulator.rs` is READ-ONLY**; gate = `run_hf(fixed_latency(1)) ==
+run` bar-for-bar (exact Decimal) + the landing-table thread-count test {1,2,3,7,8} + M2 suite
+untouched. After C3: planner verifies + reviews (C3 is a named §5 risk point), then drafts C4;
+the C3–C5 block ends in a mandatory adversarial review before C6+ is expanded. M6 has no
+candidate and does not start.
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

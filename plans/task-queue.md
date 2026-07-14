@@ -1979,7 +1979,8 @@ lib.rs had gained `binance_csv` in M5-C2 — quote updated).
 **Wave discipline.** C1–C2 are drafted now because they need only today's `crates/research-core` +
 `crates/market-data`. `m-hf-track.md` §5 inserts **C2.5** (reuse-proof: existing engine on 1s bars,
 zero new source) and **C2.6** (streaming/scale-proof at ~31M rows) between C2 and the (renumbered)
-C3 fill engine — neither is drafted yet. **C3–C10 remain deliberately NOT drafted** — they must
+C3 fill engine — neither is drafted yet. **C4–C10 remain deliberately NOT drafted** (C3 drafted
+2026-07-13 after the audit re-run noted below) — they must
 quote types C1–C2.6 will create, so each wave is expanded against what actually landed, and against
 `m-hf-track.md` §5's card-by-card gate list (not the superseded sketch in
 `highfrequency-algo-plan.md` §3). A mandatory **adversarial review checkpoint follows the
@@ -1989,6 +1990,7 @@ silently lie) before C6+ may be expanded, per `m-hf-track.md` §5's stated risk 
 sweep-ladder, strategies-trait, and invariants-config audit areas were cut short (session limit) and
 **must be re-run before wave 2 is expanded** (findings + coverage gaps recorded in the 2026-07-07
 worklog entry and in [highfrequency-algo-plan.md](highfrequency-algo-plan.md)'s Appendix).
+**Re-run DONE 2026-07-13** — no blocking drift; drift table in that day's worklog entry.
 
 Execution contract and guardrails: identical to the M4 cards above (fresh session per card; flip the
 card status + one worklog line when its gate passes; never `git commit`/`git push` — the operator
@@ -3126,6 +3128,620 @@ don't improvise a rounding fix); the round-trip test fails with exact-looking in
 stop); the scale proof cannot finish in reasonable time (record how far it got + elapsed, stop —
 the §7 fallback decision belongs to the planner at C8, not to you); any temptation to check the
 fixture in, write under `data/`, or add a dependency.
+
+---
+
+### M-HF-C3 — `run_hf` / `LatencyPipeline`: latency-aware entry point (`simulator.rs` READ-ONLY) — `TODO`
+
+**Goal.** Give the research engine a latency-aware HF entry point that generalizes the simulator
+loop **without touching `run`** (m-hf-track §1 item 1, §3, §5 row C3): a signal decided from
+completed bars `[0..=t]` lands `offset_bars ≥ 1` later and executes at the **landing bar's open**
+— market state at landing, never at signal. Next-bar execution is the special case
+`fixed_latency(1)`, proven equivalent by regression. Also introduces the deterministic
+landing-draw primitive (splitmix64 hash stream keyed by `(cell_id, event_index)` — probability
+without RNG), proven byte-identical across thread counts where it is introduced. Simulation only
+— nothing here creates execution capability.
+
+**Files.** Exactly these; `crates/portfolio/src/simulator.rs` is **READ-ONLY** (you will copy
+from it, never write to it — not even a visibility change):
+1. `crates/portfolio/src/latency.rs` — NEW (pipeline, draw primitive, `run_hf`, unit tests).
+2. `crates/portfolio/src/lib.rs` — wiring only (one `pub mod` + one `pub use` + one doc line).
+3. `crates/portfolio/tests/hf_regression.rs` — NEW (equivalence regression + thread-count test).
+
+*(Sanctioned line-budget exception: latency.rs exceeds ~150 lines because `simulator.rs` is
+read-only by design, so its private accounting helpers (~90 lines, simulator.rs:17-25, 57-62,
+139-246) are duplicated **verbatim** into latency.rs. The `fixed_latency(1) == run` regression
+pins the two copies together — if either drifts, the gate breaks. Near-complete code for all new
+logic is below; the copied helpers are copy-from-named-lines, no judgment.)*
+
+**Current state (verbatim, copied from source 2026-07-13 at `b0af75c` — if what you find
+differs, escalate, don't adapt).**
+
+- `crates/portfolio/src/simulator.rs:65-73` — the signature `run_hf` must mirror:
+  ```rust
+  pub fn run<F>(
+      bars: &[Bar],
+      initial_cash_usdc: Decimal,
+      cost: &CostModel,
+      mut target_fn: F,
+  ) -> Result<RunOutput, SimError>
+  where
+      F: FnMut(&[Bar], Decimal) -> Decimal,
+  ```
+- `crates/portfolio/src/simulator.rs:89-94` — the hardcoded next-bar block being generalized
+  (matches m-hf-track §1's citation exactly):
+  ```rust
+      for (t, bar) in bars.iter().enumerate() {
+          // 1. Execute the target decided from completed bars [0..t] at this bar's OPEN price.
+          if t >= 1 {
+              let exec_price = bar.open;
+              let current_weight = current_weight(&state, exec_price);
+              let target = clamp01(target_fn(&bars[..t], current_weight));
+  ```
+- `crates/portfolio/src/simulator.rs:28` — `RunOutput` derives `#[derive(Debug, Clone,
+  PartialEq, Eq)]` (fields :29-44, all pub: equity_curve, round_trips, final_state, n_trades,
+  traded_notional_quote, fees_paid_quote, slippage_paid_quote, gas_paid_sol,
+  priority_fees_paid_sol, bars_in_market) — so `assert_eq!` on whole outputs is exact.
+- Private helpers you will COPY VERBATIM from `simulator.rs` (they build only on pub surface):
+  `dust` (:17-20), `min_trade_notional` (:22-25), `struct OpenPosition` (:57-62), `rebalance`
+  (:139-184), `record_round_trip` (:186-221, keep its `#[allow(clippy::too_many_arguments)]`),
+  `clamp01` (:223-225), `traded_notional` (:227-237), `current_weight` (:239-246).
+- `crates/portfolio/src/lib.rs:13-21` — current wiring:
+  ```rust
+  pub mod cost;
+  pub mod equity;
+  pub mod simulator;
+  pub mod state;
+
+  pub use cost::{BuyFill, CostModel, SellFill, Side};
+  pub use equity::{EquityPoint, RoundTrip};
+  pub use simulator::{run, RunOutput};
+  pub use state::{PortfolioState, SimError, TradeOutcome};
+  ```
+- `crates/market-data/src/synthetic.rs:126-133` — the C2 primitive you duplicate (it is
+  PRIVATE in market-data and stays there; portfolio must not depend on market-data):
+  ```rust
+  /// SplitMix64 — a deterministic integer hash sequence, NOT an entropy source.
+  fn splitmix64(state: &mut u64) -> u64 {
+      *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+      let mut z = *state;
+      z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+      z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+      z ^ (z >> 31)
+  }
+  ```
+  *(Drift note, on the record: m-hf-track §3 says "the same cell-identity primitive M4 §5.8
+  uses for `run_id`" — in the real tree `run_id` is a tuple-formatted String (m4-sweep.md
+  §5.8; results/src/lib.rs:17) and no u64 hash primitive exists. This card DEFINES the
+  primitive; C8 wires `cell_id` derivation from the canonical cell tuple.)*
+- `crates/portfolio/Cargo.toml` — deps: research-core, rust_decimal; dev-deps:
+  rust_decimal_macros. **No Cargo.toml/Cargo.lock change is permitted by this card.**
+- Pub surface available to latency.rs: `PortfolioState { quote_balance, base_balance }` +
+  `new/equity/apply_buy/apply_sell` (state.rs:12-75), `TradeOutcome { side, exec_price,
+  base_delta, quote_delta, gas_sol, dex_fee_quote, slippage_quote }` (state.rs:114-121),
+  `SimError` (state.rs:126), `CostModel::{gas_sol, priority_sol}` (cost.rs:49,55), `Side`
+  (cost.rs:15), `EquityPoint`/`RoundTrip` (equity.rs).
+
+**Pinned semantics (planner decisions — do not re-decide):**
+- `landing: Vec<LandingOutcome>` is indexed by **signal index** `t` (one entry per bar;
+  `landing.len() == bars.len()`). Signal `t` = decision from completed bars `[0..=t]` (slice
+  `&bars[..t + 1]`); it lands at bar `t + offset_bars` and executes at that bar's **open**.
+- `min_latency ≥ 1` always. The same-slot-at-signal-price mode is NOT built here — m-hf-track
+  §3 allows it only as an explicitly labeled upper-bound scenario, later card.
+- `target_fn` is invoked **at landing time**, in landing order (ties on one bar: ascending
+  signal index), with `(&bars[..t + 1], current_weight at landing bar's open)` — this exactly
+  reproduces `run`'s argument stream under `fixed_latency(1)` (that call order is what makes
+  stateful `FnMut` closures bar-for-bar equal). Overtaking (a later signal landing earlier) is
+  legal and handled by the schedule.
+- Un-landed (in-range, `landed == false`): no `target_fn` call, no balance change;
+  `unlanded_orders += 1`. The attempted-cost **Decimal** term is C4's job (cost-model card) —
+  C3 counts attempts only. Adversarial terms are COSTS to us only, never a benefit.
+- Off-end (`t + offset_bars >= bars.len()`): dropped silently, NOT counted as un-landed —
+  the generalization of `run`'s "final bar's signal is never executed" rule.
+- Equity is marked at every bar's close, identical to `run` (including bar 0).
+- `run_hf` returns `HfRunOutput { base: RunOutput, unlanded_orders: u32 }`; with
+  `fixed_latency(1)`, `base` equals `run`'s output exactly and `unlanded_orders == 0`.
+
+**Steps.**
+1. **Step 0 (before touching any file):** run the full-workspace gate. Expect **349 passed,
+   0 failed, 1 ignored**; fmt/clippy clean; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`;
+   sweep shasum `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`. If anything is already red, STOP and
+   report the baseline failure in the worklog.
+2. Create `crates/portfolio/src/latency.rs` — module doc + imports + types + validation:
+   ```rust
+   //! Latency-aware HF entry point (m-hf-track §3): `run_hf` generalizes the simulator loop
+   //! WITHOUT touching `simulator::run` — next-bar execution is the special case
+   //! `fixed_latency(1)`, proven equivalent by regression (tests/hf_regression.rs).
+   //!
+   //! Event ordering: the signal decided from completed bars `[0..=t]` lands at bar
+   //! `t + offset_bars` (offset ≥ min_latency ≥ 1) and executes at that bar's OPEN — market
+   //! state at landing, never at signal. Un-landed orders change no balances; their attempted
+   //! count is recorded (the attempted-cost term is priced by the C4 cost fields). Latency is
+   //! measured in BARS (slots at 1s resolution), never wall-clock. Landing outcomes are
+   //! deterministic by construction: a splitmix64 hash stream keyed by `(cell_id,
+   //! event_index)` — never RNG, thread id, evaluation order, or clock.
+
+   use crate::cost::{CostModel, Side};
+   use crate::equity::{EquityPoint, RoundTrip};
+   use crate::simulator::RunOutput;
+   use crate::state::{PortfolioState, SimError, TradeOutcome};
+   use research_core::{Bar, Decimal, Timestamp};
+   use std::fmt;
+
+   /// Landing outcome for one signal index; `offset_bars` ≥ the pipeline's `min_latency`.
+   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+   pub struct LandingOutcome {
+       pub offset_bars: usize,
+       pub landed: bool,
+   }
+
+   /// Deterministic latency pipeline: one [`LandingOutcome`] per signal index (m-hf-track §3).
+   #[derive(Debug, Clone, PartialEq, Eq)]
+   pub struct LatencyPipeline {
+       min_latency: usize,
+       landing: Vec<LandingOutcome>,
+   }
+
+   impl LatencyPipeline {
+       /// `min_latency` ≥ 1 always: the same-slot-at-signal-price mode is NOT built here —
+       /// it may only ever exist as an explicitly labeled upper-bound scenario (§3).
+       pub fn new(min_latency: usize, landing: Vec<LandingOutcome>) -> Result<Self, HfError> {
+           if min_latency == 0 {
+               return Err(HfError::ZeroMinLatency);
+           }
+           if let Some(index) = landing.iter().position(|l| l.offset_bars < min_latency) {
+               return Err(HfError::OffsetBelowMin { index });
+           }
+           Ok(Self { min_latency, landing })
+       }
+
+       #[must_use]
+       pub fn min_latency(&self) -> usize {
+           self.min_latency
+       }
+
+       #[must_use]
+       pub fn landing(&self) -> &[LandingOutcome] {
+           &self.landing
+       }
+   }
+
+   /// Every signal lands, `offset_bars` later — `fixed_latency(1, n)` IS next-bar execution.
+   #[must_use]
+   pub fn fixed_latency(offset_bars: usize, n_signals: usize) -> LatencyPipeline {
+       assert!(offset_bars >= 1, "same-slot execution is not modeled (m-hf-track §3)");
+       LatencyPipeline {
+           min_latency: offset_bars,
+           landing: vec![LandingOutcome { offset_bars, landed: true }; n_signals],
+       }
+   }
+
+   /// Errors from the HF entry point. `SimError` stays untouched (simulator.rs is read-only).
+   #[derive(Debug, Clone, PartialEq, Eq)]
+   pub enum HfError {
+       /// Underlying simulation/accounting error.
+       Sim(SimError),
+       /// One landing outcome per potential signal index: `landing.len() == bars.len()`.
+       PipelineLength { landing: usize, bars: usize },
+       /// `min_latency` must be ≥ 1 (no same-slot execution).
+       ZeroMinLatency,
+       /// `landing[index].offset_bars` < `min_latency`.
+       OffsetBelowMin { index: usize },
+       /// Landing probability must be an exact rational with `den ≥ 1` and `num ≤ den`.
+       BadProbability { num: u64, den: u64 },
+   }
+
+   impl fmt::Display for HfError {
+       fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+           match self {
+               Self::Sim(e) => write!(f, "simulation error: {e}"),
+               Self::PipelineLength { landing, bars } => {
+                   write!(f, "pipeline has {landing} landing outcomes for {bars} bars")
+               }
+               Self::ZeroMinLatency => write!(f, "min_latency must be >= 1"),
+               Self::OffsetBelowMin { index } => {
+                   write!(f, "landing[{index}].offset_bars is below min_latency")
+               }
+               Self::BadProbability { num, den } => {
+                   write!(f, "landing probability {num}/{den} is not a valid rational in [0,1]")
+               }
+           }
+       }
+   }
+
+   impl std::error::Error for HfError {}
+
+   impl From<SimError> for HfError {
+       fn from(e: SimError) -> Self {
+           Self::Sim(e)
+       }
+   }
+   ```
+3. The deterministic landing-draw primitive (append to latency.rs):
+   ```rust
+   /// SplitMix64 — a deterministic integer hash sequence, NOT an entropy source. Verbatim
+   /// twin of the C2 generator's private fn (market-data/src/synthetic.rs:127-133),
+   /// duplicated deliberately (pattern-level reuse, m-hf-track §1): a shared home would
+   /// couple portfolio to market-data for seven lines of integer arithmetic.
+   fn splitmix64(state: &mut u64) -> u64 {
+       *state = state.wrapping_add(0x9E37_79B9_7F4A_7C15);
+       let mut z = *state;
+       z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+       z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+       z ^ (z >> 31)
+   }
+
+   /// One landing draw — a pure function of `(cell_id, event_index)` and NOTHING else:
+   /// provably independent of thread id, evaluation order, and wall clock (m-hf-track §3).
+   fn landing_draw(cell_id: u64, event_index: u64) -> u64 {
+       let mut state = cell_id;
+       let mixed_cell = splitmix64(&mut state);
+       let mut keyed = mixed_cell ^ event_index;
+       splitmix64(&mut keyed)
+   }
+
+   /// Probability without RNG: `landed ⇔ draw % den < num`, `p = num/den` exact (§3).
+   /// Fail-closed: an invalid rational is an error, never a default.
+   ///
+   /// `event_indices` are the stable, GLOBAL, fixture-relative indices, computed once before
+   /// windowing — never window-local (else one physical slot's outcome could differ per
+   /// cell). C8 is responsible for passing fixture-global ranges; the signature makes
+   /// window-local indexing impossible to do silently.
+   pub fn build_landing_table(
+       cell_id: u64,
+       event_indices: std::ops::Range<u64>,
+       offset_bars: usize,
+       p_land_num: u64,
+       p_land_den: u64,
+   ) -> Result<Vec<LandingOutcome>, HfError> {
+       if p_land_den == 0 || p_land_num > p_land_den {
+           return Err(HfError::BadProbability { num: p_land_num, den: p_land_den });
+       }
+       Ok(event_indices
+           .map(|event_index| LandingOutcome {
+               offset_bars,
+               landed: (landing_draw(cell_id, event_index) % p_land_den) < p_land_num,
+           })
+           .collect())
+   }
+   ```
+4. Copy the private helpers VERBATIM from `simulator.rs` into latency.rs under this header
+   (ranges: :17-20, :22-25, :57-62, :139-184, :186-221, :223-225, :227-237, :239-246; keep
+   every doc comment and the `#[allow(clippy::too_many_arguments)]`; change nothing):
+   ```rust
+   // ── Verbatim twins of simulator.rs's private accounting helpers ──────────────────────
+   // simulator.rs is READ-ONLY by design (m-hf-track §1: "without touching run"), so its
+   // private helpers are duplicated here rather than made pub(crate). The fixed_latency(1)
+   // equality regression (tests/hf_regression.rs) pins the two copies together: if either
+   // copy drifts, that gate breaks.
+   ```
+5. `run_hf` itself (append to latency.rs):
+   ```rust
+   /// Everything one HF run produces: the base accounting plus HF-only counters. With
+   /// `fixed_latency(1)`, `base` equals `run`'s output exactly (the regression gate) and
+   /// the HF counters are zero.
+   #[derive(Debug, Clone, PartialEq, Eq)]
+   pub struct HfRunOutput {
+       pub base: RunOutput,
+       /// In-range attempts that did not land (`landed == false`). Balances untouched; the
+       /// attempted COST (a cost to us, never a benefit) is priced when C4's fields land.
+       pub unlanded_orders: u32,
+   }
+
+   /// Run the deterministic latency-aware simulation (m-hf-track §3).
+   ///
+   /// The signal decided from completed bars `[0..=t]` executes at bar
+   /// `t + landing[t].offset_bars`'s OPEN — market state at landing, never at signal.
+   pub fn run_hf<F>(
+       bars: &[Bar],
+       initial_cash_usdc: Decimal,
+       cost: &CostModel,
+       pipeline: &LatencyPipeline,
+       mut target_fn: F,
+   ) -> Result<HfRunOutput, HfError>
+   where
+       F: FnMut(&[Bar], Decimal) -> Decimal,
+   {
+       if bars.is_empty() {
+           return Err(HfError::Sim(SimError::NoBars));
+       }
+       if pipeline.landing.len() != bars.len() {
+           return Err(HfError::PipelineLength {
+               landing: pipeline.landing.len(),
+               bars: bars.len(),
+           });
+       }
+
+       // Landing schedule: land_at[l] = signal indices t with t + offset == l, ascending t
+       // (ties execute in signal order; overtaking — a later signal landing earlier — is
+       // legal). Off-end signals never land: the generalization of run's final-bar rule.
+       let mut land_at: Vec<Vec<usize>> = vec![Vec::new(); bars.len()];
+       let mut unlanded_orders = 0u32;
+       for (t, outcome) in pipeline.landing.iter().enumerate() {
+           match t.checked_add(outcome.offset_bars) {
+               Some(l) if l < bars.len() => {
+                   if outcome.landed {
+                       land_at[l].push(t);
+                   } else {
+                       unlanded_orders += 1;
+                   }
+               }
+               _ => {}
+           }
+       }
+
+       let mut state = PortfolioState::new(initial_cash_usdc);
+       let mut equity_curve = Vec::with_capacity(bars.len());
+       let mut round_trips = Vec::new();
+       let mut open: Option<OpenPosition> = None;
+       let mut n_trades = 0u32;
+       let mut traded_notional_quote = Decimal::ZERO;
+       let mut fees_paid_quote = Decimal::ZERO;
+       let mut slippage_paid_quote = Decimal::ZERO;
+       let mut gas_paid_sol = Decimal::ZERO;
+       let mut bars_in_market = 0u32;
+
+       for (l, bar) in bars.iter().enumerate() {
+           // 1. Execute every order landing at this bar, at ITS open — the target is decided
+           //    from the signal-time history `bars[..=t]` but priced at landing.
+           for &t in &land_at[l] {
+               let exec_price = bar.open;
+               let weight_now = current_weight(&state, exec_price);
+               let target = clamp01(target_fn(&bars[..t + 1], weight_now));
+               let was_flat = state.base_balance <= dust();
+               let quote_before = state.quote_balance;
+               if let Some(outcome) = rebalance(&mut state, target, exec_price, cost)? {
+                   n_trades += 1;
+                   traded_notional_quote += traded_notional(&outcome);
+                   fees_paid_quote += outcome.dex_fee_quote;
+                   slippage_paid_quote += outcome.slippage_quote;
+                   gas_paid_sol += outcome.gas_sol;
+                   record_round_trip(
+                       &mut open,
+                       &mut round_trips,
+                       &state,
+                       &outcome,
+                       bar.ts,
+                       was_flat,
+                       quote_before,
+                   );
+               }
+           }
+           // 2. Mark equity at this bar's CLOSE (identical to `run`).
+           equity_curve.push(EquityPoint {
+               ts: bar.ts,
+               equity_quote: state.equity(bar.close),
+           });
+           if state.base_balance > dust() {
+               bars_in_market += 1;
+           }
+       }
+
+       let priority_fees_paid_sol = cost.priority_sol() * Decimal::from(n_trades);
+       Ok(HfRunOutput {
+           base: RunOutput {
+               equity_curve,
+               round_trips,
+               final_state: state,
+               n_trades,
+               traded_notional_quote,
+               fees_paid_quote,
+               slippage_paid_quote,
+               gas_paid_sol,
+               priority_fees_paid_sol,
+               bars_in_market,
+           },
+           unlanded_orders,
+       })
+   }
+   ```
+   *(Note: `rebalance(...)? ` works because of `impl From<SimError> for HfError`.)*
+6. Unit tests in latency.rs (`#[cfg(test)] mod tests`, `use rust_decimal_macros::dec;`).
+   Series helper — 1s-spaced bars with **open ≠ close** so "executes at OPEN" is
+   distinguishable (OHLC-valid: `open = p, close = p + 2, high = p + 3, low = p − 1`):
+   ```rust
+   fn series(prices: &[i64]) -> Vec<Bar> {
+       prices
+           .iter()
+           .enumerate()
+           .map(|(i, p)| {
+               let open = Decimal::from(*p);
+               Bar {
+                   ts: Timestamp::from_unix(1_700_000_000 + i as i64),
+                   open,
+                   high: open + dec!(3),
+                   low: open - dec!(1),
+                   close: open + dec!(2),
+                   volume: dec!(1),
+               }
+           })
+           .collect()
+   }
+   ```
+   Tests (names pinned):
+   - `fixed_latency_one_is_all_landed_offset_one` — `fixed_latency(1, 3)`: len 3, every
+     outcome `{ offset_bars: 1, landed: true }`, `min_latency() == 1`.
+   - `zero_min_latency_rejected` — `LatencyPipeline::new(0, vec![])` → `Err(ZeroMinLatency)`.
+   - `offset_below_min_rejected` — `new(2, vec![LandingOutcome { offset_bars: 1, landed:
+     true }])` → `Err(OffsetBelowMin { index: 0 })`.
+   - `pipeline_length_mismatch_rejected` — 4 bars, `fixed_latency(1, 3)` →
+     `Err(PipelineLength { landing: 3, bars: 4 })`.
+   - `empty_bars_rejected` — `run_hf(&[], …, &fixed_latency(1, 0), …)` →
+     `Err(HfError::Sim(SimError::NoBars))`.
+   - `bad_probability_rejected` — `build_landing_table(1, 0..10, 1, 1, 0)` and `(1, 0..10,
+     1, 3, 2)` both → `Err(BadProbability { .. })`.
+   - `landing_table_is_pure_and_keyed_by_cell` — same args twice → equal; `cell_id` 1 vs 2
+     over `0..1000` with `p = 1/2` → tables differ.
+   - `latency_two_executes_at_landing_open` — hand-computed, zero cost, series
+     `[100, 200, 250, 400]`, cash 10 000, always-1 strategy, `fixed_latency(2, 4)`:
+     signals t=0,1 land at bars 2,3; t=2,3 fall off-end. The t=0 order buys at bar 2's
+     open **250** (NOT bar 1's 200 — the discriminating assertion) → exactly 40 SOL; the
+     t=1 landing finds weight already 1 → no trade. Assert: `n_trades == 1`;
+     `final_state.base_balance == dec!(40)`; `unlanded_orders == 0`;
+     `equity_curve[1].equity_quote == dec!(10000)` (still flat at bar 1 close — under
+     latency 1 it would be 10 100); `equity_curve[2].equity_quote == dec!(10080)`
+     (40 × close 252); `equity_curve[3].equity_quote == dec!(16080)` (40 × close 402).
+   - `unlanded_changes_no_balances_but_is_counted` — same series/strategy/cost,
+     `LatencyPipeline::new(1, vec![{1,false},{1,true},{1,false},{1,true}])` (struct literals
+     spelled out): t=0 and t=2 are in-range drops → counted; t=1 lands at bar 2 (buy 40 SOL
+     at 250); t=3 is off-end (landed=true but dropped, NOT counted). Assert:
+     `unlanded_orders == 2`; `n_trades == 1`; `final_state.base_balance == dec!(40)`;
+     `equity_curve[1].equity_quote == dec!(10000)`.
+   - `repeated_runs_are_deterministic` — same inputs twice → `assert_eq!` on `HfRunOutput`.
+7. Wire `crates/portfolio/src/lib.rs`: add `pub mod latency;` to the module list (alphabetical:
+   between `equity` and `simulator`), add
+   `pub use latency::{build_landing_table, fixed_latency, run_hf, HfError, HfRunOutput, LandingOutcome, LatencyPipeline};`
+   after the existing `pub use equity::…` line, and append one line to the module doc's layer
+   list: `//! - [`latency::run_hf`]: the latency-aware HF entry point (m-hf-track §3); next-bar
+   [`simulator::run`] is its `fixed_latency(1)` special case, proven by regression.`
+8. Create `crates/portfolio/tests/hf_regression.rs`:
+   ```rust
+   //! M-HF-C3 gate: `run_hf(fixed_latency(1)) == run` bar-for-bar (orders, fills, balances,
+   //! equity — exact Decimal equality), and the landing-table primitive is identical across
+   //! explicit thread counts {1, 2, 3, 7, 8} (never `available_parallelism`; m4-sweep §5.6).
+
+   use portfolio::{
+       build_landing_table, fixed_latency, run, run_hf, CostModel, LandingOutcome,
+   };
+   use research_core::{Bar, Decimal, Timestamp};
+   use rust_decimal_macros::dec;
+
+   // (same `series` helper as latency.rs's tests — open = p, close = p + 2, 1s spacing)
+
+   type Strat = Box<dyn FnMut(&[Bar], Decimal) -> Decimal>;
+
+   fn constant_half() -> Strat {
+       Box::new(|_h, _w| dec!(0.5))
+   }
+   fn stepper() -> Strat {
+       let mut step = 0u32;
+       Box::new(move |_h, _w| {
+           step += 1;
+           if step % 3 == 0 { dec!(0) } else { dec!(1) }
+       })
+   }
+   fn banded() -> Strat {
+       Box::new(|_h, w| if (w - dec!(0.5)).abs() > dec!(0.1) { dec!(0.5) } else { w })
+   }
+
+   fn shapes() -> Vec<Vec<Bar>> {
+       vec![
+           series(&[100, 110, 121, 133, 146, 160]), // rising
+           series(&[160, 146, 133, 121, 110, 100]), // falling
+           series(&[100, 140, 90, 150, 80, 160]),   // choppy
+           series(&[100, 100, 100, 100, 100, 100]), // flat
+       ]
+   }
+   fn costs() -> Vec<CostModel> {
+       vec![
+           CostModel::zero(),
+           CostModel {
+               dex_fee_bps: 5,
+               slippage_bps: 20,
+               base_fee_lamports: 5_000,
+               priority_fee_lamports: 50_000,
+           },
+       ]
+   }
+
+   fn assert_fixed1_equals_run(mut mk: impl FnMut() -> Strat) {
+       for bars in shapes() {
+           for cost in costs() {
+               let baseline = run(&bars, dec!(10_000), &cost, mk()).unwrap();
+               let hf = run_hf(&bars, dec!(10_000), &cost, &fixed_latency(1, bars.len()), mk())
+                   .unwrap();
+               assert_eq!(hf.base, baseline, "run_hf(fixed_latency(1)) must equal run");
+               assert_eq!(hf.unlanded_orders, 0);
+           }
+       }
+   }
+
+   #[test]
+   fn fixed_latency_one_equals_run_constant_half() {
+       assert_fixed1_equals_run(constant_half);
+   }
+   #[test]
+   fn fixed_latency_one_equals_run_stateful_stepper() {
+       assert_fixed1_equals_run(stepper);
+   }
+   #[test]
+   fn fixed_latency_one_equals_run_weight_banded() {
+       assert_fixed1_equals_run(banded);
+   }
+
+   #[test]
+   fn landing_table_identical_across_thread_counts() {
+       const N: u64 = 100_000;
+       let cell_id = 0x00C0_FFEE_u64;
+       let sequential = build_landing_table(cell_id, 0..N, 3, 7, 10).unwrap();
+       // Non-degenerate: both outcomes occur, so the equality below is discriminating.
+       assert!(sequential.iter().any(|l| l.landed));
+       assert!(sequential.iter().any(|l| !l.landed));
+       for &k in &[1usize, 2, 3, 7, 8] {
+           let chunk = (N + k as u64 - 1) / k as u64;
+           let mut parts: Vec<Vec<LandingOutcome>> = Vec::new();
+           std::thread::scope(|s| {
+               let handles: Vec<_> = (0..k as u64)
+                   .map(|i| {
+                       let start = i * chunk;
+                       let end = ((i + 1) * chunk).min(N);
+                       s.spawn(move || {
+                           if start >= end {
+                               Vec::new()
+                           } else {
+                               build_landing_table(cell_id, start..end, 3, 7, 10).unwrap()
+                           }
+                       })
+                   })
+                   .collect();
+               for h in handles {
+                   parts.push(h.join().unwrap());
+               }
+           });
+           assert_eq!(parts.concat(), sequential, "thread count {k} diverged");
+       }
+   }
+   ```
+9. `cargo fmt --all`; run the full gate (below); flip this card to `DONE` + one worklog line.
+
+**Gate.**
+- `cargo test -p portfolio` — all new tests green AND every pre-existing test green,
+  name-for-name (the M2 suite is untouched: `git diff --name-only` shows `latency.rs`,
+  `lib.rs`, `tests/hf_regression.rs` and NO other portfolio file — `simulator.rs`, `state.rs`,
+  `cost.rs`, `equity.rs` unchanged).
+- The three `fixed_latency_one_equals_run_*` tests prove `run_hf(fixed_latency(1)) == run`
+  bar-for-bar by full-struct `assert_eq!` (orders, fills, balances, equity curve — exact
+  Decimal equality via `RunOutput: PartialEq + Eq`).
+- `landing_table_identical_across_thread_counts` green with explicit counts {1,2,3,7,8} —
+  never `available_parallelism`.
+- Full workspace: `cargo fmt --all --check` clean; `cargo clippy --all-targets --all-features
+  -- -D warnings` clean; `cargo test --workspace --all-features` → **0 failed, 1 ignored,
+  > 349 passed** (record the exact new count in the worklog).
+- `cargo run -p cli -- demo | shasum` → `ae064f79242f823ffd8f55bf9104e3e1b45d425a` unchanged;
+  `cargo run -p cli -- sweep | shasum` → `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` unchanged;
+  `cargo run -p cli -- sweep-verify` → OK.
+- `git status` shows exactly the card's 3 files (+ this queue/worklog flip) — no `Cargo.toml`,
+  no `Cargo.lock`, nothing else.
+
+**Guardrails (restated).** `Decimal` for all money — `u64`/`usize` only for indices and hash
+values, never money; **no new deps, no Cargo.toml/Cargo.lock edits**; **no RNG and no clock**
+anywhere in this card (`rand`, `Instant`, `SystemTime` must not appear — splitmix64 hash
+streams only); latency in bars/slots, never wall-clock; adversarial terms are costs to us
+only; `min_latency ≥ 1` (no same-slot execution); **`simulator.rs` READ-ONLY** — copy from
+it, never write; never touch `schemas/`, existing fixtures, `config/strategies/m5-frozen.toml`,
+the master-plan pair (`plans/master-plan.md`/`solana-crypto-trader-plan.md`), or the holdout
+machinery (`sweep::partition` and everything around it); strategies remain intent-only;
+NOTHING here creates execution capability (no keys/signing/submit/RPC/network — M8/M9 need
+separate explicit human approval). Never `git commit`/`git push` — the operator commits.
+
+**Escalate-if (STOP, record in plans/worklog.md, report — never improvise):** any quoted
+signature/line above doesn't match the source; **any impulse or apparent need to edit
+`simulator.rs`** (even one character, even visibility); any `fixed_latency_one_equals_run_*`
+assertion fails (do NOT weaken the assertion, do NOT "fix" `run` — the pipeline semantics or
+this card are wrong); any pre-existing (M2/simulator) test fails or needs modification;
+`landing_table_identical_across_thread_counts` fails (the draw primitive is order-dependent —
+a design-level break); the demo/sweep shasum moves; an unlisted file seems needed;
+rust_decimal_macros is missing from portfolio's dev-deps.
 
 ---
 

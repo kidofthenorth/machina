@@ -912,3 +912,22 @@ recorded inline (not full logs).
   `crates/market-data/src/columnar.rs` (new), `crates/market-data/src/lib.rs`, `DECISIONS.md` +
   this queue/worklog pair. Next: planner drafts C3 (latency pipeline — new surface begins); M6 has
   no candidate and does not start.
+- 2026-07-13 (planner, wave-2 audit re-run + card M-HF-C3 drafted): **audit re-run** (mandated by
+  the queue's wave-discipline note + hf-plan Appendix:342-344), verified against `b0af75c` by
+  direct read + 3 read-only Sonnet agents — **no blocking drift**:
+  | # | Area | Verdict | Evidence |
+  |---|------|---------|----------|
+  | 1 | sweep-ladder | NO DRIFT | `sensitivity.rs:24-40,83,95` ScenarioId/scale_cost_model ("never f64")/cost_scenarios; `advance.rs:19-32,75-90,128` thresholds incl. `turnover_budget: Decimal`, 7 RejectionKinds incl. TurnoverImplausible; no timescale/thread/clock hardcodes in production paths; zero latency/intraday refs in `crates/sweep/src/` |
+  | 2 | strategies-trait | NO DRIFT | `strategies/src/lib.rs:28-37` `target_weight(&[Bar], Decimal) -> Decimal`, pure/deterministic/clock-free (:24-27); warmups are bar counts; simulator consumes `FnMut(&[Bar], Decimal) -> Decimal` (`simulator.rs:65-72`, call :93-94) |
+  | 3 | invariants-config | COMPATIBLE | `docs/invariants.md:22-26` (#3 determinism; splitmix64 = hash, not entropy) and `:35-38` (#5 next-bar). Notes: (a) #5's "executed at bar t+1's open" generalizes to `t+offset, offset ≥ 1` in `run_hf` — invariants.md wording amendment deferred to C8, on the record; (b) no explicit UTC line in invariants.md — pre-existing, unrelated |
+  | 4 | §3 "same cell-identity primitive M4 §5.8 uses for run_id" | **WORDING DRIFT** | `run_id` is a tuple-formatted String (m4-sweep §5.8; `results/src/lib.rs:17`); no u64 hash primitive exists; `splitmix64` is private in `market-data/src/synthetic.rs:127-133`. C3 **defines** the primitive (verbatim 7-line twin, provenance comment); C8 wires `cell_id` derivation |
+  **Card M-HF-C3 drafted** (queue §M-HF wave 1): `run_hf`/`LatencyPipeline` in
+  `crates/portfolio/src/latency.rs` + `lib.rs` wiring + `tests/hf_regression.rs`;
+  **`simulator.rs` READ-ONLY** (private helpers duplicated verbatim, pinned together by the
+  regression); pinned semantics recorded on the card (signal-indexed landing table; `target_fn`
+  called at landing time with signal-time history; un-landed = counted not priced — C4 prices it;
+  off-end dropped per run's final-bar rule; `min_latency ≥ 1`). Gate: `run_hf(fixed_latency(1))
+  == run` bar-for-bar (exact Decimal, 3 strategy shapes × 4 series × 2 cost models); landing
+  table byte-identical across explicit threads {1,2,3,7,8}; M2 suite untouched; demo/sweep hashes
+  unchanged. **Checkpoint reminder:** per m-hf-track §5, C3 is a named risk point (review after it
+  executes) and the C3–C5 block ends in a mandatory adversarial review before C6+ is expanded.
