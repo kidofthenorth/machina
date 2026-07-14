@@ -9,11 +9,13 @@
 
 pub mod allowlist;
 pub mod binance_csv;
+pub mod columnar;
 pub mod intraday;
 pub mod synthetic;
 pub mod validation;
 
 pub use allowlist::{Allowlist, AllowlistEntry};
+pub use columnar::{ColumnarError, ColumnarFile, ColumnarWriter, IntradaySource};
 pub use intraday::{
     validate_prints, validate_snapshots, validate_snapshots_contiguous, IntradayError,
 };

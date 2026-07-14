@@ -886,3 +886,29 @@ recorded inline (not full logs).
   Ruling: leave it; content is correct, both this log and the message-content mismatch are now on
   the record, and a 2-deep rebase for a cosmetic message isn't worth the history rewrite.
   a6a9e35's actual content = the M-HF-C2.5 execution (hf_reuse_proof.rs + queue/worklog only).
+  *(Superseded 2026-07-13: the operator chose to reword after all — non-interactive rebase;
+  a6a9e35→a4e0523, 34e2ca2→a78ec42, a891ea1→c5281b7; all three tree hashes verified pairwise
+  identical, working tree clean. History now reads correctly.)*
+- 2026-07-13 (planner verify, M-HF-C2.6): all executor claims re-verified fresh — 349 passed, 0
+  failed, 1 ignored; fmt/clippy clean; demo/sweep hashes unchanged; exact-or-error scaling and
+  window-only slice confirmed by code read (seek + single bulk read); D-0013 present with measured
+  numbers; scope exact; no temp-fixture leftovers; `data/` untouched. **Wave 1 (C1–C2.6) is
+  COMPLETE.** Next: planner drafts C3 (run_hf/LatencyPipeline) against the landed surface.
+- 2026-07-13 (executor, M-HF-C2.6): **DONE.** Step 0 gate was green before touching any file (343
+  passed 0 failed; fmt/clippy clean; demo `ae064f79…`/sweep `7ad3df7d…` unchanged). Added
+  `crates/market-data/src/columnar.rs`: fixed-record columnar format (24-byte header + 48-byte
+  rows), `ColumnarWriter`/`ColumnarFile`, and the `IntradaySource` trait (`len`/`slice(Range) ->
+  Vec<Bar>`), exact-or-error scaled-integer mantissas (never rounded on write), std::fs/io only;
+  6 unit tests (round-trip, windowed slice, scale-overflow rejection, bad-magic/truncated-file
+  rejection, out-of-bounds slice) plus one `#[ignore]`d scale proof; one `pub mod`/re-export line
+  in `lib.rs`. Full-workspace gate green after: 349 passed, 0 failed, 1 ignored; fmt/clippy clean;
+  demo/sweep shasums unchanged. Scale proof run once (release, `/usr/bin/time -l cargo test -p
+  market-data --release scale_proof_full_year_1s -- --ignored --nocapture`): wrote 31,536,000 rows
+  in 5.72s, file size 1,513,728,024 bytes (≈1.41 GiB, exact); read 1,000 windowed slices of 43,200
+  rows in 0.84s; maximum resident set size 304,168,960 bytes (≈290 MiB) — about a fifth of the
+  file, confirming the writer/reader never materialize the whole year. Recorded as D-0013
+  (memmap2/arrow rejected, no new deps). Fixture lived under system temp dir, deleted at test end
+  (verified no leftover file); `data/` untouched. `git status` scoped to exactly
+  `crates/market-data/src/columnar.rs` (new), `crates/market-data/src/lib.rs`, `DECISIONS.md` +
+  this queue/worklog pair. Next: planner drafts C3 (latency pipeline — new surface begins); M6 has
+  no candidate and does not start.

@@ -7,6 +7,34 @@ do not authorize any new capability (no signing, no submission — see
 
 ---
 
+## D-0013 — Fixed-record columnar bar storage + `IntradaySource` for the HF scale/streaming proof (M-HF-C2.6)
+**Context.** m-hf-track.md §2/§5 flags a hard must-address: a full year of 1s bars (~31.5M rows)
+must never materialize whole in memory — sweeps slice only their evaluation window. The format and
+the sweep-facing seam needed to exist and be measured BEFORE the fill engine (C3+) is built on top
+of it.
+**Decision.** A fixed-record columnar binary format: 24-byte header (`b"MCHC"` magic, `u32`
+version, `u32` price/volume scale, `u32` reserved, `u64` row count) + 48-byte rows (`i64` ts +
+five `i64` scaled-integer mantissas for open/high/low/close/volume). Conversion is exact-or-error
+(`Decimal::rescale` + mantissa compare; any field that would round is `ColumnarError::ScaleOverflow`
+— never rounded on write). `ColumnarWriter` streams rows through a `BufWriter`, patching the row
+count into the header on `finish`; `ColumnarFile` validates magic/version/file-length on `open` and
+implements the sweep-facing `IntradaySource` trait (`len`, `slice(Range) -> Vec<Bar>`), reading only
+the requested window via seek + one bulk read sized to the window. `std::fs`/`std::io` only —
+**memmap2 and arrow are REJECTED absent their own recorded decision** (D-0002/D-0009 minimalism
+precedent: a hand-rolled fixed-record format needs neither an mmap crate nor a columnar-analytics
+crate to satisfy a seek-and-slice access pattern).
+**Consequences (measured, `crates/market-data/src/columnar.rs::scale_proof_full_year_1s`, macOS,
+release build, 2026-07-13, `/usr/bin/time -l cargo test -p market-data --release
+scale_proof_full_year_1s -- --ignored --nocapture`, run once).** Wrote 365 daily-segment-generated
+1s bars = 31,536,000 rows in **5.72s**; file size **1,513,728,024 bytes** (≈1.41 GiB, exactly
+`24 + 48 × 31,536,000`, confirming the header/row-length arithmetic). Read back 1,000 windowed
+slices of 43,200 rows each (43.2M row-reads total) in **0.84s**. Maximum resident set size for the
+whole run: **304,168,960 bytes (≈290 MiB)** — roughly a fifth of the file size, confirming the
+writer/reader never materialize the whole year; peak memory tracks the day-sized write segment and
+the window-sized read buffer, not the file. The fixture lived under the system temp dir and was
+deleted at test end; `data/` was never touched. C8+ wires `IntradaySource` into the HF sweep; a
+format change after real data lands (C9) requires a migration note.
+
 ## D-0012 — Q7 amendment: high-frequency research track added to the master-plan pair (M-HF)
 **Context.** questions.md Q7 (decided 2026-07-07) deferred-then-planned the operator's actual
 ambition — a high-volume (thousands of trades/day) autonomous Solana bot — pending the M4 gate.

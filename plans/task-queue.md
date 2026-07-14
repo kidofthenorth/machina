@@ -3014,7 +3014,7 @@ would validate only after a schema edit (forbidden); demo/sweep hashes move.
 
 ---
 
-### M-HF-C2.6 — Streaming/scale proof: `IntradaySource` + columnar reader at ~31.5M rows — `TODO`
+### M-HF-C2.6 — Streaming/scale proof: `IntradaySource` + columnar reader at ~31.5M rows — `DONE` *(2026-07-13; format + writer/reader + IntradaySource in market-data/src/columnar.rs; 6 unit tests + one `#[ignore]`d 31.5M-row proof; D-0013 recorded)*
 
 **Goal.** Prove the compute/memory contract BEFORE the fill engine exists (m-hf-track §2/§5 row
 C2.6): a year of 1s bars (~31.5M rows) lives on disk in a fixed-record columnar file; sweeps
