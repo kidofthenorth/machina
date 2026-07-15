@@ -11,10 +11,14 @@
 //! - [`hf_cost::hf_trade_cost`]: additive HF cost terms (m-hf-track §3/§4) — depth-walk
 //!   slippage, regime priority, tip; carried on [`hf_cost::HfCostModel`], not on [`cost::CostModel`]
 //!   (see the module doc for why). Not yet wired into execution.
+//! - [`adversarial::adverse_selection_cost_worst`]: adversarial execution terms (m-hf-track
+//!   §3/§5 row C5) — sandwich/pickoff τ priced as costs to us (a worst rung + a base-rung
+//!   expected `p·τ`), and a trade-through-only maker fill. Pure; not yet wired into execution.
 //!
 //! Nothing here is a strategy: the simulator takes a `FnMut(&[Bar]) -> Decimal` target-weight
 //! function. Strategies live in the `strategies` crate and produce intent only.
 
+pub mod adversarial;
 pub mod cost;
 pub mod equity;
 pub mod hf_cost;
@@ -22,6 +26,10 @@ pub mod latency;
 pub mod simulator;
 pub mod state;
 
+pub use adversarial::{
+    adverse_selection_cost_expected, adverse_selection_cost_worst, maker_trade_through_fill,
+    AdversarialError, AdversarialModel, MakerFill, MakerOrder,
+};
 pub use cost::{BuyFill, CostModel, SellFill, Side};
 pub use equity::{EquityPoint, RoundTrip};
 pub use hf_cost::{

@@ -1,7 +1,8 @@
 # Current state
 
 Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-15 (M-HF
-wave 2: C3/C4 DONE; C5 drafted, TODO).
+wave 2: C3/C4/C5 DONE + verified; C3–C5 adversarial checkpoint PASS-with-hardening; next: card
+M-HF-C5.1 fail-closed hardening → then draft C6).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -32,10 +33,21 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   D-0013, 31.5M rows / ~290 MiB peak RSS measured). **Wave-2 audit re-run DONE 2026-07-13** (no
   blocking drift; table in worklog). **C3/C4 DONE** (2026-07-13/07-15): C3 `run_hf`/`LatencyPipeline`
   (simulator.rs untouched, adversarially reviewed, stands); C4 `HfCostModel`/`hf_trade_cost` — one
-  escalation (a card transcription slip caught + fixed at source, gate re-run green). **C5 drafted,
-  TODO — the next executor card** (adversarial terms: sandwich/pickoff τ at worst + base-rung
+  escalation (a card transcription slip caught + fixed at source, gate re-run green). **C5 DONE +
+  independently verified 2026-07-15** (adversarial terms: sandwich/pickoff τ at worst + base-rung
   expected `p·τ` rungs, and a trade-through-only maker fill; pure pricing/fill functions like C4,
-  NOT wired into run_hf — that is C6/C8). HF-Q1 (deferred to wave 2) blocks C9/C10;
+  NOT wired into run_hf — that is C6/C8): fmt/clippy clean, 382 passed/0 failed/1 ignored,
+  demo+sweep shasums unchanged, scope exactly `adversarial.rs`+`lib.rs`, every reference number
+  hand-recomputed. **Mandatory C3–C5 adversarial checkpoint DONE 2026-07-15 (m-hf-track §5):
+  PASS-with-hardening.** 5 lenses, each finding refuted-or-confirmed by 2 skeptics: determinism = 0,
+  contract-drift = 0 (the load-bearing lenses clean); 11 raw findings → 5 survived → **2 real,
+  distinct fail-closed gaps on C4's cost types** (both cost-understating, both UNREACHABLE in any
+  wired path today, both mirroring the `DepthCurve::new` guard C4 already ships): (a) `DepthCurve::new`
+  doesn't reject non-monotonic `impact_bps` (a larger trade can price cheaper than a smaller one);
+  (b) `CongestionPriorityTable`/`HfCostModel` accept negative lamports → negative gas → a fabricated
+  benefit. Drafted as card **M-HF-C5.1** (contained to `hf_cost.rs`+tests; `HfCostError` has no
+  external matcher, so new variants ripple nowhere) — **land C5.1 before C6 wires these into the
+  ladder / C8 derives them from config.** HF-Q1 (deferred to wave 2) blocks C9/C10;
   HF-Q3 blocks C10. M6+ does NOT start (reject-all ⇒ no shadow candidate); M8/M9 (signing/submit)
   need **separate explicit human approval**.
 

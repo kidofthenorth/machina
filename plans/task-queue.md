@@ -4137,7 +4137,7 @@ pricing function).
 
 ---
 
-### M-HF-C5 — Adversarial execution terms: sandwich, pickoff, maker trade-through, base-rung expected adverse-selection — `TODO`
+### M-HF-C5 — Adversarial execution terms: sandwich, pickoff, maker trade-through, base-rung expected adverse-selection — `DONE`
 
 **Goal.** Give the research engine the adversarial (MEV / adverse-selection) execution terms
 m-hf-track §3/§5 row C5 calls for — **sandwich** and **pickoff** losses priced as **costs to us
@@ -4660,6 +4660,174 @@ need separate explicit human approval). Never `git commit`/`git push` — the op
   wired in);
 - an unlisted file seems needed; rust_decimal_macros is missing from portfolio's dev-deps; any
   pre-existing test fails for a reason unrelated to this card.
+
+---
+
+### M-HF-C5.1 — Fail-closed hardening of C4 cost-shaping inputs (depth-curve impact monotonicity + non-negative priority lamports) — `TODO`
+
+**Why this card exists.** The mandatory C3–C5 adversarial checkpoint (m-hf-track §5, run 2026-07-15)
+confirmed **two** fail-closed gaps in C4's `hf_cost.rs` — both **cost-understating**, both mirroring
+the `DepthCurve::new` validation C4 *already* ships for a sibling field, neither reachable in any
+wired path today (nothing constructs these types from external/untrusted input until C6 wires them
+into the ladder and C8 derives them from an operator TOML). Land this **before C6**, so the invariant
+is true at the moment of wiring. This is a small, contained, fail-closed hardening — **not** new
+modeling and **not** any execution capability.
+
+The two confirmed gaps (each reproduced by direct code trace during the checkpoint):
+1. **`DepthCurve::new` accepts a non-monotonic `impact_bps` curve.** It validates only that
+   `notional_upto` is strictly ascending (hf_cost.rs:38-43); `impact_bps` is unchecked. So
+   `DepthCurve::new(vec![DepthBand{notional_upto: 100, impact_bps: 50}, DepthBand{notional_upto:
+   10_000, impact_bps: 5}])` is accepted, and then `impact_bps_for(5_000) == 5` while
+   `impact_bps_for(100) == 50` — a **larger** trade priced **cheaper** in bps than a smaller one,
+   inverting the depth-walk premise and understating slippage at scale.
+2. **`CongestionPriorityTable` accepts negative lamports → a fabricated benefit.** Its lamport fields
+   are unvalidated `pub i64`. A negative priority fee (e.g. `calm_lamports: -10_000` with
+   `base_fee_lamports: 5_000`) makes `gas_lamports = -5_000` (hf_cost.rs:158-159), `gas_quote =
+   lamports_to_sol(-5_000)*price < 0` (:160), and `total_quote < 0` — a **negative cost**, strictly
+   **below** `base_fee_floor_quote`, directly breaking C4's own `total_cost_exceeds_base_fee_floor`
+   gate and the module's "costs to us only, never a benefit" invariant.
+
+**Scope boundary (read before "fixing more").** `base_fee_lamports` lives on `CostModel` in
+`cost.rs`, which is **read-only** for HF cards (M2-owned; a negative base fee would corrupt the daily
+sim too, so if it is a concern it is a separate M2 matter). **Do NOT edit `cost.rs` or add a runtime
+`assert!`/clamp inside `hf_trade_cost`** — a mid-run panic or silent repair is not fail-closed. Fix
+at the **type boundary** with `Result`-returning smart constructors, exactly as `DepthCurve::new`
+already does (validity-by-construction; `hf_trade_cost` stays a pure infallible function whose inputs
+are valid by construction). This card closes the `CongestionPriorityTable` (ours) vector; the
+`base_fee_lamports` vector is explicitly out of scope and named here so it is not silently dropped.
+
+**Planner decision (logged).** Mirror `DepthCurve` exactly: make `CongestionPriorityTable`'s three
+lamport fields **private** and add `CongestionPriorityTable::new(calm, busy, hot) -> Result<Self,
+HfCostError>` rejecting any negative — `DepthCurve` already keeps its `bands` field private behind
+`new()`, so this is the established shape, not new API philosophy. Keeping the fields `pub` with only
+a validating constructor would leave the guard bypassable (not fail-closed). No external caller
+constructs or field-reads these types (confirmed 2026-07-15: every `CongestionPriorityTable {`/field
+read is inside `hf_cost.rs`; `lib.rs` only re-exports the type *names*), so the change ripples
+nowhere outside this file.
+
+**Files.** Exactly ONE: `crates/portfolio/src/hf_cost.rs` (production edits + its in-file
+`#[cfg(test)] mod tests`). **`lib.rs` is UNTOUCHED** — `HfCostError`, `DepthCurve`,
+`CongestionPriorityTable` are already re-exported (hf_cost.rs's types at lib.rs:35-38); new error
+variants and the inherent `new()` ride the existing re-exports. **No `Cargo.toml`/`Cargo.lock`
+change.**
+
+**Current state (verbatim, verified 2026-07-15 at HEAD `6507193`; if what you find differs,
+escalate — don't adapt).**
+- `DepthCurve::new` (hf_cost.rs:34-45) — the *only* validation is non-empty + strictly-ascending
+  `notional_upto`:
+  ```rust
+  pub fn new(bands: Vec<DepthBand>) -> Result<Self, HfCostError> {
+      if bands.is_empty() {
+          return Err(HfCostError::EmptyDepthCurve);
+      }
+      if bands
+          .windows(2)
+          .any(|w| w[0].notional_upto >= w[1].notional_upto)
+      {
+          return Err(HfCostError::UnsortedDepthCurve);
+      }
+      Ok(Self { bands })
+  }
+  ```
+- `HfCostError` (hf_cost.rs:91-113) currently has exactly two variants: `EmptyDepthCurve`,
+  `UnsortedDepthCurve`, with a `Display` `match` over both.
+- `CongestionPriorityTable` (hf_cost.rs:72-88) — three `pub i64` fields + `priority_lamports_for`:
+  ```rust
+  pub struct CongestionPriorityTable {
+      pub calm_lamports: i64,
+      pub busy_lamports: i64,
+      pub hot_lamports: i64,
+  }
+  impl CongestionPriorityTable {
+      #[must_use]
+      pub fn priority_lamports_for(&self, regime: CongestionRegime) -> i64 { /* match */ }
+  }
+  ```
+- In-file construction / field-read sites that MUST be updated when the fields go private
+  (all inside hf_cost.rs; confirmed there are no others in the workspace):
+  - `scale_hf_cost_model` at ~:196-200 constructs `CongestionPriorityTable { calm_lamports:
+    scale_lamports(hf.congestion_priority_table.calm_lamports), … }` — both the `{ … }` literal and
+    the three `hf.congestion_priority_table.<field>` reads change.
+  - test helper `reference_priority_table` at ~:228-234 (`CongestionPriorityTable { calm_lamports:
+    1_000, busy_lamports: 10_000, hot_lamports: 100_000 }`).
+  - test `zero_hf_terms_still_exceeds_floor_when_gas_priority_is_nonzero` at ~:345-349
+    (`CongestionPriorityTable { calm_lamports: 0, busy_lamports: 10_000, hot_lamports: 0 }`).
+  - test `scale_hf_cost_model_scales_hf_fields_exactly` at ~:375-377 reads
+    `scaled.congestion_priority_table.{calm,busy,hot}_lamports`.
+- The existing `reference_depth_curve` (impacts `5, 20, 50`) is already monotonic non-decreasing —
+  no existing depth-curve test violates the new rule; the single-band curve in the zero-terms test
+  has no `windows(2)` pair. So no existing assertion should change value.
+
+**Steps.**
+1. **Step 0 (before touching any file):** run the full-workspace gate. Expect **382 passed, 0
+   failed, 1 ignored**; fmt/clippy clean; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`;
+   sweep shasum `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`. If already red, STOP and report.
+2. `HfCostError`: add two variants and their `Display` arms — `NonMonotonicImpact` ("depth curve
+   `impact_bps` must be non-decreasing across bands") and `NegativePriorityLamports { regime: &'static
+   str, lamports: i64 }` *(or a field-free variant if simpler — planner leaves the exact shape to the
+   executor, but it must name which value was bad in `Display`)* ("priority-fee lamports must be
+   >= 0"). Keep `#[derive(Debug, Clone, PartialEq, Eq)]`.
+3. `DepthCurve::new`: after the ascending-`notional_upto` check, add a **non-decreasing** check on
+   `impact_bps` (equal is allowed — a flat region is legal; reject only a strict decrease):
+   `if bands.windows(2).any(|w| w[0].impact_bps > w[1].impact_bps) { return
+   Err(HfCostError::NonMonotonicImpact); }`.
+4. `CongestionPriorityTable`: make the three lamport fields **private**; add
+   `pub fn new(calm_lamports: i64, busy_lamports: i64, hot_lamports: i64) -> Result<Self,
+   HfCostError>` that returns the appropriate negative-lamports error if ANY of the three is `< 0`,
+   else `Ok(Self { … })`. `priority_lamports_for` is unchanged (it reads the now-private fields
+   internally).
+5. Update the in-file sites from the current-state list to go through the accessor/constructor:
+   field reads → `priority_lamports_for(CongestionRegime::{Calm,Busy,Hot})`; literal constructions →
+   `CongestionPriorityTable::new(…)` with `.expect("valid priority table")` in tests, and in
+   `scale_hf_cost_model` `.expect("scaling non-negative lamports by num/den stays non-negative")`
+   (the inputs are non-negative by construction and `num/den` are `u32`, so the scaled result is
+   non-negative — the `expect` cannot fire).
+6. Add tests (in the same `#[cfg(test)] mod tests`), names pinned:
+   - `depth_curve_rejects_non_monotonic_impact` — `DepthCurve::new(vec![{100,50},{1_000,20}])` →
+     `Err(HfCostError::NonMonotonicImpact)`; and `DepthCurve::new(vec![{100,5},{1_000,5}])` (equal
+     impacts) → `Ok` (a flat step is legal).
+   - `priority_table_rejects_negative_lamports` — `CongestionPriorityTable::new(-1, 0, 0)` →
+     `Err(…negative…)`; `CongestionPriorityTable::new(0, 10_000, 100_000)` → `Ok`; and
+     `.priority_lamports_for(CongestionRegime::Busy) == 10_000` on the Ok value.
+   - `hf_cost_cannot_go_negative_via_priority_table` — assert the *former* fabricated-benefit input
+     is now un-constructible: `CongestionPriorityTable::new(-10_000, 0, 0)` is `Err`, so the negative
+     `total_quote` path from the checkpoint finding cannot be built (this is the finding's regression
+     pin — it lives at the constructor, not at `hf_trade_cost`).
+7. `cargo fmt --all`; run the full gate (below); flip this card to `DONE` + one worklog line.
+
+**Gate.**
+- `cargo test -p portfolio hf_cost` green, including the 3 new tests; the existing
+  `hf_trade_cost_matches_hand_computed_reference_trade` / `total_cost_exceeds_base_fee_floor` /
+  `scale_hf_cost_model_scales_hf_fields_exactly` still pass with **identical asserted numbers** (this
+  card changes construction/validation only, never a priced value).
+- Full workspace: `cargo fmt --all --check` clean; `cargo clippy --all-targets --all-features -- -D
+  warnings` clean; `cargo test --workspace --all-features` → **0 failed, 1 ignored, 385 passed**
+  (382 + the 3 new tests; if the count is not 385, a test failed to register — investigate before
+  flipping).
+- `cargo run -p cli -- demo | shasum` → `ae064f79242f823ffd8f55bf9104e3e1b45d425a` unchanged;
+  `cargo run -p cli -- sweep | shasum` → `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` unchanged
+  (this card wires nothing into execution — the gate re-confirms it); `sweep-verify` → OK.
+- `git status` shows exactly ONE code file (`crates/portfolio/src/hf_cost.rs`) + this queue/worklog
+  flip — no `lib.rs`, no `cost.rs`, no `Cargo.toml`, no other crate.
+
+**Guardrails (restated).** `Decimal` for money; lamports stay `i64` but are now guaranteed `>= 0` by
+construction; **no new deps / no Cargo.toml edits**; **no RNG, no clock**; fail-closed at the type
+boundary (no runtime `assert!`/clamp, no `Result` on `hf_trade_cost`); **`cost.rs`, `simulator.rs`,
+`latency.rs`, `adversarial.rs` untouched**; never touch `schemas/`, existing fixtures,
+`config/strategies/m5-frozen.toml`, the master-plan pair, or the holdout machinery; NOTHING here
+creates execution capability. Never `git commit`/`git push` — the operator commits explicit paths.
+
+**Escalate-if (STOP, record in plans/worklog.md, report — never improvise):**
+- any quoted signature/line/block above doesn't match source at `6507193`;
+- making the lamport fields private forces an edit **outside** `hf_cost.rs` (it should not — if it
+  does, an unlisted consumer exists; report it rather than editing another file);
+- the demo/sweep shasum moves (structurally impossible here — if it moves, something got wired in);
+- any existing priced-value assertion (`…reference_trade`, `…exceeds_base_fee_floor`,
+  `…scales_hf_fields_exactly`) has to change to stay green — that means a real behavioral change crept
+  in; STOP;
+- any impulse to also edit `cost.rs`/`CostModel` for `base_fee_lamports` (out of scope — see the
+  scope boundary), or to wire these types into `run`/`run_hf`/the ladder (C6/C8), or to touch
+  `adversarial.rs`.
 
 ---
 

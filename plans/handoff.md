@@ -1,12 +1,15 @@
 # Handoff — for a new chat continuing machina
 
 You are picking up a build where **M5 is CLOSED (reject-all, holdout unread) and the M-HF
-research track is ACTIVE** (entered 2026-07-12: operator note unblocked the synthetic-only cards
-C1–C2.6; HF-Q2 resolved; wave-1 cards reconciled). This is the single entry point. Read the
-pointer files below, confirm the gates are green, then execute the next TODO card in
-task-queue.md §M-HF wave 1 — and nothing beyond it. Never start M6+ (network) or M8/M9
-(signing/submit — separate explicit human approval). **Do not commit or push — the operator
-commits.**
+research track is ACTIVE**. Cards **C1–C2.6 and C3/C4/C5 are all DONE**; the mandatory **C3–C5
+adversarial checkpoint (m-hf-track §5) PASSED-with-hardening** on 2026-07-15 (determinism +
+contract-drift lenses clean; it surfaced 2 small fail-closed gaps on C4's cost types, both
+unreachable in any wired path today, drafted as one card). This is the single entry point. Read the
+pointer files below, confirm the gates are green, then execute **the next TODO card in
+task-queue.md §M-HF — currently `M-HF-C5.1`** (fail-closed hardening of C4's `hf_cost.rs`) — and
+nothing beyond it. **Do not draft or execute C6 until C5.1 is DONE** (C5.1 hardens exactly the types
+C6 wires into the ladder). Never start M6+ (network) or M8/M9 (signing/submit — separate explicit
+human approval). **Do not commit or push — the operator commits.**
 
 ---
 
@@ -149,11 +152,16 @@ failed the frozen +0.02 baseline margin and edge-vanishes-under-doubled-costs (t
 `plans/m5-data-validation.md`). `evaluate_on_holdout` was never called; the 2026-01-01..2026-06-30
 holdout survives unseen for a future cycle. Step-0 review: PASS (6 agents).
 
-**The active queue is task-queue.md §M-HF wave 1** (entered 2026-07-12): C1–C2.6 unblocked by
-operator note; HF-Q2 resolved (USDT + jitoSOL research allowlist); C1/C2 reconciled against
-m-hf-track.md §1/§2 and TODO. C2.5/C2.6 are not yet drafted (planner work after C2). HF-Q1
-(deferred to wave 2) blocks C9/C10; HF-Q3 blocks C10. Neither daily-bar family advances; M6
-(shadow) has no candidate and does not start.
+**The active queue is task-queue.md §M-HF.** Wave-1 C1–C2.6 and C3/C4/C5 are DONE; the mandatory
+C3–C5 adversarial checkpoint (m-hf-track §5) ran 2026-07-15 and **PASSED-with-hardening** — the
+determinism and contract-drift lenses were clean, and 11 raw findings narrowed to **2 real
+fail-closed gaps on C4's cost types** (both cost-understating, both unreachable in any wired path
+today, both mirroring the `DepthCurve::new` guard C4 already ships). **The next TODO card is
+`M-HF-C5.1`**: reject a non-monotonic depth-curve `impact_bps`, and reject negative priority lamports
+(the negative-gas → fabricated-benefit path), both fail-closed at the type boundary, contained to
+`hf_cost.rs`. Land C5.1 **before** C6 wires these into the ladder / C8 derives them from config; then
+the planner drafts C6. HF-Q1 (deferred to wave 2) blocks C9/C10; HF-Q3 blocks C10. Neither daily-bar
+family advances; M6 (shadow) has no candidate and does not start.
 
 The Q7 HF amendment was made 2026-07-09 (D-0012): master-plan pair amended in lockstep
 (cmp-verified); milestone plan at [m-hf-track.md](m-hf-track.md). M-HF execution still waits on
@@ -210,16 +218,17 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 > is a hypothesis to test — no card claims a known-profitable algorithm, and rejecting them all
 > cleanly is a successful outcome.
 >
-> **State (2026-07-12):** M5 CLOSED (reject-all; holdout unread, seal intact). M-HF wave 1 ACTIVE.
-> Workspace green at **313 tests, 0 failed**; demo shasum
-> `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template sweep shasum
-> `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify: OK`.
+> **State (2026-07-15):** M5 CLOSED (reject-all; holdout unread, seal intact). M-HF C1–C5 DONE; the
+> C3–C5 adversarial checkpoint (m-hf-track §5) PASSED-with-hardening. Workspace green at **382
+> passed, 0 failed, 1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template
+> sweep shasum `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify: OK`.
 >
-> Your task is **the next TODO card in `plans/task-queue.md` §M-HF wave 1** (C1 → C2, in order).
-> Read the section's entry conditions, common rules, and the card. It is self-contained — do not
-> open files it doesn't name. Step 0 of every card: run the full-workspace gate BEFORE touching
-> any file; if it is already red, STOP and report. C2.5+ are not drafted — if the next card isn't
-> C1 or C2, say so and stop.
+> Your task is card **`M-HF-C5.1`** in `plans/task-queue.md` §M-HF (fail-closed hardening of C4's
+> `hf_cost.rs`: reject non-monotonic depth-curve `impact_bps`; reject negative priority lamports).
+> Read the §M-HF common rules and the card. It is self-contained — do not open files it doesn't
+> name (it touches exactly one code file, `crates/portfolio/src/hf_cost.rs`). Step 0 of every card:
+> run the full-workspace gate BEFORE touching any file; if it is already red, STOP and report. If
+> the next TODO card isn't C5.1, say so and stop.
 >
 > When the gate passes: flip the card, one worklog line, stop — the next card gets a fresh chat.
 > If any escalate-if triggers: STOP, record the mismatch in the worklog, report.

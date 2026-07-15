@@ -1033,3 +1033,59 @@ recorded inline (not full logs).
   unchanged, 2-file scope. No code implemented (planner drafts, executor implements). Card is TODO;
   next an executor session. After C5 execution: the mandatory C3–C5 block adversarial review before
   C6+ is drafted.
+- 2026-07-15 (executor, card M-HF-C5): Step 0 gate green before touching any file (373 passed,
+  0 failed, 1 ignored — matches expected). Typed in `crates/portfolio/src/adversarial.rs` (new:
+  `AdversarialModel`, `AdversarialError`, `adverse_selection_cost_worst`/`_expected`, `MakerOrder`/
+  `MakerFill`/`maker_trade_through_fill`, 9 unit tests) and `crates/portfolio/src/lib.rs` wiring
+  (module + re-export block + doc bullet) verbatim from the card; `git status --short` confirms
+  only those 2 files touched (`M lib.rs`, `?? adversarial.rs`) — no `cost.rs`/`simulator.rs`/
+  `latency.rs`/`hf_cost.rs`/`state.rs`/other-crate edits, no Cargo.toml/Cargo.lock change.
+  `cargo test -p portfolio adversarial` → **9/9 green**, including both named gate properties
+  (`adverse_selection_worst_reproduces_full_tau_on_every_fill`,
+  `maker_bid_fills_only_on_trade_through`). Hand-recomputed every reference number independently
+  before trusting the run (the C4 lesson): τ@1000 = 1000·30/10000 + 1000·10/10000 = 3+1 = 4;
+  τ@2000 = 6+2 = 8; expected@5/100 = 4·5/100 = 0.2; boundary 0/1→0, 1/2→2, 1/1→4 — all matched the
+  card and the code with no discrepancy, no assertion adjusted. Full gate: `cargo fmt --all --check`
+  clean; `cargo clippy --all-targets --all-features -- -D warnings` clean; `cargo test --workspace
+  --all-features` → **382 passed, 0 failed, 1 ignored** (373 + 9, exact match); demo shasum
+  `ae064f79242f823ffd8f55bf9104e3e1b45d425a` and sweep shasum
+  `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` unchanged; `sweep-verify` → OK (byte-identical across
+  sequential/2/8 threads + repeat, 18990 bytes). No RNG/clock anywhere; no `maker_fill.rs`, no
+  scale helper, no ladder-rung/`run_hf` wiring — none of the escalate-if triggers fired. Card
+  flipped to `DONE`. Not staged/committed (operator commits). Next: the mandatory C3–C5 block
+  adversarial review, before any C6+ card is drafted.
+- 2026-07-15 (verifier/planner): **M-HF-C5 independently verified — PASS.** Re-ran the full gate from
+  scratch (not trusting the executor report): `fmt`/`clippy` clean; `cargo test --workspace
+  --all-features` → 382 passed / 0 failed / 1 ignored (exact card match); `portfolio adversarial`
+  9/9; demo shasum `ae064f79…` + sweep shasum `7ad3df7d…` unchanged; `sweep-verify` OK; grep
+  confirms no RNG/clock/float in `portfolio`; `git status` scope is exactly `adversarial.rs`(new)
+  + `lib.rs`(wiring) + queue/worklog flip. Code matches the card verbatim; every reference number
+  hand-recomputed (τ@1000=4, τ@2000=8, p·τ=0.2, boundaries 0/2/4, maker strict `<`/`>`, volume cap)
+  — all correct. Read C3(latency.rs)/C4(hf_cost.rs) end-to-end too; the `run_hf(fixed_latency(1))
+  == run` regression (hf_regression.rs) genuinely pins the duplicated accounting helpers (3 strats ×
+  4 shapes × 2 cost models, exact Decimal equality) + landing-table byte-identity across threads
+  {1,2,3,7,8}.
+- 2026-07-15 (planner): **Mandatory C3–C5 adversarial checkpoint (m-hf-track §5) — DONE:
+  PASS-with-hardening.** Ran a fan-out review workflow (5 lenses over latency/hf_cost/adversarial;
+  each finding refuted-or-confirmed by 2 diverse Sonnet skeptics). *Process note (honest):* the
+  first workflow run reported "0 findings" due to a script bug (inner `parallel([...])` got eager
+  `agent()` promises, not `() =>` thunks) that crashed the verify stage and dropped all findings;
+  recovered the 5 review agents' 11 raw findings from journal.jsonl, fixed the thunk bug, and
+  re-ran verify via resume (review cached). Result: **determinism lens = 0, contract-drift lens = 0**
+  (the two load-bearing lenses clean — matches my own read); 11 raw findings → **5 survived skeptics
+  → 2 real, distinct defects** after dedup (2 were the same depth-curve issue from two lenses; 2
+  split-vote survivors — `landing-draw-event-index` and `run-hf-end-to-end-determinism` — are on
+  direct trace already covered by hf_regression.rs's non-degeneracy assert + compositional
+  determinism, so downgraded to nice-to-have tests). The 6 killed were spec-sanctioned or
+  known-limits: maker fill = full printed volume is the **spec's own wording** (§3 "size-capped by
+  printed volume"); depth-tail flatline is documented + a C8 spec-lint item; `scale_hf_cost_model`
+  truncation mirrors the accepted `scale_cost_model` pattern and is unwired. **The 2 real defects**
+  (both cost-understating, both UNREACHABLE in any wired path today — nothing constructs these types
+  from external input until C6/C8; both mirror the `DepthCurve::new` guard C4 already ships):
+  (a) `DepthCurve::new` accepts non-monotonic `impact_bps`; (b) `CongestionPriorityTable`/`HfCostModel`
+  accept negative lamports → negative gas → fabricated benefit (breaks the module's own "never a
+  benefit" / total>floor invariant). Verdict: the block PASSES the checkpoint in its load-bearing
+  dimensions (determinism + contract-fidelity clean; wired-path pessimism holds), with a small
+  fail-closed hardening owed **before C6 wiring**. Drafted card **M-HF-C5.1** (contained to
+  `hf_cost.rs`+tests; `HfCostError` has no external matcher → new variants ripple nowhere).
+  Next: execute C5.1, then draft C6.
