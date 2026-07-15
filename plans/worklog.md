@@ -1004,3 +1004,32 @@ recorded inline (not full logs).
   hf_cost.rs (new) + lib.rs + queue/worklog only. The escalation protocol worked exactly as
   designed — the executor's hand-recompute caught what two planner passes missed. M-HF-C4
   flipped to DONE. Next: draft M-HF-C5 (adversarial terms); the C3–C5 block review follows C5.
+- 2026-07-15 (planner, DRAFT M-HF-C5): card **M-HF-C5 — adversarial execution terms (sandwich,
+  pickoff, maker trade-through, base-rung expected adverse-selection)** drafted and appended after
+  M-HF-C4 in task-queue.md; status TODO. Verbatim source re-verified at `a7b3235` (clean tree):
+  lib.rs:18-36 (post-C4 wiring), money.rs:37-39 `apply_bps` (exactness proven by the green
+  money.rs:69 test), cost.rs:14-20 `Side`. **Numbers verified empirically, NOT by hand** (the C4
+  lesson): wrote a throwaway `crates/portfolio/tests/zzz_c5_number_check.rs` exercising the real
+  `apply_bps`/rust_decimal, ran it green, deleted it, confirmed `git status` clean — τ@1000=4,
+  τ@2000=8, expected p=5/100→0.2, p=1/2→2, p=1/1→4, p=0/1→0, plus the min() size-cap and the
+  strict-`<`/`>` trade-through boundaries. Files: `adversarial.rs` (NEW) + `lib.rs` — 2 files,
+  mirrors C4. **Pinned decisions (logged on the card):** (1) **one `adversarial.rs`, not
+  `maker_fill.rs`** — DRIFT from m-hf-track §3's `maker_fill.rs` naming, recorded not papered over:
+  the maker predicate is one ~15-line pure fn sharing the module's single "costs to us only" theme;
+  a dedicated file is premature fragmentation; reversible internal file-layout fork. (2) **C5 stays
+  PURE like C4** — pure pricing/fill fns, NOT wired into run_hf; per-fill hash realization (reusing
+  C3's `landing_draw`) + the fail-closed `(regime,percentile)→p` table are C8's job; ladder rung
+  wiring (`AdversarialWorst`) is C6's — exactly as C4 deferred regime-derivation + the
+  landing-percentile table. (3) **pure-parameter route** (m-hf-track §3's "or pure parameters"): no
+  new hash primitive introduced, so nothing new to prove for determinism beyond Decimal purity;
+  latency.rs untouched (no re-duplication / `pub(crate)` of `landing_draw`). The base-rung `p·τ`
+  closed form is exactly what C8's hashed per-fill realization averages to. (4) **no scale helper**
+  (unlike C4's `scale_hf_cost_model`) — adversarial rungs are a mode switch (expected↔worst, `p`
+  forced to 1), not a numeric ×n scale; C6 selects by calling `_worst` vs `_expected`. Semantics:
+  τ = sandwich_bps + pickoff_bps, both on EVERY fill (pessimistic, never a benefit); worst rung =
+  τ (p≡1); base rung = `p·τ` with `p` an exact rational (fail-closed like C3's build_landing_table);
+  maker fill = trade-through-only (strict `<`/`>`; touch = no fill), size-capped by printed volume.
+  Gate: 382 expected (373 + 9 unit tests), both named gate properties asserted, demo/sweep shasums
+  unchanged, 2-file scope. No code implemented (planner drafts, executor implements). Card is TODO;
+  next an executor session. After C5 execution: the mandatory C3–C5 block adversarial review before
+  C6+ is drafted.

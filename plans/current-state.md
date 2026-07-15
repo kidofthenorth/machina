@@ -1,7 +1,7 @@
 # Current state
 
-Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-13 (M-HF
-wave 1 complete; C3 drafted).
+Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-15 (M-HF
+wave 2: C3/C4 DONE; C5 drafted, TODO).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -30,8 +30,12 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   hygiene; C2 deterministic synthetic generator; C2.5 reuse proof — bet holds, post-card
   adversarial review PASS, trial_count pinned 192; C2.6 columnar storage + `IntradaySource`,
   D-0013, 31.5M rows / ~290 MiB peak RSS measured). **Wave-2 audit re-run DONE 2026-07-13** (no
-  blocking drift; table in worklog). **C3 drafted, TODO — the next executor card**
-  (`run_hf`/`LatencyPipeline`; simulator.rs READ-ONLY). HF-Q1 (deferred to wave 2) blocks C9/C10;
+  blocking drift; table in worklog). **C3/C4 DONE** (2026-07-13/07-15): C3 `run_hf`/`LatencyPipeline`
+  (simulator.rs untouched, adversarially reviewed, stands); C4 `HfCostModel`/`hf_trade_cost` — one
+  escalation (a card transcription slip caught + fixed at source, gate re-run green). **C5 drafted,
+  TODO — the next executor card** (adversarial terms: sandwich/pickoff τ at worst + base-rung
+  expected `p·τ` rungs, and a trade-through-only maker fill; pure pricing/fill functions like C4,
+  NOT wired into run_hf — that is C6/C8). HF-Q1 (deferred to wave 2) blocks C9/C10;
   HF-Q3 blocks C10. M6+ does NOT start (reject-all ⇒ no shadow candidate); M8/M9 (signing/submit)
   need **separate explicit human approval**.
 
@@ -114,12 +118,15 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-**M-HF-C4 is DONE** (2026-07-15; 373 passed/0 failed/1 ignored; `HfCostModel` wrapper +
-`hf_trade_cost` with hand-verified reference trade; one escalation — a card transcription slip
-(0.05 vs 0.0005 floor) caught by the executor's hand-recompute, ruled + fixed at the source by
-the planner; demo/sweep shasums unchanged). Next: the **planner drafts M-HF-C5** (adversarial
-terms: sandwich, pickoff, maker trade-through; base-rung expected adverse-selection term) — not
-an executor card until drafted. After C5: the **mandatory C3–C5 block adversarial review** runs
-before C6+ is expanded. M6 has no candidate and does not start.
+**M-HF-C5 is DRAFTED (TODO)** (2026-07-15; card appended after M-HF-C4 in task-queue.md —
+adversarial execution terms as costs to us only: sandwich + pickoff τ priced at a worst rung (τ on
+every taker fill) and a base rung (expected `p·τ`, exact rational), plus a trade-through-only maker
+fill; pure pricing/fill functions like C4, NOT wired into `run_hf` — per-fill hash realization + the
+`(regime,percentile)→p` table are C8's job). Every reference number (τ@1000=4, τ@2000=8, expected
+p=5/100→0.2, p=1/2→2, p=1/1→4, p=0/1→0) was verified empirically against the real `apply_bps` /
+rust_decimal before drafting (throwaway test, run green, deleted; tree clean) — the C4 lesson
+applied. Next: an **executor session runs M-HF-C5** (fresh chat, one card). After C5: the
+**mandatory C3–C5 block adversarial review** runs before C6+ is drafted/expanded. M6 has no
+candidate and does not start.
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

@@ -4137,6 +4137,532 @@ pricing function).
 
 ---
 
+### M-HF-C5 — Adversarial execution terms: sandwich, pickoff, maker trade-through, base-rung expected adverse-selection — `TODO`
+
+**Goal.** Give the research engine the adversarial (MEV / adverse-selection) execution terms
+m-hf-track §3/§5 row C5 calls for — **sandwich** and **pickoff** losses priced as **costs to us
+only, never a benefit**, at two rungs (a worst-case rung reproducing the full τ-loss on **every**
+taker fill, and a **base rung** carrying the non-zero **expected** `p·τ` term), plus a
+**trade-through-only maker fill** predicate where a mere touch fills nothing — all deterministic
+by construction (pure Decimal arithmetic; no RNG, no clock). Serves m-hf-track §5 row C5's gate
+("worst-case rung reproduces τ-loss every taker fill; touch-without-trade-through → no fill") and
+§3's "adverse selection is priced at the BASE rung, not only worst-case." Simulation only —
+nothing here creates execution capability, and nothing here wires these terms into `run`/`run_hf`
+(that is C6/C8, once cell/regime derivation exists).
+
+**Planner decisions, logged here (read before objecting or trying to "fix" them):**
+- **Decision 1 — one new `adversarial.rs`, not `maker_fill.rs`.** All four terms (sandwich,
+  pickoff, base-rung expected adverse-selection, and the maker trade-through predicate) live in a
+  single new `crates/portfolio/src/adversarial.rs`, mirroring C4's single-cohesive-module shape
+  (`hf_cost.rs`). **Drift note, on the record:** m-hf-track §3 names `maker_fill.rs` for the maker
+  predicate. C5 places that predicate in `adversarial.rs` instead — it is one small pure function
+  (~15 lines) sharing the module's single theme ("adversarial execution terms, priced/modeled as
+  costs to us only"); a dedicated file for it would be premature fragmentation and extra wiring for
+  a fresh executor. This is a reversible internal file-layout fork (AGENTS.md: agent decides and
+  logs these); the spec's intent — a trade-through-only maker fill that refuses touch-only fills —
+  is preserved exactly. Do **not** create `maker_fill.rs`.
+- **Decision 2 — C5 stays PURE, exactly like C4; it does NOT wire into `run`/`run_hf`.** C5
+  defines and proves pure pricing/fill functions. Wiring the adverse-selection cost into the
+  execution loop, and adding the `AdversarialWorst`/`HotCongestion`/`Latency2x` `ScenarioId` ladder
+  rungs, are **C6's** job (m-hf-track §4); the per-fill decision of *which* fills get targeted, and
+  the fail-closed `(regime, percentile) → p` table, are **C8's** sweep-wiring job. This is the exact
+  parallel to C4, which supplied only the pure `hf_trade_cost(regime)` and the priority-fee lookup
+  and deferred regime-derivation + the landing-percentile table to C8. Do **not** let ladder/spec
+  wiring creep into this card.
+- **Decision 3 — pure-parameter route, no new hash primitive.** m-hf-track §3 allows determinism
+  "hash streams (the C3 splitmix64/landing_draw pattern) **or pure parameters**." C5 takes the
+  pure-parameter route: the base-rung term is the **closed-form expectation** `p·τ` (exact rational
+  `p`), which is precisely what C8's per-fill hash realization (reusing C3's `landing_draw`
+  primitive — the "one primitive reused for landing/sandwich/pickoff/auction" of §3) will average to
+  over many fills. C5 introduces **no new stochastic primitive**, so there is nothing new to prove
+  for determinism beyond Decimal purity, and C3's `landing_draw` is neither re-duplicated nor made
+  `pub(crate)` (latency.rs is untouched). The two views — C5's closed-form `p·τ` and C8's hashed
+  per-fill realization — are consistent by construction.
+- **Decision 4 — no scale helper.** Unlike C4's `scale_hf_cost_model`, C5 provides **no** scaling
+  function. The adversarial ladder rungs are a **mode switch** (base expected ↔ worst-case, i.e. `p`
+  forced to 1), not a numeric `×n` scale like `Doubled`; C6 selects a rung by calling
+  `adverse_selection_cost_worst` vs `adverse_selection_cost_expected`. Do **not** add a scaler.
+
+**Files.** Exactly these two; `simulator.rs`, `cost.rs`, `latency.rs`, `hf_cost.rs`, and every
+existing call site are untouched:
+1. `crates/portfolio/src/adversarial.rs` — NEW (`AdversarialModel`, `AdversarialError`, the two
+   adverse-selection cost functions, `MakerOrder`/`MakerFill`/`maker_trade_through_fill`, unit
+   tests).
+2. `crates/portfolio/src/lib.rs` — wiring only (one `pub mod` + one `pub use` block + one doc line).
+
+**Current state (verbatim, copied from source 2026-07-15 at `a7b3235` — if what you find differs,
+escalate, don't adapt).**
+- `crates/portfolio/src/cost.rs:14-20` — `Side` (the maker predicate matches on it; **untouched**):
+  ```rust
+  /// Which direction a swap goes. Base = SOL, quote = USDC.
+  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+  pub enum Side {
+      /// USDC → SOL.
+      Buy,
+      /// SOL → USDC.
+      Sell,
+  }
+  ```
+- `crates/research-core/src/money.rs:37-39` — `pub fn apply_bps(value: Decimal, bps: u32) ->
+  Decimal` returns `value * Decimal::from(bps) / Decimal::from(10_000_u32)` — **exact**, proven by
+  the already-green `bps_application_is_exact` test (money.rs:69: `apply_bps(1000, 20) == dec!(2)`,
+  `apply_bps(100, 5) == dec!(0.05)`). All money is exact `Decimal`; no floating point.
+- `crates/portfolio/src/lib.rs:18-36` — current wiring (post-C4), the block this card extends:
+  ```rust
+  pub mod cost;
+  pub mod equity;
+  pub mod hf_cost;
+  pub mod latency;
+  pub mod simulator;
+  pub mod state;
+
+  pub use cost::{BuyFill, CostModel, SellFill, Side};
+  pub use equity::{EquityPoint, RoundTrip};
+  pub use hf_cost::{
+      hf_trade_cost, scale_hf_cost_model, CongestionPriorityTable, CongestionRegime, DepthBand,
+      DepthCurve, HfCostError, HfCostModel, HfTradeCost,
+  };
+  pub use latency::{
+      build_landing_table, fixed_latency, run_hf, HfError, HfRunOutput, LandingOutcome,
+      LatencyPipeline,
+  };
+  pub use simulator::{run, RunOutput};
+  pub use state::{PortfolioState, SimError, TradeOutcome};
+  ```
+- `crates/portfolio/Cargo.toml` — deps: research-core, rust_decimal; dev-deps: rust_decimal_macros.
+  **No Cargo.toml/Cargo.lock change is permitted by this card.**
+
+**Pinned semantics (planner decisions — do not re-decide):**
+- **τ (tau) — the worst-case per-fill adverse-selection loss.** For a taker fill of `notional_quote`
+  (quote/USDC terms), τ = the sandwich loss **plus** the pickoff loss, each `apply_bps(notional,
+  bps)`, **both applied on every fill**. Summing both on the same fill is the intended pessimism —
+  a cost to us, never a benefit; it never *under*-states our cost. τ is independent of the
+  probability `p`.
+- **Worst-case rung (`adverse_selection_cost_worst`)** = τ on **every** taker fill (p ≡ 1,
+  deterministic). This is the m-hf-track §4 `AdversarialWorst` bound (the ladder-rung wiring itself
+  is C6's; this card only provides the pure function it will call).
+- **Base rung (`adverse_selection_cost_expected`)** = the **expected** term `p·τ`, where
+  `p = p_adverse_num / p_adverse_den` is an **exact rational** (fail-closed: `den ≥ 1`, `num ≤ den`,
+  else an error — mirrors C3's `build_landing_table` probability validation). Computed as
+  `τ * Decimal::from(num) / Decimal::from(den)`. This is deterministic Decimal arithmetic (no
+  RNG/clock) and **exact for the reference numbers below** (they are chosen to terminate); for a
+  general rational it is deterministic and platform-independent (rust_decimal is pure-integer,
+  not f64) though the `/den` step may round to Decimal's 28-digit precision — a determinism-safe,
+  not a determinism-risky, operation. The base term is non-zero whenever `p > 0` and a bps is
+  non-zero, and is always in `[0, τ]` (a cost, never a benefit; `p = 1` ⇒ equals the worst rung,
+  `p = 0` ⇒ zero). The single pinned base rate here stands in for the full `(regime, percentile) →
+  p` table, which is C8's job (Decision 2).
+- **Maker trade-through fill (`maker_trade_through_fill`)** — a resting **bid** (`Side::Buy`) at
+  `limit_price` fills **only** if the bar's low prints **strictly** through it (`bar_low <
+  limit_price`); a resting **ask** (`Side::Sell`) only if the bar's high prints strictly through it
+  (`bar_high > limit_price`). A mere **touch** (`bar_low == bid` / `bar_high == ask`) fills
+  **nothing** (`filled_base == 0`, `traded_through == false`) — the strict inequality is the whole
+  point: we refuse an optimistic fill we could not guarantee from queue position. Filled size is
+  **capped by the printed `volume`** (base/SOL terms): `filled_base = min(base_size, volume)`
+  (floored at 0). Pure: no RNG, no clock.
+- Errors are fail-closed: a bad probability rational is a pricing error, never a silent default.
+
+**Steps.**
+1. **Step 0 (before touching any file):** run the full-workspace gate. Expect **373 passed,
+   0 failed, 1 ignored**; fmt/clippy clean; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`;
+   sweep shasum `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`. If anything is already red, STOP and
+   report the baseline failure in the worklog.
+2. Create `crates/portfolio/src/adversarial.rs` — module doc + imports + types + the two
+   adverse-selection cost functions:
+   ```rust
+   //! Adversarial (MEV / adverse-selection) execution terms, priced as COSTS TO US ONLY — never a
+   //! benefit (m-hf-track §3/§5 row C5): a taker fill can be **sandwiched** (an adversary front-/
+   //! back-runs it) and/or **picked off** (transacted against a stale price), each a loss of some
+   //! bps of the fill notional; τ (tau) is that worst-case per-fill loss. A resting **maker** order
+   //! fills only when the market provably trades THROUGH its price — a mere touch fills nothing.
+   //!
+   //! Two rungs, both deterministic by construction (no RNG, no clock — pure Decimal arithmetic):
+   //! - **AdversarialWorst** (m-hf-track §4's ladder rung): the full τ on EVERY taker fill (p = 1).
+   //! - **Base rung**: the EXPECTED adverse-selection term `p·τ`, `p` an exact rational — a
+   //!   non-zero everyday MEV cost a candidate cannot exclude from its base economics (§3).
+   //!
+   //! Carried in its own module (like C4's [`crate::hf_cost`]), NOT wired into `run`/`run_hf` here:
+   //! this card defines and proves the pure pricing/fill functions. Per-fill hash realization of
+   //! WHICH fills get targeted (the C3 `(cell_id, event_index)` splitmix64 primitive) and the
+   //! fail-closed `(regime, percentile) → p` table are C8's sweep-wiring job — exactly as C4
+   //! supplied only the priority-fee lookup and deferred the landing-percentile table to C8.
+
+   use crate::cost::Side;
+   use research_core::money::apply_bps;
+   use research_core::Decimal;
+   use std::fmt;
+
+   /// The adversarial execution terms for taker fills. Every loss is a COST TO US (non-negative).
+   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+   pub struct AdversarialModel {
+       /// Worst-case sandwich loss, bps of taker-fill notional (τ's sandwich component).
+       pub sandwich_bps: u32,
+       /// Worst-case pickoff / adverse-selection loss, bps of notional (τ's pickoff component).
+       pub pickoff_bps: u32,
+       /// Base-rung adverse-event probability as an EXACT rational `num/den` (`den ≥ 1`,
+       /// `num ≤ den`) — the fail-closed table value (m-hf-track §3). The full
+       /// `(regime, percentile) → p` table is C8's job. An invalid rational is a pricing error,
+       /// never a silent default.
+       pub p_adverse_num: u64,
+       pub p_adverse_den: u64,
+   }
+
+   /// Errors pricing adversarial terms. Fail-closed: never a silent default.
+   #[derive(Debug, Clone, PartialEq, Eq)]
+   pub enum AdversarialError {
+       /// The adverse-event probability is not a valid rational in [0,1] (`den ≥ 1`, `num ≤ den`).
+       BadProbability { num: u64, den: u64 },
+   }
+
+   impl fmt::Display for AdversarialError {
+       fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+           match self {
+               Self::BadProbability { num, den } => write!(
+                   f,
+                   "adverse-selection probability {num}/{den} is not a valid rational in [0,1]"
+               ),
+           }
+       }
+   }
+
+   impl std::error::Error for AdversarialError {}
+
+   /// The full worst-case adverse-selection loss τ for a taker fill of `notional_quote` (USDC):
+   /// sandwich + pickoff, BOTH on EVERY fill (m-hf-track §4's `AdversarialWorst` rung reproduces
+   /// the τ-loss on every taker fill). Pessimistic by construction — a cost to us, never a benefit.
+   /// Pure: no RNG, no clock, no side branching.
+   #[must_use]
+   pub fn adverse_selection_cost_worst(model: &AdversarialModel, notional_quote: Decimal) -> Decimal {
+       apply_bps(notional_quote, model.sandwich_bps) + apply_bps(notional_quote, model.pickoff_bps)
+   }
+
+   /// The base-rung EXPECTED adverse-selection term `p·τ`, exact Decimal (m-hf-track §3 — the
+   /// non-zero everyday MEV cost). `p = p_adverse_num / p_adverse_den`. Fail-closed on a bad
+   /// rational. Always in `[0, τ]` (a cost to us, never a benefit; `p = 1` ⇒ the worst rung,
+   /// `p = 0` ⇒ zero).
+   pub fn adverse_selection_cost_expected(
+       model: &AdversarialModel,
+       notional_quote: Decimal,
+   ) -> Result<Decimal, AdversarialError> {
+       if model.p_adverse_den == 0 || model.p_adverse_num > model.p_adverse_den {
+           return Err(AdversarialError::BadProbability {
+               num: model.p_adverse_num,
+               den: model.p_adverse_den,
+           });
+       }
+       let tau = adverse_selection_cost_worst(model, notional_quote);
+       Ok(tau * Decimal::from(model.p_adverse_num) / Decimal::from(model.p_adverse_den))
+   }
+   ```
+3. The maker trade-through fill (append to adversarial.rs):
+   ```rust
+   /// One resting maker (limit) order awaiting a trade-through fill. `Side::Buy` is a resting bid,
+   /// `Side::Sell` a resting ask.
+   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+   pub struct MakerOrder {
+       pub side: Side,
+       pub limit_price: Decimal,
+       pub base_size: Decimal,
+   }
+
+   /// The outcome of a maker order over one bar. `filled_base == 0` means NO fill — either the
+   /// market never reached the limit, or it only touched it without trading through.
+   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+   pub struct MakerFill {
+       pub filled_base: Decimal,
+       pub traded_through: bool,
+   }
+
+   /// Trade-through-only maker fill (m-hf-track §3/§5 row C5): a resting **bid** fills only if the
+   /// bar's low prints STRICTLY through it (`bar_low < limit_price`); a resting **ask** only if the
+   /// bar's high prints strictly through it (`bar_high > limit_price`). A mere touch
+   /// (`bar_low == bid` / `bar_high == ask`) fills NOTHING — we refuse an optimistic fill we could
+   /// not guarantee from queue position. Filled size is capped by the printed `volume` (base terms).
+   /// Pure: no RNG, no clock.
+   #[must_use]
+   pub fn maker_trade_through_fill(
+       order: &MakerOrder,
+       bar_low: Decimal,
+       bar_high: Decimal,
+       volume: Decimal,
+   ) -> MakerFill {
+       let traded_through = match order.side {
+           Side::Buy => bar_low < order.limit_price,
+           Side::Sell => bar_high > order.limit_price,
+       };
+       let filled_base = if traded_through {
+           order.base_size.min(volume).max(Decimal::ZERO)
+       } else {
+           Decimal::ZERO
+       };
+       MakerFill {
+           filled_base,
+           traded_through,
+       }
+   }
+   ```
+4. Unit tests in `adversarial.rs` (`#[cfg(test)] mod tests`, `use rust_decimal_macros::dec;`). Test
+   names pinned. Every reference number below was verified empirically against the real `apply_bps`
+   + rust_decimal during card-writing — if a test fails, recompute by hand and STOP (see escalate-if):
+   ```rust
+   #[cfg(test)]
+   mod tests {
+       use super::*;
+       use rust_decimal_macros::dec;
+
+       fn reference_model() -> AdversarialModel {
+           AdversarialModel {
+               sandwich_bps: 30,
+               pickoff_bps: 10,
+               p_adverse_num: 5,
+               p_adverse_den: 100,
+           }
+       }
+
+       #[test]
+       fn adverse_selection_worst_reproduces_full_tau_on_every_fill() {
+           let m = reference_model();
+           // τ = sandwich(30bps) + pickoff(10bps), on EVERY fill, independent of p.
+           // @1000: 500*... → 1000*30/10_000 = 3, 1000*10/10_000 = 1 → 4.
+           assert_eq!(adverse_selection_cost_worst(&m, dec!(1000)), dec!(4));
+           // @2000: 6 + 2 = 8 — scales with notional, still ignores p.
+           assert_eq!(adverse_selection_cost_worst(&m, dec!(2000)), dec!(8));
+       }
+
+       #[test]
+       fn adverse_selection_expected_is_p_times_tau() {
+           let m = reference_model();
+           // p = 5/100, τ@1000 = 4 → expected = 4 * 5/100 = 0.2 (exact Decimal).
+           assert_eq!(
+               adverse_selection_cost_expected(&m, dec!(1000)).unwrap(),
+               dec!(0.2)
+           );
+       }
+
+       #[test]
+       fn adverse_selection_expected_boundary_probabilities() {
+           let expected_at = |num, den| {
+               adverse_selection_cost_expected(
+                   &AdversarialModel {
+                       sandwich_bps: 30,
+                       pickoff_bps: 10,
+                       p_adverse_num: num,
+                       p_adverse_den: den,
+                   },
+                   dec!(1000),
+               )
+               .unwrap()
+           };
+           assert_eq!(expected_at(0, 1), dec!(0)); // p = 0 → the base term vanishes
+           assert_eq!(expected_at(1, 2), dec!(2)); // p = 1/2 → half of τ (=4)
+           assert_eq!(expected_at(1, 1), dec!(4)); // p = 1 → equals the worst rung (τ)
+       }
+
+       #[test]
+       fn adverse_selection_expected_rejects_bad_probability() {
+           // den = 0 and num > den are both fail-closed errors (mirrors C3's build_landing_table).
+           let bad_den = AdversarialModel {
+               sandwich_bps: 30,
+               pickoff_bps: 10,
+               p_adverse_num: 1,
+               p_adverse_den: 0,
+           };
+           assert!(matches!(
+               adverse_selection_cost_expected(&bad_den, dec!(1000)),
+               Err(AdversarialError::BadProbability { .. })
+           ));
+           let num_gt_den = AdversarialModel {
+               sandwich_bps: 30,
+               pickoff_bps: 10,
+               p_adverse_num: 3,
+               p_adverse_den: 2,
+           };
+           assert!(matches!(
+               adverse_selection_cost_expected(&num_gt_den, dec!(1000)),
+               Err(AdversarialError::BadProbability { .. })
+           ));
+       }
+
+       #[test]
+       fn adversarial_terms_are_costs_never_benefits() {
+           let m = reference_model();
+           let worst = adverse_selection_cost_worst(&m, dec!(1000));
+           let expected = adverse_selection_cost_expected(&m, dec!(1000)).unwrap();
+           assert!(worst >= dec!(0));
+           assert!(expected >= dec!(0));
+           assert!(
+               expected <= worst,
+               "expected {expected} must never exceed worst {worst}"
+           );
+       }
+
+       #[test]
+       fn maker_bid_fills_only_on_trade_through() {
+           let bid = MakerOrder {
+               side: Side::Buy,
+               limit_price: dec!(100),
+               base_size: dec!(5),
+           };
+           // Trade-through: low 99 < bid 100 → filled, capped at volume (min(5, 10) = 5).
+           assert_eq!(
+               maker_trade_through_fill(&bid, dec!(99), dec!(101), dec!(10)),
+               MakerFill {
+                   filled_base: dec!(5),
+                   traded_through: true
+               }
+           );
+           // Touch (low == bid) → NO fill (the discriminating assertion).
+           assert_eq!(
+               maker_trade_through_fill(&bid, dec!(100), dec!(101), dec!(10)),
+               MakerFill {
+                   filled_base: dec!(0),
+                   traded_through: false
+               }
+           );
+           // Never reached (low 101 > bid) → NO fill.
+           assert_eq!(
+               maker_trade_through_fill(&bid, dec!(101), dec!(103), dec!(10)),
+               MakerFill {
+                   filled_base: dec!(0),
+                   traded_through: false
+               }
+           );
+       }
+
+       #[test]
+       fn maker_ask_fills_only_on_trade_through() {
+           let ask = MakerOrder {
+               side: Side::Sell,
+               limit_price: dec!(100),
+               base_size: dec!(5),
+           };
+           // Trade-through: high 101 > ask 100 → filled (min(5, 10) = 5).
+           assert_eq!(
+               maker_trade_through_fill(&ask, dec!(99), dec!(101), dec!(10)),
+               MakerFill {
+                   filled_base: dec!(5),
+                   traded_through: true
+               }
+           );
+           // Touch (high == ask) → NO fill.
+           assert_eq!(
+               maker_trade_through_fill(&ask, dec!(99), dec!(100), dec!(10)),
+               MakerFill {
+                   filled_base: dec!(0),
+                   traded_through: false
+               }
+           );
+       }
+
+       #[test]
+       fn maker_fill_is_capped_by_printed_volume() {
+           let bid = MakerOrder {
+               side: Side::Buy,
+               limit_price: dec!(100),
+               base_size: dec!(50),
+           };
+           // Wants 50 SOL, only 8 printed through → filled 8 (the size cap).
+           assert_eq!(
+               maker_trade_through_fill(&bid, dec!(99), dec!(101), dec!(8)),
+               MakerFill {
+                   filled_base: dec!(8),
+                   traded_through: true
+               }
+           );
+       }
+
+       #[test]
+       fn repeated_calls_are_deterministic() {
+           let m = reference_model();
+           assert_eq!(
+               adverse_selection_cost_worst(&m, dec!(1000)),
+               adverse_selection_cost_worst(&m, dec!(1000))
+           );
+           assert_eq!(
+               adverse_selection_cost_expected(&m, dec!(1000)),
+               adverse_selection_cost_expected(&m, dec!(1000))
+           );
+           let bid = MakerOrder {
+               side: Side::Buy,
+               limit_price: dec!(100),
+               base_size: dec!(5),
+           };
+           assert_eq!(
+               maker_trade_through_fill(&bid, dec!(99), dec!(101), dec!(10)),
+               maker_trade_through_fill(&bid, dec!(99), dec!(101), dec!(10))
+           );
+       }
+   }
+   ```
+5. Wire `crates/portfolio/src/lib.rs`:
+   - add `pub mod adversarial;` to the module list **alphabetically first** (before `pub mod
+     cost;`);
+   - add this re-export block **immediately before** the `pub use cost::…` line:
+     ```rust
+     pub use adversarial::{
+         adverse_selection_cost_expected, adverse_selection_cost_worst, maker_trade_through_fill,
+         AdversarialError, AdversarialModel, MakerFill, MakerOrder,
+     };
+     ```
+   - append one bullet to the module doc's bottom-up layer list, **after** the existing
+     `[`hf_cost::hf_trade_cost`]` bullet (lines 11-13) and before the `//!` blank line preceding the
+     "Nothing here is a strategy" paragraph:
+     ```rust
+     //! - [`adversarial::adverse_selection_cost_worst`]: adversarial execution terms (m-hf-track
+     //!   §3/§5 row C5) — sandwich/pickoff τ priced as costs to us (a worst rung + a base-rung
+     //!   expected `p·τ`), and a trade-through-only maker fill. Pure; not yet wired into execution.
+     ```
+6. `cargo fmt --all`; run the full gate (below); flip this card to `DONE` + one worklog line.
+
+**Gate.**
+- `cargo test -p portfolio adversarial` — the 9 new tests green; `git diff --name-only` shows only
+  `adversarial.rs` and `lib.rs` — no `cost.rs`, no `simulator.rs`, no `latency.rs`, no `hf_cost.rs`,
+  no `state.rs`, and no file outside `portfolio`.
+- `adverse_selection_worst_reproduces_full_tau_on_every_fill` and
+  `maker_bid_fills_only_on_trade_through` both green — the card's two named gate properties
+  (worst rung = full τ on every fill; touch-without-trade-through → no fill).
+- Full workspace: `cargo fmt --all --check` clean; `cargo clippy --all-targets --all-features
+  -- -D warnings` clean; `cargo test --workspace --all-features` → **0 failed, 1 ignored,
+  382 passed** (373 + the 9 unit tests above; record the exact count in the worklog — if it is not
+  382, a test failed to register, investigate before flipping).
+- `cargo run -p cli -- demo | shasum` → `ae064f79242f823ffd8f55bf9104e3e1b45d425a` unchanged;
+  `cargo run -p cli -- sweep | shasum` → `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` unchanged (this
+  card wires nothing into execution or the sweep/CLI paths, so both are structurally unaffected —
+  the gate re-confirms it, not just assumes it); `cargo run -p cli -- sweep-verify` → OK.
+- `git status` shows exactly the card's 2 files (+ this queue/worklog flip) — no `Cargo.toml`,
+  no `Cargo.lock`, nothing else.
+
+**Guardrails (restated).** `Decimal` for all money — `u32`/`u64` only for bps/probability-rationals,
+never money; **no new deps, no Cargo.toml/Cargo.lock edits**; **no RNG and no clock** anywhere
+(`rand`, `Instant`, `SystemTime`, `Math`-random must not appear — pure parameters only, per Decision
+3); adversarial terms are **costs to us only, never a benefit** (worst ≥ expected ≥ 0 always);
+**`simulator.rs`, `cost.rs`, `latency.rs`, `hf_cost.rs` are untouched** — this card must not edit
+them, not even a visibility change, and must not re-duplicate or `pub(crate)`-expose C3's
+`landing_draw` (Decision 3); never touch `schemas/`, existing fixtures,
+`config/strategies/m5-frozen.toml`, the master-plan pair
+(`plans/master-plan.md`/`solana-crypto-trader-plan.md`), or the holdout machinery; strategies remain
+intent-only; NOTHING here creates execution capability (no keys/signing/submit/RPC/network — M8/M9
+need separate explicit human approval). Never `git commit`/`git push` — the operator commits.
+
+**Escalate-if (STOP, record in plans/worklog.md, report — never improvise):**
+- any quoted signature/line/block above doesn't match the source at `a7b3235`;
+- **any hand-computed reference number fails** — recompute by hand against the real `apply_bps`
+  (`value*bps/10_000`, exact) and rust_decimal, twice, independently of the code; if the code
+  disagrees with your hand recompute, the CODE or the CARD is wrong — **report; do NOT adjust the
+  assertion to match the code's output** (this is the exact failure the C4 escalation caught);
+- **any impulse to weaken a worst-case term** — the worst rung is τ on EVERY fill (p ignored), and a
+  touch (`==`) is NEVER a fill (strict `<` / `>` only); do not loosen either;
+- **any impulse or apparent need to touch `simulator.rs`** (even one character), or to wire these
+  terms into `run`/`run_hf`, or to add a `ScenarioId` ladder rung, or to add a scale helper — those
+  are C6/C8, not this card (Decisions 2 & 4);
+- any impulse to create `maker_fill.rs` or to introduce a new hash/RNG primitive (Decisions 1 & 3);
+- the demo/sweep shasum moves (structurally impossible here — if it moves, something unintended got
+  wired in);
+- an unlisted file seems needed; rust_decimal_macros is missing from portfolio's dev-deps; any
+  pre-existing test fails for a reason unrelated to this card.
+
+---
+
 ## Deferred / blocked (unchanged)
 
 | ID | Status | Milestone | File scope | Gate | Notes |
