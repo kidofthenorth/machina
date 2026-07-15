@@ -3745,6 +3745,396 @@ rust_decimal_macros is missing from portfolio's dev-deps.
 
 ---
 
+### M-HF-C4 — HF cost model fields (depth-walk, regime priority, tip) — `TODO`
+
+**Goal.** Give the research engine the additive HF cost terms m-hf-track §3/§5 row C4 calls for —
+depth-walk slippage (never a flat bps constant as the HF base case), congestion-regime-keyed
+priority fee, and a tip — so a reference trade's total cost is hand-verifiable and **provably
+greater than the Solana base-fee floor alone** (the classic fabricated-edge failure the base fee
+alone would hide). Simulation only — nothing here creates execution capability, and nothing here
+wires these costs into `run`/`run_hf` yet (that is a later card's job once cell/regime derivation
+exists — C8 per m-hf-track §3's own note on `cell_id`).
+
+**Planner decision, logged here (read before objecting or trying to "fix" it):** m-hf-track §3
+says "`CostModel` gains `depth_curve`, `congestion_priority_table`, `tip_bps` — additive." Adding
+non-`Option` fields directly to the existing `portfolio::CostModel` struct is **not actually
+additive in practice** — grep shows ~30 `CostModel { .. }` struct-literal construction sites
+across `portfolio`, `sweep`, `results`, and `cli` (including inside `simulator.rs`'s own
+`#[cfg(test)]` module), every one of which would stop compiling and need a mechanical edit. That
+would force touching `simulator.rs` — violating the reuse-first bet's standing rule ("`run_hf`
+generalizes the loop WITHOUT touching `run`", m-hf-track §1/§3), which this track has held since
+C3 and is not scoped to expire. **Decision: a new, separate `HfCostModel` wrapper struct
+(`base: CostModel` plus the three new HF-only fields) carries the additive terms instead of
+extending `CostModel` itself.** Zero existing files change; `CostModel` and every one of its ~30
+call sites are untouched. This is an internal, reversible fork (AGENTS.md: agent decides and logs
+these) — not a re-litigation of the spec's intent, which is preserved (the three fields exist,
+are additive, and are scaled the same way `scale_cost_model` scales `CostModel`). Wiring
+`HfCostModel` into `run_hf`, and the SweepSpec-level "HF-kind requires `depth_curve`" validation,
+are explicitly deferred to later cards (C5/C8) — this card only defines the types and pure cost
+function, proven by a hand-computed reference trade.
+
+**Files.** Exactly these two; `portfolio::CostModel`/`cost.rs`, `simulator.rs`, and every existing
+`CostModel` call site are untouched:
+1. `crates/portfolio/src/hf_cost.rs` — NEW (depth curve, congestion table, `HfCostModel`,
+   `hf_trade_cost`, unit tests).
+2. `crates/portfolio/src/lib.rs` — wiring only (one `pub mod` + one `pub use` + one doc line).
+
+**Current state (verbatim, copied from source 2026-07-14 — if what you find differs, escalate,
+don't adapt).**
+- `crates/portfolio/src/cost.rs:24-33` — `CostModel { dex_fee_bps: u32, slippage_bps: u32,
+  base_fee_lamports: i64, priority_fee_lamports: i64 }`, all `pub`. **Untouched by this card.**
+- `crates/research-core/src/money.rs:22,28,37` — `pub fn quantize_floor(value: Decimal, decimals:
+  u32) -> Decimal`; `pub fn lamports_to_sol(lamports: i64) -> Decimal`; `pub fn apply_bps(value:
+  Decimal, bps: u32) -> Decimal`; constants `USDC_DECIMALS: u32 = 6`, `SOL_DECIMALS: u32 = 9`,
+  `LAMPORTS_PER_SOL: i64 = 1_000_000_000` (money.rs:11-14). All exact `Decimal`/integer, no
+  floating point.
+- `crates/portfolio/Cargo.toml` — deps: research-core, rust_decimal; dev-deps:
+  rust_decimal_macros. **No Cargo.toml/Cargo.lock change is permitted by this card.**
+- `crates/portfolio/src/lib.rs:13-24` — current wiring (post-C3):
+  ```rust
+  pub mod cost;
+  pub mod equity;
+  pub mod latency;
+  pub mod simulator;
+  pub mod state;
+
+  pub use cost::{BuyFill, CostModel, SellFill, Side};
+  pub use equity::{EquityPoint, RoundTrip};
+  pub use latency::{
+      build_landing_table, fixed_latency, run_hf, HfError, HfRunOutput, LandingOutcome,
+      LatencyPipeline,
+  };
+  pub use simulator::{run, RunOutput};
+  pub use state::{PortfolioState, SimError, TradeOutcome};
+  ```
+- m-hf-track §4 (for context, not built here): `scale_cost_model`/`ScenarioId` live in
+  `crates/sweep/src/sensitivity.rs:60-115` — the ladder wiring for these new fields is C6's job,
+  not this card's; this card only provides a scaling helper for `HfCostModel` for C6 to reuse.
+
+**Pinned semantics (planner decisions — do not re-decide):**
+- `DepthCurve` is a **piecewise-constant step function of trade notional** (quote/USDC terms),
+  never a flat bps constant — that constant-bps mode still exists (it is `CostModel.slippage_bps`,
+  untouched, and remains a ladder rung per m-hf-track §3, not built here). Bands are sorted
+  ascending by `notional_upto`; the curve returns the first band whose `notional_upto >=
+  notional`, or the **last** band's `impact_bps` if `notional` exceeds every band (walking off
+  the end of a depth curve costs at least as much as its deepest quoted level — never less).
+- `CongestionRegime` is `{ Calm, Busy, Hot }` — a plain enum here; deriving a regime from trailing
+  volatility (m-hf-track §3's "non-lookahead function of trailing realized volatility/print
+  density") is **not built in this card** — that is C8's job once intraday series exist end to
+  end. `CongestionPriorityTable` is a fixed lookup (`Calm|Busy|Hot -> lamports`), not (yet) the
+  checked-in TOML percentile table m-hf-track §3 describes for the landing/drop draw — this card
+  supplies only the priority-fee-side lookup for cost pricing; the fee-conditional landing-percentile
+  table wiring is deferred (C8, per C3's card's own drift note on `cell_id`).
+- `tip_bps` prices a tip as basis points of trade notional (quote terms), same mechanism as
+  `dex_fee_bps` — **not lamports**, despite m-hf-track §2.4's `tip(lamports)` phrasing: a
+  fixed-lamport tip cannot scale with trade size the way a real priority-auction tip does, and
+  bps-of-notional is the same unit convention `dex_fee_bps` already uses, so `hf_trade_cost` stays
+  internally consistent. Recorded here as a deviation, not silently taken.
+- `hf_trade_cost` is a **pure function of `(HfCostModel, notional_quote, price, regime)`** — no
+  RNG, no clock, no side (buy/sell) branching (depth-walk and tip apply symmetrically; venue fee
+  and gas already don't branch on side in the existing `CostModel` either, at the notional level).
+  Its `total_quote` is the fee/slippage/tip terms (quote) plus the gas terms
+  (`base_fee_lamports + regime priority`, converted to quote via `lamports_to_sol(..) * price`) —
+  one common unit, so `total_quote > base_fee_floor_quote` is a well-formed comparison (the base
+  fee alone, in the same quote terms).
+- Errors are fail-closed: an empty or unsorted `DepthCurve` is a construction error, never a
+  silent default.
+
+**Steps.**
+1. **Step 0 (before touching any file):** run the full-workspace gate. Expect **363 passed,
+   0 failed, 1 ignored**; fmt/clippy clean; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`;
+   sweep shasum `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`. If anything is already red, STOP and
+   report the baseline failure in the worklog.
+2. Create `crates/portfolio/src/hf_cost.rs` — module doc + imports + depth curve:
+   ```rust
+   //! Additive HF cost-model fields (m-hf-track §3/§4/§5 row C4): depth-walk slippage,
+   //! congestion-regime-keyed priority fee, and a tip. Carried on a separate [`HfCostModel`]
+   //! wrapper rather than added to [`CostModel`] directly (planner decision, logged on the
+   //! M-HF-C4 card: extending `CostModel`'s own fields would force edits to ~30 existing
+   //! construction sites, including inside `simulator.rs`'s tests, breaking the reuse-first
+   //! bet's standing rule that `simulator.rs` is never touched).
+   //!
+   //! Nothing here is wired into `run`/`run_hf` yet — this card defines the types and a pure
+   //! cost function, proven by a hand-computed reference trade. Wiring into execution and the
+   //! SweepSpec-level "HF-kind requires `depth_curve`" validation are later cards (C5/C8).
+
+   use crate::cost::CostModel;
+   use research_core::money::{apply_bps, lamports_to_sol};
+   use research_core::Decimal;
+   use std::fmt;
+
+   /// One step of a piecewise-constant depth curve: trades up to `notional_upto` (quote terms)
+   /// incur `impact_bps` of slippage. Bands are sorted ascending by `notional_upto`.
+   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+   pub struct DepthBand {
+       pub notional_upto: Decimal,
+       pub impact_bps: u32,
+   }
+
+   /// A depth-walk slippage curve (m-hf-track §3: "constant-bps slippage ... is structurally
+   /// forbidden [as the HF base case]; it survives only as a ladder rung"). Never empty.
+   #[derive(Debug, Clone, PartialEq, Eq)]
+   pub struct DepthCurve {
+       bands: Vec<DepthBand>,
+   }
+
+   impl DepthCurve {
+       /// `bands` must be non-empty and sorted strictly ascending by `notional_upto`.
+       pub fn new(bands: Vec<DepthBand>) -> Result<Self, HfCostError> {
+           if bands.is_empty() {
+               return Err(HfCostError::EmptyDepthCurve);
+           }
+           if bands.windows(2).any(|w| w[0].notional_upto >= w[1].notional_upto) {
+               return Err(HfCostError::UnsortedDepthCurve);
+           }
+           Ok(Self { bands })
+       }
+
+       /// Impact in bps for a trade of `notional` (quote terms): the first band whose
+       /// `notional_upto >= notional`, or the deepest (last) band if `notional` walks off the
+       /// end of the curve — walking past the quoted depth never costs less than the deepest
+       /// quoted level.
+       #[must_use]
+       pub fn impact_bps_for(&self, notional: Decimal) -> u32 {
+           self.bands
+               .iter()
+               .find(|b| b.notional_upto >= notional)
+               .unwrap_or_else(|| self.bands.last().expect("DepthCurve is never empty"))
+               .impact_bps
+       }
+   }
+
+   /// Congestion regime a trade lands in (m-hf-track §3). Deriving this from trailing
+   /// volatility/print density is NOT built here — that is C8's job.
+   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+   pub enum CongestionRegime {
+       Calm,
+       Busy,
+       Hot,
+   }
+
+   /// Regime-keyed priority-fee lookup, in lamports (m-hf-track §3's fee-conditional table,
+   /// priority-fee side only — the landing-percentile side is deferred to C8).
+   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+   pub struct CongestionPriorityTable {
+       pub calm_lamports: i64,
+       pub busy_lamports: i64,
+       pub hot_lamports: i64,
+   }
+
+   impl CongestionPriorityTable {
+       #[must_use]
+       pub fn priority_lamports_for(&self, regime: CongestionRegime) -> i64 {
+           match regime {
+               CongestionRegime::Calm => self.calm_lamports,
+               CongestionRegime::Busy => self.busy_lamports,
+               CongestionRegime::Hot => self.hot_lamports,
+           }
+       }
+   }
+
+   /// Errors constructing HF cost types. Fail-closed: never a silent default.
+   #[derive(Debug, Clone, PartialEq, Eq)]
+   pub enum HfCostError {
+       /// `DepthCurve` must have at least one band.
+       EmptyDepthCurve,
+       /// `DepthCurve` bands must be sorted strictly ascending by `notional_upto`.
+       UnsortedDepthCurve,
+   }
+
+   impl fmt::Display for HfCostError {
+       fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+           match self {
+               Self::EmptyDepthCurve => write!(f, "depth curve must have at least one band"),
+               Self::UnsortedDepthCurve => {
+                   write!(f, "depth curve bands must be sorted ascending by notional_upto")
+               }
+           }
+       }
+   }
+
+   impl std::error::Error for HfCostError {}
+   ```
+3. `HfCostModel` + `hf_trade_cost` (append to hf_cost.rs):
+   ```rust
+   /// The additive HF cost terms, carried alongside the existing [`CostModel`] rather than
+   /// extending it (see module doc). `tip_bps` is bps of trade notional, not lamports (deviation
+   /// from m-hf-track §2.4's literal wording — logged on the M-HF-C4 card).
+   #[derive(Debug, Clone, PartialEq, Eq)]
+   pub struct HfCostModel {
+       pub base: CostModel,
+       pub depth_curve: DepthCurve,
+       pub congestion_priority_table: CongestionPriorityTable,
+       pub tip_bps: u32,
+   }
+
+   /// The priced breakdown of one trade under [`HfCostModel`]. All quote-terms fields are USDC;
+   /// gas is converted to quote at `price` so `total_quote` and `base_fee_floor_quote` are
+   /// comparable in one unit.
+   #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+   pub struct HfTradeCost {
+       pub venue_fee_quote: Decimal,
+       pub depth_slippage_quote: Decimal,
+       pub tip_quote: Decimal,
+       pub gas_lamports: i64,
+       pub gas_quote: Decimal,
+       pub total_quote: Decimal,
+       /// The Solana base fee alone, converted to quote at `price` — the fabricated-edge floor
+       /// a real HF cost model must exceed (m-hf-track §5 row C4's gate).
+       pub base_fee_floor_quote: Decimal,
+   }
+
+   /// Price one trade's HF cost terms. Pure: no RNG, no clock, no side branching (m-hf-track §3;
+   /// depth-walk and tip apply symmetrically at the notional level, matching how `dex_fee_bps`
+   /// and gas already don't branch on side in `CostModel`).
+   #[must_use]
+   pub fn hf_trade_cost(
+       hf: &HfCostModel,
+       notional_quote: Decimal,
+       price: Decimal,
+       regime: CongestionRegime,
+   ) -> HfTradeCost {
+       let venue_fee_quote = apply_bps(notional_quote, hf.base.dex_fee_bps);
+       let depth_slippage_quote =
+           apply_bps(notional_quote, hf.depth_curve.impact_bps_for(notional_quote));
+       let tip_quote = apply_bps(notional_quote, hf.tip_bps);
+       let gas_lamports = hf.base.base_fee_lamports
+           + hf.congestion_priority_table.priority_lamports_for(regime);
+       let gas_quote = lamports_to_sol(gas_lamports) * price;
+       let base_fee_floor_quote = lamports_to_sol(hf.base.base_fee_lamports) * price;
+       HfTradeCost {
+           venue_fee_quote,
+           depth_slippage_quote,
+           tip_quote,
+           gas_lamports,
+           gas_quote,
+           total_quote: venue_fee_quote + depth_slippage_quote + tip_quote + gas_quote,
+           base_fee_floor_quote,
+       }
+   }
+
+   /// Scale `base`'s HF-only fields by `num/den`, in integer/exact-Decimal space — the same
+   /// pattern `sweep::sensitivity::scale_cost_model` uses for `CostModel` (C6 will fold this
+   /// into the ladder; not wired here). `CostModel`'s own fields are scaled by the existing
+   /// function, untouched.
+   #[must_use]
+   pub fn scale_hf_cost_model(hf: &HfCostModel, num: u32, den: u32) -> HfCostModel {
+       let den_nonzero = den.max(1);
+       let scale_bps = |bps: u32| ((u64::from(bps) * u64::from(num)) / u64::from(den_nonzero)) as u32;
+       let scale_lamports =
+           |l: i64| ((i128::from(l) * i128::from(num)) / i128::from(den_nonzero)) as i64;
+       HfCostModel {
+           base: hf.base.clone(),
+           depth_curve: DepthCurve {
+               bands: hf
+                   .depth_curve
+                   .bands
+                   .iter()
+                   .map(|b| DepthBand {
+                       notional_upto: b.notional_upto,
+                       impact_bps: scale_bps(b.impact_bps),
+                   })
+                   .collect(),
+           },
+           congestion_priority_table: CongestionPriorityTable {
+               calm_lamports: scale_lamports(hf.congestion_priority_table.calm_lamports),
+               busy_lamports: scale_lamports(hf.congestion_priority_table.busy_lamports),
+               hot_lamports: scale_lamports(hf.congestion_priority_table.hot_lamports),
+           },
+           tip_bps: scale_bps(hf.tip_bps),
+       }
+   }
+   ```
+   *(Note: `DepthCurve`'s private `bands` field means `scale_hf_cost_model` must live in this
+   same module — it does, by construction of step 3 being appended to `hf_cost.rs`.)*
+4. Unit tests in `hf_cost.rs` (`#[cfg(test)] mod tests`, `use rust_decimal_macros::dec;`). Test
+   names pinned:
+   - `depth_curve_rejects_empty` — `DepthCurve::new(vec![])` → `Err(EmptyDepthCurve)`.
+   - `depth_curve_rejects_unsorted` — two bands with equal or descending `notional_upto` →
+     `Err(UnsortedDepthCurve)`.
+   - `depth_curve_walks_bands_by_notional` — bands `[{100, 5}, {1_000, 20}, {10_000, 50}]`:
+     `impact_bps_for(dec!(50)) == 5`; `impact_bps_for(dec!(100)) == 5` (boundary is inclusive);
+     `impact_bps_for(dec!(500)) == 20`; `impact_bps_for(dec!(50_000)) == 50` (off the end →
+     deepest band, never less).
+   - `congestion_priority_table_looks_up_by_regime` — `{calm: 1_000, busy: 10_000, hot:
+     100_000}`: `priority_lamports_for(Calm/Busy/Hot)` returns each field exactly.
+   - `hf_trade_cost_matches_hand_computed_reference_trade` — fixed inputs: `base = CostModel {
+     dex_fee_bps: 10, slippage_bps: 0, base_fee_lamports: 5_000, priority_fee_lamports: 0 }`
+     (the existing flat `slippage_bps` is deliberately 0 and unused by `hf_trade_cost` — it only
+     reads `dex_fee_bps`/`base_fee_lamports` off `base`); `depth_curve` = the 3-band curve above;
+     `congestion_priority_table` = the one above; `tip_bps = 2`; `notional_quote = dec!(500)`;
+     `price = dec!(100)`; `regime = Busy`. Hand-computed: `venue_fee_quote = 500 * 10/10_000 =
+     dec!(0.5)`; `impact_bps_for(500) = 20` → `depth_slippage_quote = 500 * 20/10_000 =
+     dec!(1)`; `tip_quote = 500 * 2/10_000 = dec!(0.1)`; `gas_lamports = 5_000 + 10_000 =
+     15_000`; `gas_quote = lamports_to_sol(15_000) * 100 = dec!(0.000015) * 100 = dec!(0.0015)`;
+     `total_quote = 0.5 + 1 + 0.1 + 0.0015 = dec!(1.6015)`; `base_fee_floor_quote =
+     lamports_to_sol(5_000) * 100 = dec!(0.0005) * 100 = dec!(0.05)`. Assert every field
+     `assert_eq!` against these exact `Decimal`s.
+   - `total_cost_exceeds_base_fee_floor` — using the same reference trade, assert
+     `cost.total_quote > cost.base_fee_floor_quote` (`dec!(1.6015) > dec!(0.05)`) — the gate's
+     "base fee alone provably ≠ total cost" assertion, named for what it proves.
+   - `zero_hf_terms_still_exceeds_floor_when_gas_priority_is_nonzero` — `dex_fee_bps: 0`,
+     `tip_bps: 0`, a depth curve with `impact_bps: 0` everywhere, but `busy_lamports > 0`:
+     `total_quote` still strictly exceeds `base_fee_floor_quote` on the priority-fee term alone
+     — proves the assertion is discriminating (not vacuously true from venue fee/tip/depth
+     alone).
+   - `scale_hf_cost_model_scales_hf_fields_exactly` — `scale_hf_cost_model(&hf, 2, 1)` doubles
+     every `impact_bps`, every priority-table lamport field, and `tip_bps` exactly; `base` is
+     unchanged (untouched by this function — `CostModel`'s own scaling stays
+     `scale_cost_model`'s job).
+   - `repeated_calls_are_deterministic` — `hf_trade_cost` called twice with identical inputs →
+     `assert_eq!`.
+5. Wire `crates/portfolio/src/lib.rs`: add `pub mod hf_cost;` to the module list (alphabetical:
+   between `equity` and `latency`), add
+   `pub use hf_cost::{CongestionPriorityTable, CongestionRegime, DepthBand, DepthCurve, HfCostError, HfCostModel, HfTradeCost, hf_trade_cost, scale_hf_cost_model};`
+   after the existing `pub use equity::…` line, and append one line to the module doc's layer
+   list: `//! - [`hf_cost::hf_trade_cost`]: additive HF cost terms (m-hf-track §3/§4) — depth-walk
+   slippage, regime priority, tip; carried on [`hf_cost::HfCostModel`], not on [`cost::CostModel`]
+   (see the module doc for why). Not yet wired into execution.`
+6. `cargo fmt --all`; run the full gate (below); flip this card to `DONE` + one worklog line.
+
+**Gate.**
+- `cargo test -p portfolio` — all new tests green; `git diff --name-only` shows only
+  `hf_cost.rs` and `lib.rs` — no `cost.rs`, no `simulator.rs`, no `state.rs`, no `equity.rs`, and
+  no file outside `portfolio` (confirming the ~30 existing `CostModel` call sites needed zero
+  edits — the wrapper-struct decision holds).
+- `hf_trade_cost_matches_hand_computed_reference_trade` and
+  `total_cost_exceeds_base_fee_floor` both green — the card's two named gate assertions.
+- Full workspace: `cargo fmt --all --check` clean; `cargo clippy --all-targets --all-features
+  -- -D warnings` clean; `cargo test --workspace --all-features` → **0 failed, 1 ignored,
+  > 363 passed** (record the exact new count in the worklog).
+- `cargo run -p cli -- demo | shasum` → `ae064f79242f823ffd8f55bf9104e3e1b45d425a` unchanged;
+  `cargo run -p cli -- sweep | shasum` → `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` unchanged
+  (this card wires nothing into execution or the sweep/CLI paths, so both are structurally
+  unaffected — the gate re-confirms it, not just assumes it); `cargo run -p cli -- sweep-verify`
+  → OK.
+- `git status` shows exactly the card's 2 files (+ this queue/worklog flip) — no `Cargo.toml`,
+  no `Cargo.lock`, nothing else.
+
+**Guardrails (restated).** `Decimal` for all money — `u32`/`i64`/`u64` only for bps/lamports/
+indices, never money; **no new deps, no Cargo.toml/Cargo.lock edits**; no RNG and no clock
+anywhere (`rand`, `Instant`, `SystemTime` must not appear); `CostModel`/`cost.rs` and
+`simulator.rs` are **untouched** — this card must not edit them, not even a visibility change,
+not even to add the new fields (that is the whole point of the wrapper-struct decision above);
+never touch `schemas/`, existing fixtures, `config/strategies/m5-frozen.toml`, the master-plan
+pair, or the holdout machinery; strategies remain intent-only; NOTHING here creates execution
+capability (no keys/signing/submit/RPC/network — M8/M9 need separate explicit human approval).
+Never `git commit`/`git push` — the operator commits.
+
+**Escalate-if (STOP, record in plans/worklog.md, report — never improvise):** any quoted
+signature/line above doesn't match the source; any impulse to add fields directly to
+`CostModel` or to touch `simulator.rs` (even one character) to make a literal compile — that
+means the wrapper-struct decision needs revisiting, which is a planning call, not an executor
+one; `hf_trade_cost_matches_hand_computed_reference_trade` fails (recompute by hand before
+concluding the card's numbers are wrong — do not adjust the assertion to match the code's
+output); `total_cost_exceeds_base_fee_floor` fails; the demo/sweep shasum moves (it should be
+structurally impossible — if it moves, something unintended got wired in); an unlisted file
+seems needed; rust_decimal_macros is missing from portfolio's dev-deps; any temptation to start
+wiring `hf_trade_cost` into `run_hf` (that's a later card — this one only defines and proves the
+pricing function).
+
+---
+
 ## Deferred / blocked (unchanged)
 
 | ID | Status | Milestone | File scope | Gate | Notes |

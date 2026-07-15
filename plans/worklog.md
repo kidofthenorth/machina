@@ -943,6 +943,17 @@ recorded inline (not full logs).
   `probability_boundaries_are_legal_and_exact` added in latency.rs. Re-run: workspace **364
   passed, 0 failed, 1 ignored**. Next: draft M-HF-C4 (HF cost-model fields); the C3–C5 block
   still ends in its mandatory block-level review before C6+.
+- 2026-07-14 (planner draft + Foreman verify, card M-HF-C4): drafting session wrote the card;
+  Foreman verified every verbatim block against source (cost.rs:24-33, money.rs helpers,
+  lib.rs:13-24 post-C3, scale_cost_model pattern) and re-derived the reference-trade arithmetic
+  by hand against the real exact `apply_bps`/`lamports_to_sol` (0.5+1+0.1+0.0015 = 1.6015 vs
+  floor 0.05 — correct). Two recorded deviations from m-hf-track's letter, both logged on the
+  card, intent preserved: (1) **HfCostModel wrapper** instead of adding fields to `CostModel` —
+  46 existing `CostModel{..}` literals incl. simulator.rs's tests would break, violating the
+  standing simulator.rs-untouched rule; reversible internal fork. (2) **tip_bps (bps of
+  notional)** not `tip(lamports)` — a fixed-lamport tip can't scale with trade size; same unit
+  convention as dex_fee_bps. The card's `den.max(1)` scaling clamp mirrors sweep's scale_u32/
+  scale_i64 precedent exactly (sensitivity.rs:63-68). Card is TODO; next executor session.
 - 2026-07-13 (executor, M-HF-C3): **DONE.** Step 0 gate green before touching any file (349
   passed, 0 failed, 1 ignored; demo `ae064f…`, sweep `7ad3df…` verified). Built per card:
   `crates/portfolio/src/latency.rs` (LatencyPipeline/LandingOutcome/HfError, splitmix64 +
