@@ -114,15 +114,12 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-**M-HF-C3 is DONE** (2026-07-13; 363 passed/0 failed/1 ignored; `run_hf(fixed_latency(1)) == run`
-bar-for-bar; landing-table thread-count test {1,2,3,7,8} green; `simulator.rs` untouched; demo/
-sweep shasums unchanged). Execute **M-HF-C4** (task-queue.md §M-HF wave 1) in a fresh executor
-session next — HF cost model fields (depth-walk slippage, congestion-regime priority, tip), on a
-new `HfCostModel` wrapper struct rather than extending `CostModel` directly (a logged planner
-decision on the card, made to avoid touching `simulator.rs`'s test module via the ~30 existing
-`CostModel` construction sites); gate = a hand-computed reference-trade cost matches exactly, and
-`total_quote > base_fee_floor_quote`. Nothing is wired into `run_hf` yet — that's later (C5/C8).
-After C4: the C3–C5 block still ends in a mandatory adversarial review before C6+ is expanded. M6
-has no candidate and does not start.
+**M-HF-C4 is DONE** (2026-07-15; 373 passed/0 failed/1 ignored; `HfCostModel` wrapper +
+`hf_trade_cost` with hand-verified reference trade; one escalation — a card transcription slip
+(0.05 vs 0.0005 floor) caught by the executor's hand-recompute, ruled + fixed at the source by
+the planner; demo/sweep shasums unchanged). Next: the **planner drafts M-HF-C5** (adversarial
+terms: sandwich, pickoff, maker trade-through; base-rung expected adverse-selection term) — not
+an executor card until drafted. After C5: the **mandatory C3–C5 block adversarial review** runs
+before C6+ is expanded. M6 has no candidate and does not start.
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

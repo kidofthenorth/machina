@@ -3745,7 +3745,7 @@ rust_decimal_macros is missing from portfolio's dev-deps.
 
 ---
 
-### M-HF-C4 — HF cost model fields (depth-walk, regime priority, tip) — `TODO`
+### M-HF-C4 — HF cost model fields (depth-walk, regime priority, tip) — `DONE` *(2026-07-15; one escalation — a card transcription slip (0.05 vs 0.0005 base-fee floor) caught by the executor's hand-recompute, ruled and corrected by the planner; gate re-run green)*
 
 **Goal.** Give the research engine the additive HF cost terms m-hf-track §3/§5 row C4 calls for —
 depth-walk slippage (never a flat bps constant as the HF base case), congestion-regime-keyed
@@ -4068,10 +4068,12 @@ don't adapt).**
      dec!(1)`; `tip_quote = 500 * 2/10_000 = dec!(0.1)`; `gas_lamports = 5_000 + 10_000 =
      15_000`; `gas_quote = lamports_to_sol(15_000) * 100 = dec!(0.000015) * 100 = dec!(0.0015)`;
      `total_quote = 0.5 + 1 + 0.1 + 0.0015 = dec!(1.6015)`; `base_fee_floor_quote =
-     lamports_to_sol(5_000) * 100 = dec!(0.0005) * 100 = dec!(0.05)`. Assert every field
+     lamports_to_sol(5_000) * 100 = dec!(0.000005) * 100 = dec!(0.0005)` *(corrected 2026-07-15:
+     the original draft dropped a zero here and asserted 0.05 — caught by the executor's
+     escalate-if hand-recompute, ruled by the planner; see worklog)*. Assert every field
      `assert_eq!` against these exact `Decimal`s.
    - `total_cost_exceeds_base_fee_floor` — using the same reference trade, assert
-     `cost.total_quote > cost.base_fee_floor_quote` (`dec!(1.6015) > dec!(0.05)`) — the gate's
+     `cost.total_quote > cost.base_fee_floor_quote` (`dec!(1.6015) > dec!(0.0005)`) — the gate's
      "base fee alone provably ≠ total cost" assertion, named for what it proves.
    - `zero_hf_terms_still_exceeds_floor_when_gas_priority_is_nonzero` — `dex_fee_bps: 0`,
      `tip_bps: 0`, a depth curve with `impact_bps: 0` everywhere, but `busy_lamports > 0`:

@@ -968,3 +968,39 @@ recorded inline (not full logs).
   `7ad3df7de2e2c1139be427e9c953b57d4e289cb3` unchanged; sweep-verify OK (byte-identical across
   sequential/2/8 threads + repeat). No Cargo.toml/Cargo.lock change; no RNG/clock anywhere.
   Per m-hf-track §5, C3 is a named risk point — adversarial review before C4 is drafted.
+- 2026-07-14 (executor, card M-HF-C4): **STOPPED — escalate-if triggered, card left `TODO`.**
+  Step 0 gate green before touching any file (364 passed, 0 failed, 1 ignored — the corrected
+  baseline; matches expected). Typed in `crates/portfolio/src/hf_cost.rs` (new) and
+  `crates/portfolio/src/lib.rs` wiring verbatim from the card; `git diff --name-only` confirms
+  only those 2 files (no `cost.rs`/`simulator.rs`/other-crate edits). `cargo test -p portfolio
+  hf_cost` → **7/9 green**; the two named gate tests fail exactly as the card's own escalate-if
+  anticipates: `hf_trade_cost_matches_hand_computed_reference_trade` and
+  `total_cost_exceeds_base_fee_floor`, both on `base_fee_floor_quote`: code produces
+  `dec!(0.0005)`, tests (copied verbatim from the card) assert `dec!(0.05)`.
+  Recomputed by hand per the card's own instruction, twice, independently of the code: (a)
+  `LAMPORTS_PER_SOL = 1_000_000_000`; `5_000 / 1_000_000_000 = 0.000005`, matching
+  `money.rs`'s own doc example *and* its pre-existing, already-green
+  `lamports_convert_exactly` test (`money.rs:63`, `lamports_to_sol(5_000) == dec!(0.000005)`);
+  (b) `0.000005 * price(100) = 0.0005`. The card's hand-derivation
+  (task-queue.md:4070-4071, and the drafting worklog entry above) drops a zero at the
+  `lamports_to_sol(5_000)` step — writes `dec!(0.0005)` there instead of `dec!(0.000005)` — so
+  its stated final answer `dec!(0.05)` is a transcription slip; correct value is `dec!(0.0005)`.
+  Every other reference-trade figure on the card (`0.5`, `1`, `0.1`, `15_000`, `0.0015`,
+  `1.6015`) checks out exactly against the code. Per the card's escalate-if list ("recompute by
+  hand before concluding... do not adjust the assertion to match the code's output"): did not
+  touch the assertions. Left `hf_cost.rs`/`lib.rs` exactly as typed from the card (2 failing
+  tests included) for the next session to fix at the source (card text + the two `dec!(0.05)`
+  literals in `hf_cost.rs`'s test module) rather than silently patched. No further steps run
+  (no full-workspace gate, no fmt/clippy pass, no shasum re-check, card not flipped to `DONE`).
+  Not committed/staged.
+- 2026-07-15 (planner RULING on the M-HF-C4 escalation — FIX THE CAUSE): the executor is right;
+  the card's derivation dropped a zero at `lamports_to_sol(5_000)` (the planner's own
+  "hand-verification" repeated the slip — recorded as such). The assertion MECHANISM was never
+  wrong and was not weakened: `total > floor` holds as `1.6015 > 0.0005`. Corrections applied at
+  the source: card text (task-queue.md, two literals, with a correction note) and the two
+  `dec!(0.05)` → `dec!(0.0005)` test literals in `hf_cost.rs`. Full gate re-run by the planner:
+  **373 passed, 0 failed, 1 ignored** (+9 new incl. both named gate assertions); fmt/clippy
+  clean; demo `ae064f79…`/sweep `7ad3df7d…` unchanged; sweep-verify OK; `git status` scope =
+  hf_cost.rs (new) + lib.rs + queue/worklog only. The escalation protocol worked exactly as
+  designed — the executor's hand-recompute caught what two planner passes missed. M-HF-C4
+  flipped to DONE. Next: draft M-HF-C5 (adversarial terms); the C3–C5 block review follows C5.
