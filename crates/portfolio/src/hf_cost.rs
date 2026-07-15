@@ -41,6 +41,9 @@ impl DepthCurve {
         {
             return Err(HfCostError::UnsortedDepthCurve);
         }
+        if bands.windows(2).any(|w| w[0].impact_bps > w[1].impact_bps) {
+            return Err(HfCostError::NonMonotonicImpact);
+        }
         Ok(Self { bands })
     }
 
@@ -71,12 +74,36 @@ pub enum CongestionRegime {
 /// priority-fee side only — the landing-percentile side is deferred to C8).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CongestionPriorityTable {
-    pub calm_lamports: i64,
-    pub busy_lamports: i64,
-    pub hot_lamports: i64,
+    calm_lamports: i64,
+    busy_lamports: i64,
+    hot_lamports: i64,
 }
 
 impl CongestionPriorityTable {
+    /// Each priority fee must be `>= 0` — a priority fee is a cost to us, never a benefit.
+    /// Fail-closed at construction (mirrors [`DepthCurve::new`]), so `hf_trade_cost` can never
+    /// see a table that would drive `total_quote` below the base-fee floor.
+    pub fn new(
+        calm_lamports: i64,
+        busy_lamports: i64,
+        hot_lamports: i64,
+    ) -> Result<Self, HfCostError> {
+        for (regime, lamports) in [
+            ("calm", calm_lamports),
+            ("busy", busy_lamports),
+            ("hot", hot_lamports),
+        ] {
+            if lamports < 0 {
+                return Err(HfCostError::NegativePriorityLamports { regime, lamports });
+            }
+        }
+        Ok(Self {
+            calm_lamports,
+            busy_lamports,
+            hot_lamports,
+        })
+    }
+
     #[must_use]
     pub fn priority_lamports_for(&self, regime: CongestionRegime) -> i64 {
         match regime {
@@ -94,6 +121,13 @@ pub enum HfCostError {
     EmptyDepthCurve,
     /// `DepthCurve` bands must be sorted strictly ascending by `notional_upto`.
     UnsortedDepthCurve,
+    /// `DepthCurve` `impact_bps` must be non-decreasing across bands — a larger trade must
+    /// never cost fewer bps than a smaller one (a strict decrease inverts the depth-walk and
+    /// understates slippage at scale).
+    NonMonotonicImpact,
+    /// A `CongestionPriorityTable` priority fee was negative — a cost to us can never be a
+    /// benefit. `regime` names the offending field; `lamports` is its value.
+    NegativePriorityLamports { regime: &'static str, lamports: i64 },
 }
 
 impl fmt::Display for HfCostError {
@@ -104,6 +138,18 @@ impl fmt::Display for HfCostError {
                 write!(
                     f,
                     "depth curve bands must be sorted ascending by notional_upto"
+                )
+            }
+            Self::NonMonotonicImpact => {
+                write!(
+                    f,
+                    "depth curve impact_bps must be non-decreasing across bands"
+                )
+            }
+            Self::NegativePriorityLamports { regime, lamports } => {
+                write!(
+                    f,
+                    "priority-fee lamports must be >= 0, got {lamports} for {regime}"
                 )
             }
         }
@@ -193,11 +239,21 @@ pub fn scale_hf_cost_model(hf: &HfCostModel, num: u32, den: u32) -> HfCostModel 
                 })
                 .collect(),
         },
-        congestion_priority_table: CongestionPriorityTable {
-            calm_lamports: scale_lamports(hf.congestion_priority_table.calm_lamports),
-            busy_lamports: scale_lamports(hf.congestion_priority_table.busy_lamports),
-            hot_lamports: scale_lamports(hf.congestion_priority_table.hot_lamports),
-        },
+        congestion_priority_table: CongestionPriorityTable::new(
+            scale_lamports(
+                hf.congestion_priority_table
+                    .priority_lamports_for(CongestionRegime::Calm),
+            ),
+            scale_lamports(
+                hf.congestion_priority_table
+                    .priority_lamports_for(CongestionRegime::Busy),
+            ),
+            scale_lamports(
+                hf.congestion_priority_table
+                    .priority_lamports_for(CongestionRegime::Hot),
+            ),
+        )
+        .expect("scaling non-negative lamports by num/den stays non-negative"),
         tip_bps: scale_bps(hf.tip_bps),
     }
 }
@@ -226,11 +282,7 @@ mod tests {
     }
 
     fn reference_priority_table() -> CongestionPriorityTable {
-        CongestionPriorityTable {
-            calm_lamports: 1_000,
-            busy_lamports: 10_000,
-            hot_lamports: 100_000,
-        }
+        CongestionPriorityTable::new(1_000, 10_000, 100_000).expect("valid priority table")
     }
 
     #[test]
@@ -342,11 +394,8 @@ mod tests {
                 impact_bps: 0,
             }])
             .expect("valid depth curve"),
-            congestion_priority_table: CongestionPriorityTable {
-                calm_lamports: 0,
-                busy_lamports: 10_000,
-                hot_lamports: 0,
-            },
+            congestion_priority_table: CongestionPriorityTable::new(0, 10_000, 0)
+                .expect("valid priority table"),
             tip_bps: 0,
         };
         let cost = hf_trade_cost(&hf, dec!(500), dec!(100), CongestionRegime::Busy);
@@ -372,9 +421,24 @@ mod tests {
         assert_eq!(scaled.depth_curve.impact_bps_for(dec!(50)), 10);
         assert_eq!(scaled.depth_curve.impact_bps_for(dec!(500)), 40);
         assert_eq!(scaled.depth_curve.impact_bps_for(dec!(50_000)), 100);
-        assert_eq!(scaled.congestion_priority_table.calm_lamports, 2_000);
-        assert_eq!(scaled.congestion_priority_table.busy_lamports, 20_000);
-        assert_eq!(scaled.congestion_priority_table.hot_lamports, 200_000);
+        assert_eq!(
+            scaled
+                .congestion_priority_table
+                .priority_lamports_for(CongestionRegime::Calm),
+            2_000
+        );
+        assert_eq!(
+            scaled
+                .congestion_priority_table
+                .priority_lamports_for(CongestionRegime::Busy),
+            20_000
+        );
+        assert_eq!(
+            scaled
+                .congestion_priority_table
+                .priority_lamports_for(CongestionRegime::Hot),
+            200_000
+        );
         assert_eq!(scaled.tip_bps, 4);
     }
 
@@ -394,5 +458,59 @@ mod tests {
         let a = hf_trade_cost(&hf, dec!(500), dec!(100), CongestionRegime::Busy);
         let b = hf_trade_cost(&hf, dec!(500), dec!(100), CongestionRegime::Busy);
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn depth_curve_rejects_non_monotonic_impact() {
+        // A larger trade priced cheaper (bps) than a smaller one inverts the depth-walk.
+        let decreasing = vec![
+            DepthBand {
+                notional_upto: dec!(100),
+                impact_bps: 50,
+            },
+            DepthBand {
+                notional_upto: dec!(1_000),
+                impact_bps: 20,
+            },
+        ];
+        assert_eq!(
+            DepthCurve::new(decreasing),
+            Err(HfCostError::NonMonotonicImpact)
+        );
+
+        // A flat step (equal impacts) is legal — reject only a strict decrease.
+        let flat = vec![
+            DepthBand {
+                notional_upto: dec!(100),
+                impact_bps: 5,
+            },
+            DepthBand {
+                notional_upto: dec!(1_000),
+                impact_bps: 5,
+            },
+        ];
+        assert!(DepthCurve::new(flat).is_ok());
+    }
+
+    #[test]
+    fn priority_table_rejects_negative_lamports() {
+        assert_eq!(
+            CongestionPriorityTable::new(-1, 0, 0),
+            Err(HfCostError::NegativePriorityLamports {
+                regime: "calm",
+                lamports: -1,
+            })
+        );
+
+        let table = CongestionPriorityTable::new(0, 10_000, 100_000).expect("valid priority table");
+        assert_eq!(table.priority_lamports_for(CongestionRegime::Busy), 10_000);
+    }
+
+    #[test]
+    fn hf_cost_cannot_go_negative_via_priority_table() {
+        // Regression pin for the C3–C5 checkpoint finding: the fabricated-benefit input
+        // (a negative priority fee driving `total_quote` below `base_fee_floor_quote`) is now
+        // un-constructible at the type boundary, so `hf_trade_cost` can never be handed it.
+        assert!(CongestionPriorityTable::new(-10_000, 0, 0).is_err());
     }
 }

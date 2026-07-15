@@ -4663,7 +4663,7 @@ need separate explicit human approval). Never `git commit`/`git push` — the op
 
 ---
 
-### M-HF-C5.1 — Fail-closed hardening of C4 cost-shaping inputs (depth-curve impact monotonicity + non-negative priority lamports) — `TODO`
+### M-HF-C5.1 — Fail-closed hardening of C4 cost-shaping inputs (depth-curve impact monotonicity + non-negative priority lamports) — `DONE` *(2026-07-15; both gaps closed at the type boundary in `hf_cost.rs` only — `DepthCurve::new` now rejects a strictly-decreasing `impact_bps`, `CongestionPriorityTable` fields are private behind a `new()` that rejects negative lamports; 3 new tests; full workspace 385 passed/0 failed/1 ignored; demo/sweep shasums unchanged; `lib.rs`/`cost.rs` untouched)*
 
 **Why this card exists.** The mandatory C3–C5 adversarial checkpoint (m-hf-track §5, run 2026-07-15)
 confirmed **two** fail-closed gaps in C4's `hf_cost.rs` — both **cost-understating**, both mirroring

@@ -1089,3 +1089,17 @@ recorded inline (not full logs).
   fail-closed hardening owed **before C6 wiring**. Drafted card **M-HF-C5.1** (contained to
   `hf_cost.rs`+tests; `HfCostError` has no external matcher → new variants ripple nowhere).
   Next: execute C5.1, then draft C6.
+- 2026-07-15 (executor): **M-HF-C5.1 executed → DONE.** Both checkpoint gaps closed at the type
+  boundary in `crates/portfolio/src/hf_cost.rs` only: `DepthCurve::new` now rejects a strictly-
+  decreasing `impact_bps` (equal/flat allowed) → `HfCostError::NonMonotonicImpact`;
+  `CongestionPriorityTable`'s three lamport fields made private behind `new(calm,busy,hot) ->
+  Result` rejecting any `< 0` → `NegativePriorityLamports { regime, lamports }`; `scale_hf_cost_model`
+  + the two test constructions rerouted through `new()`/`priority_lamports_for`. 3 new tests
+  (`depth_curve_rejects_non_monotonic_impact`, `priority_table_rejects_negative_lamports`,
+  `hf_cost_cannot_go_negative_via_priority_table`). Gate: `fmt`/`clippy` clean; `cargo test
+  --workspace --all-features` → **385 passed / 0 failed / 1 ignored** (382 + 3); the 3 priced-value
+  asserts (`…reference_trade` / `…exceeds_base_fee_floor` / `…scales_hf_fields_exactly`) unchanged;
+  demo shasum `ae064f79…` + sweep shasum `7ad3df7d…` unchanged; `sweep-verify` OK. `git status`
+  scope = exactly `hf_cost.rs` + this queue/worklog flip; `lib.rs`/`cost.rs`/`Cargo.toml` untouched
+  (grep confirmed the type is only re-exported by name, no external construction/field-read). Not
+  staged/committed (operator commits). Next: planner drafts C6 (do NOT start C6).
