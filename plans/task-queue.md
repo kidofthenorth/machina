@@ -4831,6 +4831,245 @@ creates execution capability. Never `git commit`/`git push` — the operator com
 
 ---
 
+### M-HF-C6 — Turnover-criterion replacement: additive HF advancement criteria (cost-drag / per-trade-edge) — `TODO`
+
+**Why this card exists (and why it is NARROW).** m-hf-track §4/§5 sketched C6 as "ladder rungs +
+turnover replacement + additive schema." A 2026-07-15 surface-map audit (5 agents, grep-verified)
+proved that sketch drifted from the code that has since landed — **three of its stated gates cite
+surfaces that do not exist:**
+1. **"Consumer-match audit (results, cli)" is vacuous.** `RejectionKind` is referenced in
+   **neither** `crates/results` nor `crates/cli`; the CLI emits the report as opaque JSON
+   (`println!("{json}")`), and `evaluate_candidate` builds reasons via independent `if`-checks, not a
+   `match`. There is **no exhaustive `match RejectionKind` anywhere** to audit. (This card *creates* a
+   compiler-forcing function instead — see step 2's `RejectionKind::label()`.)
+2. **The "HF-kind spec-lint" has no field to hang on.** `SweepSpec`/`SweepSpecToml` has **no**
+   HF-vs-standard discriminator; that discriminator is born in **C8** (§5 row C8: "SweepSpec HF-kind").
+   So "HF-kind spec sets `turnover_budget` → parse error" **moves to C8** and is NOT in this card.
+3. **New HF `ScenarioId` rungs don't reach the report for free.** `FeeSensitivity`/schema are
+   hard-locked to 3 named slots (`before_costs`/`base`/`doubled`) — even today's
+   `DoubledSlippage`/`DoubledPriority` never surface. Surfacing HF scenarios is **C8's** windowed-sweep
+   job. So `ScenarioId` variants + `hf_cost_scenarios` + `data_provenance` **all move to C8**.
+
+**Operator scope decision (2026-07-15): NARROW C6 = the turnover-criterion replacement ONLY** (the
+one piece that is real, fully additive, and gated by a genuine byte-identical-to-M4 regression today).
+Everything ladder/scenario/provenance/spec-lint moves to C8, where it is actually exercised. This
+reorders the §5 card boundaries by operator decision; **a follow-up planner edit must correct
+m-hf-track §5's C6 row + the §4/§5 gate language** (record it in the worklog when this card lands).
+Nothing here creates execution capability; the new criteria are implemented + unit-tested but not
+activated until C8 provides HF thresholds + evidence — exactly the C4/C5 pattern (pure logic first,
+sweep wiring later).
+
+**Goal.** Make the advancement battery able to reject an HF candidate on the two economics that
+matter at high volume — **cost drag share** (costs eat too much of the gross edge) and **per-trade
+edge** (thousands of near-zero-edge trades) — without disturbing any M4/LF verdict. Concretely:
+`turnover_budget` becomes optional (an HF candidate is not rejected for high turnover — high turnover
+is the design, its cost already priced), and two new **opt-in** criteria are added alongside it. The
+**primary gate is a byte-identical-to-M4 regression**: M4-era thresholds (`turnover_budget = Some`,
+the two new = `None`) + M4-era evidence must produce verdicts whose serialization is unchanged except
+the schema-version string.
+
+**Pinned semantics (planner decisions — do not re-decide).**
+- **`turnover_budget: Decimal` → `Option<Decimal>`** on `AdvancementThresholds`. `Some(x)` ⇒ the
+  existing `TurnoverImplausible` check applies unchanged (`ev.turnover > x`); `None` ⇒ the turnover
+  criterion is inactive (the HF case). **The TOML stays required** — `AdvancementToml.turnover_budget`
+  is NOT touched (so `config/strategies/m5-frozen.toml` and `strategy-lab.example.toml` keep parsing
+  with **no edit**); `spec.rs`'s mapping wraps it in `Some(...)`. C8 (which owns HF-kind specs) is
+  what lets an HF spec omit it.
+- **Two new `Option<Decimal>` threshold fields:** `cost_drag_share_ceiling`, `per_trade_edge_floor`.
+  Both `None` in every M4/LF path (added to each `AdvancementThresholds { .. }` site as `None`).
+- **Two new `Option<Decimal>` evidence fields** on `CandidateEvidence:` `cost_drag_share`,
+  `per_trade_edge`. Doc-define them precisely (below) but **C6 does not compute them** — they are
+  `None` in every M4/LF path; **C8 computes them from fee-sensitivity sums** (no new collection pass).
+  - `cost_drag_share` = the fraction of the candidate's **gross (before-costs) return** consumed by
+    costs (e.g. `return_drag_costs / before_costs_return`, guarded for non-positive gross). Higher =
+    worse. Criterion `CostDragExcessive` fires when `cost_drag_share > cost_drag_share_ceiling`.
+  - `per_trade_edge` = the candidate's **net edge per trade** (net return contribution ÷ `n_trades`,
+    the everyday-MEV/adverse-selection sink from C5 included once C8 wires it). Lower = worse.
+    Criterion `PerTradeEdgeInsufficient` fires when `per_trade_edge < per_trade_edge_floor`.
+- **Gating is `if let (Some(threshold), Some(observed))`** for each new criterion — a criterion is
+  checked only when BOTH its threshold and its evidence are present. For M4 (both `None`) neither
+  fires ⇒ byte-identical. **C8's responsibility (documented, not enforced here):** when it sets an HF
+  threshold it must also populate the matching evidence; a C6 doc-comment states this boundary.
+- **`RejectionKind` gains `CostDragExcessive`, `PerTradeEdgeInsufficient`, appended LAST** (after
+  `InsufficientData`) so the derived `Ord`/discriminants of the existing 7 variants are unchanged.
+  **New checks are appended AFTER the turnover check** in `evaluate_candidate`'s fixed canonical order
+  (turnover → cost-drag → per-trade-edge), so an M4 candidate (new thresholds `None`) yields an
+  identical `failed_criteria` vector.
+- **The vacuous "consumer audit" is replaced by a real forcing function:** add
+  `RejectionKind::label(self) -> &'static str` as an **exhaustive `match`** (mirroring
+  `ScenarioId::label()` at sensitivity.rs:42-54) returning the snake_case string, and a test asserting
+  every variant's `label()` equals its serde form AND is present in the schema's `kind` enum. Now the
+  compiler forces any future variant to be handled, and the Rust↔schema enum can't silently drift.
+- **Additive schema, minor bump `1.1.0` → `1.2.0`:** append the two new `kind` strings to
+  `RejectionReason.kind.enum`; move `turnover_budget` OUT of `Thresholds.required` (it stays a
+  property, now optional) and add `cost_drag_share_ceiling`/`per_trade_edge_floor` as optional
+  `decimalString` properties. An old 1.1.0 report still validates under 1.2.0 (superset enum;
+  nothing newly required). The report DTO omits `None` fields via
+  `#[serde(skip_serializing_if = "Option::is_none")]`, so an M4 report serializes identically **except
+  `schema_version`**.
+- **The `sweep` shasum WILL move — by exactly the version string.** This is the first HF card to
+  change sweep output. The default `sweep` uses M4 thresholds, so its report changes ONLY
+  `"schema_version": "1.1.0"` → `"1.2.0"` (turnover still `Some` ⇒ present; new fields `None` ⇒
+  omitted). The gate below requires the executor to **diff before/after and confirm the ONLY change is
+  that one line**, then record the new shasum. `demo` shasum is unchanged (demo emits no sweep report).
+
+**Files (7 — justified: one coherent concern threaded through the stack; most test edits are
+mechanical `Some(..)`/`None` wrapping; the byte-identical regression is the safety net).**
+1. `crates/sweep/src/advance.rs` — the core: `AdvancementThresholds` (turnover→Option + 2 fields),
+   `CandidateEvidence` (+2 Option fields), `RejectionKind` (+2 variants + `label()`), `evaluate_candidate`
+   (Option-gate turnover + 2 appended checks), in-file test helpers + new tests.
+2. `crates/sweep/src/spec.rs` — mapping ONLY (lines 125-132): wrap `turnover_budget` in `Some(..)`,
+   add the two new thresholds as `None`. **`AdvancementToml` struct + the config TOMLs are untouched.**
+3. `crates/sweep/src/report.rs` — `ThresholdsDto` (turnover→`Option<String>` + 2 `Option<String>`,
+   `skip_serializing_if`), `from_thresholds` mapping, `SWEEP_SCHEMA_VERSION` `1.1.0`→`1.2.0`, test helper.
+4. `crates/sweep/tests/schema_validation.rs` — update the `thresholds()` helper; ADD a test that an
+   M4-shape report (turnover present, new fields absent) validates under 1.2.0, and an HF-shape report
+   (turnover absent, both new thresholds present) validates.
+5. `crates/sweep/tests/sweep_runner.rs` — update the `AdvancementThresholds { .. }` construction (Some + None).
+6. `crates/sweep/tests/hf_reuse_proof.rs` — update the `AdvancementThresholds { .. }` construction (Some + None).
+7. `schemas/sweep-report.schema.json` — the additive edits above. **This card is explicitly
+   authorized to edit this schema** (the general "never touch schemas/" guardrail is lifted for THIS
+   file, for the additive-minor change described, and ONLY it — `run-result.schema.json` and every
+   other schema stay untouched).
+
+**Current state (verbatim, verified 2026-07-15 at HEAD `6507193` + the staged C5.1 diff; if what you
+find differs, escalate — don't adapt).**
+- `crates/sweep/src/advance.rs:18-32` `AdvancementThresholds` — `turnover_budget: Decimal` at :23 (the
+  field this card wraps in `Option`); 6 fields total.
+- `crates/sweep/src/advance.rs:36-60` `CandidateEvidence` — 9 fields; `turnover: Decimal` at :43.
+- `crates/sweep/src/advance.rs:73-90` `RejectionKind` — `#[derive(Debug, Clone, Copy, PartialEq, Eq,
+  PartialOrd, Ord, Serialize)] #[serde(rename_all = "snake_case")]`, 7 variants ending
+  `InsufficientData` at :89.
+- `crates/sweep/src/advance.rs:182-188` — the turnover check to Option-gate:
+  ```rust
+  if ev.turnover > th.turnover_budget {
+      failed.push(RejectionReason::new(
+          RejectionKind::TurnoverImplausible,
+          ev.turnover,
+          th.turnover_budget,
+      ));
+  }
+  ```
+  (`RejectionReason::new(kind, observed: Decimal, threshold: Decimal)` is at advance.rs:102 — the two
+  new checks call it the same way with their `Some`-unwrapped values.)
+- `crates/sweep/src/advance.rs:208-232` test helpers `thresholds()` (`turnover_budget: dec!(5)` at
+  :211) and `passing()` evidence; `crates/sweep/src/advance.rs:368` in
+  `threshold_boundaries_are_inclusive_except_doubled_costs` reads `ev.turnover = th.turnover_budget;`
+  — this becomes `th.turnover_budget.unwrap()` (or restructured) once the field is `Option`.
+- `crates/sweep/src/sensitivity.rs:42-54` `ScenarioId::label()` — the EXHAUSTIVE-match pattern to
+  mirror for `RejectionKind::label()`:
+  ```rust
+  impl ScenarioId {
+      #[must_use]
+      pub fn label(self) -> &'static str {
+          match self {
+              Self::BeforeCosts => "before_costs",
+              // …one arm per variant, no `_` arm…
+          }
+      }
+  }
+  ```
+- `crates/sweep/src/report.rs:19` `pub const SWEEP_SCHEMA_VERSION: &str = "1.1.0";` (→ `"1.2.0"`).
+- `crates/sweep/src/report.rs:26-46` `ThresholdsDto` (`pub turnover_budget: String` at :28) +
+  `from_thresholds` (`turnover_budget: th.turnover_budget.to_string()` at :39).
+- `crates/sweep/src/spec.rs:125-132` — the mapping this card edits:
+  ```rust
+  let thresholds = AdvancementThresholds {
+      drawdown_budget: t.advancement.drawdown_budget,
+      turnover_budget: t.advancement.turnover_budget,        // → Some(t.advancement.turnover_budget)
+      baseline_margin: t.advancement.baseline_margin,
+      dispersion_budget: t.advancement.dispersion_budget,
+      neighbor_tolerance: t.advancement.neighbor_tolerance,
+      min_windows: t.advancement.min_windows,
+      // + cost_drag_share_ceiling: None, per_trade_edge_floor: None
+  };
+  ```
+- `schemas/sweep-report.schema.json:38-45` `Thresholds.required` (contains `"turnover_budget"` at :40
+  — remove it from `required`, keep it in `properties`); `:127-148` `RejectionReason` with the 7-value
+  `kind.enum` at :135-143 (append the two new strings).
+- Other `AdvancementThresholds { .. }` sites needing the Some+None update:
+  `crates/sweep/src/report.rs:193`, `crates/sweep/tests/schema_validation.rs:35`,
+  `crates/sweep/tests/sweep_runner.rs:48`, `crates/sweep/tests/hf_reuse_proof.rs:41`. (Confirmed:
+  these six are the complete set workspace-wide.)
+
+**Steps.**
+1. **Step 0 (before touching any file):** run the full-workspace gate. Expect **385 passed, 0 failed,
+   1 ignored** (post-C5.1); fmt/clippy clean; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`;
+   sweep shasum `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`. If already red, STOP and report. (This card
+   assumes C5.1 is committed/landed; if the C5.1 diff is absent, the baseline is 382 not 385 — STOP
+   and report the mismatch rather than proceeding.)
+2. `advance.rs`: widen `turnover_budget` to `Option<Decimal>`; add `cost_drag_share_ceiling:
+   Option<Decimal>`, `per_trade_edge_floor: Option<Decimal>` to `AdvancementThresholds`; add
+   `cost_drag_share: Option<Decimal>`, `per_trade_edge: Option<Decimal>` to `CandidateEvidence` (with
+   the doc-definitions from Pinned semantics, incl. the "C8 computes these" note); append
+   `CostDragExcessive`, `PerTradeEdgeInsufficient` to `RejectionKind`; add the exhaustive
+   `RejectionKind::label()`. In `evaluate_candidate`: change the turnover check to
+   `if let Some(tb) = th.turnover_budget { if ev.turnover > tb { … } }`, then append (after it, in this
+   order) the two new `if let (Some(t), Some(v)) = (…) { if v > t /* or v < t */ { … } }` checks.
+3. `spec.rs`: edit the 125-132 mapping only (Some-wrap turnover; two new `None`).
+4. `report.rs`: `ThresholdsDto` fields (turnover→`Option<String>` + 2, all with
+   `#[serde(skip_serializing_if = "Option::is_none")]`); `from_thresholds` maps `Option<Decimal>` →
+   `Option<String>` (`.map(|d| d.to_string())`); bump the version const; fix the test helper.
+5. Update the remaining `AdvancementThresholds { .. }` sites (report.rs:193, and the three test files).
+6. `schemas/sweep-report.schema.json`: append the two `kind` strings; drop `turnover_budget` from
+   `Thresholds.required`; add the two new optional threshold properties.
+7. Tests (pinned intent): in `advance.rs` — `turnover_inactive_when_budget_is_none` (turnover
+   enormous, `turnover_budget = None` ⇒ NOT rejected); `cost_drag_excessive_fires_and_is_gated`
+   (threshold `Some` + evidence `Some` over ceiling ⇒ `CostDragExcessive`; either `None` ⇒ inactive);
+   `per_trade_edge_insufficient_fires_and_is_gated` (symmetric, `<` floor); `rejection_kind_label_matches_serde`
+   (every variant's `label()` == its `serde_json` string); and the **byte-identical regression**:
+   an M4-shape verdict (`turnover_budget = Some`, both new `None`, evidence new = `None`) has the
+   same `failed_criteria`/serialization as the pre-C6 semantics for the same six-criterion inputs
+   (reuse the existing `all_non_data_criteria_fail_in_canonical_order` expectation — it must still
+   hold verbatim). In `schema_validation.rs` — the M4-shape-validates + HF-shape-validates tests.
+8. `cargo fmt --all`; run the full gate (below); flip this card to `DONE` + one worklog line; **and
+   note in the worklog that the m-hf-track §5 C6-row/gate language still needs the planner correction**
+   described above (that is a separate small plan edit, not part of this executor card).
+
+**Gate.**
+- `cargo test -p sweep` green; every PRE-EXISTING `advance.rs`/`report.rs`/`sweep_runner`/`schema_validation`
+  assertion still passes with only mechanical `Some(..)`/`None` wrapping — **no asserted verdict,
+  ordering, observed, or threshold value changed** (if one has to change to stay green, a real
+  behavioral regression crept in — STOP).
+- Full workspace: `cargo fmt --all --check` clean; `cargo clippy --all-targets --all-features -- -D
+  warnings` clean; `cargo test --workspace --all-features` → **0 failed, 1 ignored, N passed** where
+  `N = 385 + (new tests added)`; record the exact N.
+- **Schema/serialization diff is version-only for M4:** `cargo run -p cli -- sweep` — capture the
+  report before (git-stash or the committed baseline) and after; **the ONLY textual diff must be
+  `"schema_version": "1.1.0"` → `"1.2.0"`.** If anything else differs, a non-additive change leaked in
+  — STOP and report. Then record the NEW sweep shasum in the worklog (it replaces
+  `7ad3df7d…`); `cargo run -p cli -- sweep-verify` → OK (byte-identical across threads at 1.2.0).
+- `cargo run -p cli -- demo | shasum` → `ae064f79242f823ffd8f55bf9104e3e1b45d425a` **unchanged** (demo
+  emits no sweep report — if it moves, something unrelated got wired in; STOP).
+- `git status` shows exactly the 7 card files (+ the queue/worklog flip) — no `run-result.schema.json`,
+  no other schema, no `crates/results`/`crates/cli`, no `Cargo.toml`, no config TOML, no
+  `AdvancementToml`/config-TOML edit.
+
+**Guardrails (restated).** `Decimal` for all money/threshold math — the new fields are `Decimal`
+budgets, never `f64` (advance.rs is f64-free, source-audited — keep it so); no new deps / no
+Cargo.toml edits; determinism unchanged (fixed canonical order; total-ordered report; no RNG/clock);
+the two new criteria are **costs to the candidate, never a benefit** (they can only ADD rejections,
+never remove one — an M4 candidate's verdict set is a subset-preserving no-op); **do NOT** add a
+`ScenarioId` variant, `hf_cost_scenarios`, `data_provenance`, an HF-kind spec discriminator, or a
+spec-lint (all C8); **do NOT** touch `AdvancementToml`, the config TOMLs,
+`config/strategies/m5-frozen.toml`, the holdout machinery, `run-result.schema.json`, the master-plan
+pair, or `crates/results`/`crates/cli`; strategies stay intent-only; NOTHING here creates execution
+capability. Never `git commit`/`git push` — the operator commits explicit paths.
+
+**Escalate-if (STOP, record in plans/worklog.md, report — never improvise):**
+- any quoted signature/line/block above doesn't match source at `6507193`+C5.1;
+- the Step-0 baseline isn't 385/0/1 (e.g. C5.1 not landed) — report, don't proceed on a wrong baseline;
+- **any PRE-C6 test assertion has to change to stay green** — the change is supposed to be byte-identical
+  for M4; a forced assertion edit means a real regression — STOP;
+- **the sweep report diff is anything other than the single `schema_version` line** — a non-additive
+  change leaked in;
+- the demo shasum moves;
+- an old (1.1.0) report fails to validate against the 1.2.0 schema (the bump must be a superset);
+- you find yourself needing a `ScenarioId` variant, an HF-kind spec field, a `_` wildcard added to a
+  match, or an edit outside the 7 listed files — those are C8 or a scope breach; STOP.
+
+---
+
 ## Deferred / blocked (unchanged)
 
 | ID | Status | Milestone | File scope | Gate | Notes |

@@ -1,8 +1,8 @@
 # Current state
 
 Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-15 (M-HF
-wave 2: C3/C4/C5 DONE + verified; C3–C5 adversarial checkpoint PASS-with-hardening; next: card
-M-HF-C5.1 fail-closed hardening → then draft C6).
+wave 2: C3/C4/C5/C5.1 DONE + verified; C3–C5 adversarial checkpoint PASS-with-hardening closed;
+**C6 DRAFTED (TODO)** — narrow scope: turnover-criterion replacement only).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -45,9 +45,20 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   wired path today, both mirroring the `DepthCurve::new` guard C4 already ships): (a) `DepthCurve::new`
   doesn't reject non-monotonic `impact_bps` (a larger trade can price cheaper than a smaller one);
   (b) `CongestionPriorityTable`/`HfCostModel` accept negative lamports → negative gas → a fabricated
-  benefit. Drafted as card **M-HF-C5.1** (contained to `hf_cost.rs`+tests; `HfCostError` has no
-  external matcher, so new variants ripple nowhere) — **land C5.1 before C6 wires these into the
-  ladder / C8 derives them from config.** HF-Q1 (deferred to wave 2) blocks C9/C10;
+  benefit. **Card M-HF-C5.1 DONE + verified 2026-07-15** (both closed fail-closed in `hf_cost.rs`:
+  `DepthCurve::new` rejects strictly-decreasing `impact_bps`; `CongestionPriorityTable` fields private
+  behind `new()` rejecting negatives; 3 new tests; 385/0/1; demo/sweep shasums unchanged; no
+  priced-value moved). **C3–C5 block hardened; checkpoint fully closed.**
+  **C6 DRAFTED (TODO) 2026-07-15 — NARROW scope by operator decision:** turnover-criterion replacement
+  ONLY (`advance.rs`: `turnover_budget`→`Option`, +`cost_drag_share_ceiling`/`per_trade_edge_floor`
+  gating +`RejectionKind::{CostDragExcessive,PerTradeEdgeInsufficient}`; DTO+schema additive minor
+  bump 1.1.0→1.2.0; **primary gate = byte-identical-to-M4 regression**; the sweep shasum moves by the
+  one version line). A 5-agent surface map proved §4/§5's C6 sketch drifted from code — the
+  "RejectionKind consumer audit" is vacuous (no consumers in results/cli), the HF-kind spec-lint has
+  no discriminator (born in C8), and HF `ScenarioId` rungs don't reach the report without C8 wiring —
+  so **all ladder/scenario/provenance/spec-lint work moved to C8**. **Owed: a planner edit correcting
+  m-hf-track §5's C6 row + §4/§5 gate language** (the sketch cites non-existent surfaces). HF-Q1
+  (deferred to wave 2) blocks C9/C10;
   HF-Q3 blocks C10. M6+ does NOT start (reject-all ⇒ no shadow candidate); M8/M9 (signing/submit)
   need **separate explicit human approval**.
 

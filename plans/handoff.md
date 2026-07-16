@@ -1,15 +1,15 @@
 # Handoff — for a new chat continuing machina
 
 You are picking up a build where **M5 is CLOSED (reject-all, holdout unread) and the M-HF
-research track is ACTIVE**. Cards **C1–C2.6 and C3/C4/C5 are all DONE**; the mandatory **C3–C5
-adversarial checkpoint (m-hf-track §5) PASSED-with-hardening** on 2026-07-15 (determinism +
-contract-drift lenses clean; it surfaced 2 small fail-closed gaps on C4's cost types, both
-unreachable in any wired path today, drafted as one card). This is the single entry point. Read the
-pointer files below, confirm the gates are green, then execute **the next TODO card in
-task-queue.md §M-HF — currently `M-HF-C5.1`** (fail-closed hardening of C4's `hf_cost.rs`) — and
-nothing beyond it. **Do not draft or execute C6 until C5.1 is DONE** (C5.1 hardens exactly the types
-C6 wires into the ladder). Never start M6+ (network) or M8/M9 (signing/submit — separate explicit
-human approval). **Do not commit or push — the operator commits.**
+research track is ACTIVE**. Cards **C1–C2.6, C3/C4/C5, and C5.1 are all DONE**; the mandatory C3–C5
+adversarial checkpoint (m-hf-track §5) PASSED-with-hardening and is fully closed. This is the single
+entry point. Read the pointer files below, confirm the gates are green, then execute **the next TODO
+card in task-queue.md §M-HF — currently `M-HF-C6`** (turnover-criterion replacement; NARROW scope by
+operator decision — see the card's "Why this card exists" + scope note) — and nothing beyond it.
+**C6 is the first card that legitimately moves the `sweep` shasum** (schema minor bump 1.1.0→1.2.0);
+its primary gate is a byte-identical-to-M4 regression and a version-only sweep diff — follow the card
+exactly. Never start M6+ (network) or M8/M9 (signing/submit — separate explicit human approval).
+**Do not commit or push — the operator commits.**
 
 ---
 
@@ -152,16 +152,18 @@ failed the frozen +0.02 baseline margin and edge-vanishes-under-doubled-costs (t
 `plans/m5-data-validation.md`). `evaluate_on_holdout` was never called; the 2026-01-01..2026-06-30
 holdout survives unseen for a future cycle. Step-0 review: PASS (6 agents).
 
-**The active queue is task-queue.md §M-HF.** Wave-1 C1–C2.6 and C3/C4/C5 are DONE; the mandatory
-C3–C5 adversarial checkpoint (m-hf-track §5) ran 2026-07-15 and **PASSED-with-hardening** — the
-determinism and contract-drift lenses were clean, and 11 raw findings narrowed to **2 real
-fail-closed gaps on C4's cost types** (both cost-understating, both unreachable in any wired path
-today, both mirroring the `DepthCurve::new` guard C4 already ships). **The next TODO card is
-`M-HF-C5.1`**: reject a non-monotonic depth-curve `impact_bps`, and reject negative priority lamports
-(the negative-gas → fabricated-benefit path), both fail-closed at the type boundary, contained to
-`hf_cost.rs`. Land C5.1 **before** C6 wires these into the ladder / C8 derives them from config; then
-the planner drafts C6. HF-Q1 (deferred to wave 2) blocks C9/C10; HF-Q3 blocks C10. Neither daily-bar
-family advances; M6 (shadow) has no candidate and does not start.
+**The active queue is task-queue.md §M-HF.** Wave-1 C1–C2.6, C3/C4/C5, and C5.1 are DONE; the C3–C5
+adversarial checkpoint (m-hf-track §5) is fully closed. **The next TODO card is `M-HF-C6`** — the
+turnover-criterion replacement, **NARROW scope by operator decision (2026-07-15)**: `advance.rs`
+`turnover_budget`→`Option` + two opt-in criteria (`cost_drag_share`/`per_trade_edge`) + two new
+`RejectionKind`s, an additive schema minor bump (1.1.0→1.2.0), gated by a **byte-identical-to-M4
+regression**. A 5-agent surface map proved §4/§5's broader C6 sketch drifted from code (no
+`RejectionKind` consumers to audit; no HF-kind spec discriminator — born in C8; HF `ScenarioId` rungs
+don't reach the report without C8), so all ladder/scenario/`data_provenance`/spec-lint work moved to
+C8; the card's "Why this card exists" records this. **C6 is the first card to move the `sweep`
+shasum** (by the one `schema_version` line — the card handles it). Still owed: a small planner edit
+correcting m-hf-track §5's stale C6-row/gate language. HF-Q1 (deferred to wave 2) blocks C9/C10;
+HF-Q3 blocks C10. Neither daily-bar family advances; M6 (shadow) has no candidate and does not start.
 
 The Q7 HF amendment was made 2026-07-09 (D-0012): master-plan pair amended in lockstep
 (cmp-verified); milestone plan at [m-hf-track.md](m-hf-track.md). M-HF execution still waits on
@@ -218,17 +220,21 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 > is a hypothesis to test — no card claims a known-profitable algorithm, and rejecting them all
 > cleanly is a successful outcome.
 >
-> **State (2026-07-15):** M5 CLOSED (reject-all; holdout unread, seal intact). M-HF C1–C5 DONE; the
-> C3–C5 adversarial checkpoint (m-hf-track §5) PASSED-with-hardening. Workspace green at **382
-> passed, 0 failed, 1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template
-> sweep shasum `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify: OK`.
+> **State (2026-07-15):** M5 CLOSED (reject-all; holdout unread, seal intact). M-HF C1–C5 + C5.1
+> DONE. Workspace green at **385 passed, 0 failed, 1 ignored**; demo shasum
+> `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template sweep shasum
+> `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify: OK`.
 >
-> Your task is card **`M-HF-C5.1`** in `plans/task-queue.md` §M-HF (fail-closed hardening of C4's
-> `hf_cost.rs`: reject non-monotonic depth-curve `impact_bps`; reject negative priority lamports).
-> Read the §M-HF common rules and the card. It is self-contained — do not open files it doesn't
-> name (it touches exactly one code file, `crates/portfolio/src/hf_cost.rs`). Step 0 of every card:
-> run the full-workspace gate BEFORE touching any file; if it is already red, STOP and report. If
-> the next TODO card isn't C5.1, say so and stop.
+> Your task is card **`M-HF-C6`** in `plans/task-queue.md` §M-HF — the turnover-criterion replacement
+> (NARROW scope): `advance.rs` `turnover_budget`→`Option` + two opt-in criteria + two new
+> `RejectionKind`s, an additive schema minor bump, gated by a byte-identical-to-M4 regression. Read
+> the §M-HF common rules and the whole card incl. its "Why this card exists" scope note. Step 0: run
+> the full-workspace gate BEFORE touching any file; if it is already red, STOP and report. **Two
+> things about C6 differ from prior cards, both spelled out in the card:** (1) it is EXPLICITLY
+> authorized to edit ONE schema — `schemas/sweep-report.schema.json` — additively (and no other); (2)
+> it is the first card whose `sweep` shasum legitimately MOVES, by exactly the one `schema_version`
+> line — verify the diff is version-only and record the new shasum. If the next TODO card isn't C6,
+> say so and stop.
 >
 > When the gate passes: flip the card, one worklog line, stop — the next card gets a fresh chat.
 > If any escalate-if triggers: STOP, record the mismatch in the worklog, report.
@@ -236,7 +242,9 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 > Non-negotiables (unchanged): `Decimal`/integer only for money — never f64; no new dependencies;
 > determinism (no RNG/clock in canonical runs); the M4/M5 holdout machinery and
 > `config/strategies/m5-frozen.toml` are immutable records; never stage anything under `data/`;
-> never edit `schemas/*.json`, `fixtures/` (existing files), `plans/master-plan.md`, or
-> `solana-crypto-trader-plan.md`; never `git commit`/`git push` (stage explicit paths only, never
-> `.claude/`, never `git add -A`); never start M6+ (network) or M8/M9 (signing/submit — separate
-> explicit human approval).
+> never edit `fixtures/` (existing files), `plans/master-plan.md`, or `solana-crypto-trader-plan.md`;
+> **do not edit any `schemas/*.json` UNLESS the card explicitly authorizes it — C6 authorizes an
+> additive edit to `sweep-report.schema.json` ONLY, and `run-result.schema.json` + all others stay
+> untouched**; never `git commit`/`git push` (stage explicit paths only, never `.claude/`, never
+> `git add -A`); never start M6+ (network) or M8/M9 (signing/submit — separate explicit human
+> approval).

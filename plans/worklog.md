@@ -1103,3 +1103,35 @@ recorded inline (not full logs).
   scope = exactly `hf_cost.rs` + this queue/worklog flip; `lib.rs`/`cost.rs`/`Cargo.toml` untouched
   (grep confirmed the type is only re-exported by name, no external construction/field-read). Not
   staged/committed (operator commits). Next: planner drafts C6 (do NOT start C6).
+- 2026-07-15 (verifier/planner): **M-HF-C5.1 independently verified — PASS.** Re-ran full gate: fmt/
+  clippy clean; 385 passed/0 failed/1 ignored (382+3); hf_cost 9→12 tests; demo `ae064f79…` + sweep
+  `7ad3df7d…` shasums unchanged; sweep-verify OK. Read the full `hf_cost.rs` diff: `DepthCurve::new`
+  adds `windows(2).any(|w| w[0].impact_bps > w[1].impact_bps)` → `NonMonotonicImpact` (flat legal);
+  `CongestionPriorityTable` fields now private behind `new() -> Result` rejecting `<0` →
+  `NegativePriorityLamports{regime,lamports}`; `scale_hf_cost_model`+2 test sites rerouted via
+  `new()`/`priority_lamports_for`; `hf_trade_cost` still pure/infallible. No priced-value assert
+  moved; scope exactly `hf_cost.rs`+queue/worklog; `lib.rs`/`cost.rs`/`Cargo.toml` untouched. C3–C5
+  checkpoint fully closed.
+- 2026-07-15 (planner): **M-HF-C6 DRAFTED (narrow scope, operator decision).** Before drafting, ran a
+  5-agent surface-map workflow over sweep/schema/cli (grep-verified) and found **§4/§5's C6 sketch
+  drifted from the landed code**: (1) the "RejectionKind consumer-match audit (results, cli)" is
+  vacuous — `RejectionKind` is referenced in NEITHER `crates/results` NOR `crates/cli`, the CLI dumps
+  opaque JSON, and no exhaustive `match RejectionKind` exists anywhere; (2) the "HF-kind spec-lint"
+  has no discriminator — `SweepSpec` has no HF/standard `kind` field (born in C8); (3) new HF
+  `ScenarioId` rungs don't reach the report (`FeeSensitivity`/schema hard-locked to 3 named slots —
+  even today's DoubledSlippage/DoubledPriority never surface). **Operator chose NARROW C6** =
+  turnover-criterion replacement ONLY; all ladder/scenario/`data_provenance`/spec-lint moved to C8.
+  Card spec: `AdvancementThresholds.turnover_budget: Decimal`→`Option` (TOML stays required, mapping
+  Some-wraps — config TOMLs untouched); +`cost_drag_share_ceiling`/`per_trade_edge_floor` Option
+  thresholds + `cost_drag_share`/`per_trade_edge` Option evidence (C8 computes, `None` in M4);
+  +`RejectionKind::{CostDragExcessive,PerTradeEdgeInsufficient}` appended + a new exhaustive
+  `RejectionKind::label()` as the real compiler-forcing function replacing the vacuous audit; schema
+  additive minor bump 1.1.0→1.2.0 (append 2 kind strings, turnover_budget out of `required`, 2 new
+  optional props); `skip_serializing_if=none` so an M4 report is byte-identical except the version
+  line. **Primary gate = byte-identical-to-M4 regression; the `sweep` shasum MOVES by exactly the one
+  `schema_version` line** (first HF card to change sweep output — the card requires diffing to confirm
+  version-only, then records the new shasum). 7 files (advance/spec/report + 3 tests + the
+  sweep-report schema — the "never touch schemas" guardrail explicitly lifted for that one file).
+  **OWED (separate small planner edit, flagged for a future session): correct m-hf-track §5's C6 row
+  + §4/§5 gate language, which cite the non-existent consumer-audit/spec-lint surfaces.** Next:
+  execute C6 (fresh session).
