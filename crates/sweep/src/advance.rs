@@ -19,8 +19,10 @@ use serde::Serialize;
 pub struct AdvancementThresholds {
     /// Maximum acceptable drawdown (a `[0,1]` fraction).
     pub drawdown_budget: Decimal,
-    /// Maximum acceptable un-annualized turnover ratio (traded notional / mean equity).
-    pub turnover_budget: Decimal,
+    /// Maximum acceptable un-annualized turnover ratio (traded notional / mean equity). `None`
+    /// deactivates the turnover criterion entirely (the HF case: high turnover is the design,
+    /// already priced via cost drag); `Some(x)` behaves exactly as the pre-HF budget.
+    pub turnover_budget: Option<Decimal>,
     /// Minimum out-of-sample margin a candidate must beat the best cost-matched baseline by.
     pub baseline_margin: Decimal,
     /// Maximum acceptable walk-forward fold dispersion (spread of out-of-sample fold returns).
@@ -29,6 +31,15 @@ pub struct AdvancementThresholds {
     pub neighbor_tolerance: Decimal,
     /// Minimum number of valid walk-forward windows required to trust the evidence.
     pub min_windows: u32,
+    /// Maximum acceptable fraction of gross (before-costs) return consumed by costs; higher is
+    /// worse. `None` leaves the cost-drag criterion inactive. C8 is responsible for setting this
+    /// alongside `CandidateEvidence::cost_drag_share` — an HF threshold without matching evidence
+    /// never fires (see `evaluate_candidate`'s `if let (Some, Some)` gate).
+    pub cost_drag_share_ceiling: Option<Decimal>,
+    /// Minimum acceptable net edge per trade (net return contribution ÷ trade count); lower is
+    /// worse. `None` leaves the per-trade-edge criterion inactive. Same C8 pairing responsibility
+    /// as `cost_drag_share_ceiling`.
+    pub per_trade_edge_floor: Option<Decimal>,
 }
 
 /// The measured evidence for one candidate, gathered from the sweep + sensitivity + baselines. All
@@ -57,6 +68,15 @@ pub struct CandidateEvidence {
     pub neighbor_degradation: Decimal,
     /// Number of valid walk-forward windows the evidence rests on.
     pub valid_windows: u32,
+    /// The fraction of the candidate's gross (before-costs) return consumed by costs
+    /// (`return_drag_costs / before_costs_return`, guarded for non-positive gross). Higher is
+    /// worse. `None` in every M4/LF path; C8 computes it from the fee-sensitivity sums once HF
+    /// wiring lands (no new collection pass).
+    pub cost_drag_share: Option<Decimal>,
+    /// The candidate's net edge per trade (net return contribution ÷ trade count). Lower is
+    /// worse. `None` in every M4/LF path; C8 computes it (folding in C5's adverse-selection sink)
+    /// once HF wiring lands.
+    pub per_trade_edge: Option<Decimal>,
 }
 
 /// The outcome of the robustness battery for one candidate.
@@ -87,6 +107,32 @@ pub enum RejectionKind {
     TurnoverImplausible,
     /// Insufficient valid data (too few walk-forward windows / a partition failed validation).
     InsufficientData,
+    /// Cost drag consumes too much of the gross (before-costs) return (HF criterion; opt-in via
+    /// `cost_drag_share_ceiling`).
+    CostDragExcessive,
+    /// Net edge per trade is too thin to be trustworthy at volume (HF criterion; opt-in via
+    /// `per_trade_edge_floor`).
+    PerTradeEdgeInsufficient,
+}
+
+impl RejectionKind {
+    /// Stable snake_case label, matching the serde form — used as a compiler-forcing exhaustive
+    /// match so the Rust enum and the schema's `kind` enum list can't silently drift (mirrors
+    /// `ScenarioId::label` in `sensitivity.rs`).
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::FailsBaselineComparison => "fails_baseline_comparison",
+            Self::EdgeVanishesUnderDoubledCosts => "edge_vanishes_under_doubled_costs",
+            Self::DependsOnOnePeriod => "depends_on_one_period",
+            Self::ParameterFragile => "parameter_fragile",
+            Self::DrawdownExceedsBudget => "drawdown_exceeds_budget",
+            Self::TurnoverImplausible => "turnover_implausible",
+            Self::InsufficientData => "insufficient_data",
+            Self::CostDragExcessive => "cost_drag_excessive",
+            Self::PerTradeEdgeInsufficient => "per_trade_edge_insufficient",
+        }
+    }
 }
 
 /// A single failed criterion, recording the observed value against its threshold as exact decimal
@@ -179,12 +225,34 @@ pub fn evaluate_candidate(ev: &CandidateEvidence, th: &AdvancementThresholds) ->
             th.drawdown_budget,
         ));
     }
-    if ev.turnover > th.turnover_budget {
-        failed.push(RejectionReason::new(
-            RejectionKind::TurnoverImplausible,
-            ev.turnover,
-            th.turnover_budget,
-        ));
+    if let Some(turnover_budget) = th.turnover_budget {
+        if ev.turnover > turnover_budget {
+            failed.push(RejectionReason::new(
+                RejectionKind::TurnoverImplausible,
+                ev.turnover,
+                turnover_budget,
+            ));
+        }
+    }
+    // HF criteria (C6): opt-in, and only ever ADD a rejection — an M4 candidate (both `None`)
+    // takes neither branch, so its `failed_criteria` is unchanged.
+    if let (Some(ceiling), Some(observed)) = (th.cost_drag_share_ceiling, ev.cost_drag_share) {
+        if observed > ceiling {
+            failed.push(RejectionReason::new(
+                RejectionKind::CostDragExcessive,
+                observed,
+                ceiling,
+            ));
+        }
+    }
+    if let (Some(floor), Some(observed)) = (th.per_trade_edge_floor, ev.per_trade_edge) {
+        if observed < floor {
+            failed.push(RejectionReason::new(
+                RejectionKind::PerTradeEdgeInsufficient,
+                observed,
+                floor,
+            ));
+        }
     }
 
     let status = if failed.is_empty() {
@@ -205,18 +273,21 @@ mod tests {
     use rust_decimal_macros::dec;
 
     /// Thresholds an all-passing candidate clears.
+    /// M4-shape thresholds: turnover active, both new HF criteria inactive.
     fn thresholds() -> AdvancementThresholds {
         AdvancementThresholds {
             drawdown_budget: dec!(0.30),
-            turnover_budget: dec!(5),
+            turnover_budget: Some(dec!(5)),
             baseline_margin: dec!(0.02),
             dispersion_budget: dec!(0.50),
             neighbor_tolerance: dec!(0.10),
             min_windows: 4,
+            cost_drag_share_ceiling: None,
+            per_trade_edge_floor: None,
         }
     }
 
-    /// Evidence that passes every criterion.
+    /// Evidence that passes every criterion (M4-shape: new HF evidence fields absent).
     fn passing() -> CandidateEvidence {
         CandidateEvidence {
             candidate_label: "threshold_rebalance_v1/target=0.5;band=0".to_string(),
@@ -228,6 +299,8 @@ mod tests {
             fold_dispersion: dec!(0.20),
             neighbor_degradation: dec!(0.04),
             valid_windows: 7,
+            cost_drag_share: None,
+            per_trade_edge: None,
         }
     }
 
@@ -365,7 +438,7 @@ mod tests {
         // strict `>`; baseline_margin uses strict `<`; valid_windows uses strict `<`).
         let mut ev = passing();
         ev.max_drawdown = th.drawdown_budget;
-        ev.turnover = th.turnover_budget;
+        ev.turnover = th.turnover_budget.unwrap();
         ev.baseline_margin = th.baseline_margin;
         ev.fold_dispersion = th.dispersion_budget;
         ev.neighbor_degradation = th.neighbor_tolerance;
@@ -395,5 +468,113 @@ mod tests {
             serde_json::to_string(&RejectionKind::EdgeVanishesUnderDoubledCosts).unwrap(),
             "\"edge_vanishes_under_doubled_costs\""
         );
+    }
+
+    #[test]
+    fn turnover_inactive_when_budget_is_none() {
+        // The HF case: turnover_budget is None, so no amount of turnover is rejected on it.
+        let th = AdvancementThresholds {
+            turnover_budget: None,
+            ..thresholds()
+        };
+        let mut ev = passing();
+        ev.turnover = dec!(1_000_000);
+        let v = evaluate_candidate(&ev, &th);
+        assert_eq!(v.status, Verdict::Advanceable);
+        assert!(v.failed_criteria.is_empty());
+    }
+
+    #[test]
+    fn cost_drag_excessive_fires_and_is_gated() {
+        let th = AdvancementThresholds {
+            cost_drag_share_ceiling: Some(dec!(0.5)),
+            ..thresholds()
+        };
+
+        // Threshold Some, evidence Some, over the ceiling -> fires.
+        let mut ev = passing();
+        ev.cost_drag_share = Some(dec!(0.6));
+        let v = evaluate_candidate(&ev, &th);
+        assert_eq!(v.status, Verdict::Rejected);
+        assert_eq!(v.failed_criteria.len(), 1);
+        assert_eq!(v.failed_criteria[0].kind, RejectionKind::CostDragExcessive);
+        assert_eq!(v.failed_criteria[0].observed, "0.6");
+        assert_eq!(v.failed_criteria[0].threshold, "0.5");
+
+        // Threshold Some, evidence None -> inactive (both must be present to fire).
+        let mut ev_no_evidence = passing();
+        ev_no_evidence.cost_drag_share = None;
+        let v = evaluate_candidate(&ev_no_evidence, &th);
+        assert_eq!(v.status, Verdict::Advanceable);
+
+        // Threshold None (M4/LF default), evidence Some -> inactive.
+        let mut ev_with_evidence = passing();
+        ev_with_evidence.cost_drag_share = Some(dec!(0.9));
+        let v = evaluate_candidate(&ev_with_evidence, &thresholds());
+        assert_eq!(v.status, Verdict::Advanceable);
+    }
+
+    #[test]
+    fn per_trade_edge_insufficient_fires_and_is_gated() {
+        let th = AdvancementThresholds {
+            per_trade_edge_floor: Some(dec!(0.001)),
+            ..thresholds()
+        };
+
+        // Threshold Some, evidence Some, below the floor -> fires.
+        let mut ev = passing();
+        ev.per_trade_edge = Some(dec!(0.0001));
+        let v = evaluate_candidate(&ev, &th);
+        assert_eq!(v.status, Verdict::Rejected);
+        assert_eq!(v.failed_criteria.len(), 1);
+        assert_eq!(
+            v.failed_criteria[0].kind,
+            RejectionKind::PerTradeEdgeInsufficient
+        );
+        assert_eq!(v.failed_criteria[0].observed, "0.0001");
+        assert_eq!(v.failed_criteria[0].threshold, "0.001");
+
+        // Threshold Some, evidence None -> inactive.
+        let mut ev_no_evidence = passing();
+        ev_no_evidence.per_trade_edge = None;
+        let v = evaluate_candidate(&ev_no_evidence, &th);
+        assert_eq!(v.status, Verdict::Advanceable);
+
+        // Threshold None (M4/LF default), evidence Some -> inactive.
+        let mut ev_with_evidence = passing();
+        ev_with_evidence.per_trade_edge = Some(dec!(-1));
+        let v = evaluate_candidate(&ev_with_evidence, &thresholds());
+        assert_eq!(v.status, Verdict::Advanceable);
+    }
+
+    #[test]
+    fn rejection_kind_label_matches_serde_and_schema_enum() {
+        let schema_text = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../schemas/sweep-report.schema.json"
+        ));
+        let all = [
+            RejectionKind::FailsBaselineComparison,
+            RejectionKind::EdgeVanishesUnderDoubledCosts,
+            RejectionKind::DependsOnOnePeriod,
+            RejectionKind::ParameterFragile,
+            RejectionKind::DrawdownExceedsBudget,
+            RejectionKind::TurnoverImplausible,
+            RejectionKind::InsufficientData,
+            RejectionKind::CostDragExcessive,
+            RejectionKind::PerTradeEdgeInsufficient,
+        ];
+        for kind in all {
+            assert_eq!(
+                serde_json::to_string(&kind).unwrap(),
+                format!("\"{}\"", kind.label()),
+                "label() must match the serde form for {kind:?}"
+            );
+            assert!(
+                schema_text.contains(&format!("\"{}\"", kind.label())),
+                "schema kind.enum is missing {}",
+                kind.label()
+            );
+        }
     }
 }

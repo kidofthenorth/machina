@@ -138,6 +138,8 @@ pub fn aggregate_evidence(
                 .unwrap_or(Decimal::ZERO)
                 .max(Decimal::ZERO),
             valid_windows,
+            cost_drag_share: None,
+            per_trade_edge: None,
         })
         .collect()
 }

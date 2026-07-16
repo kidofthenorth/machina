@@ -124,11 +124,13 @@ impl SweepSpec {
                 .map_err(SpecError::Date)?;
         let thresholds = AdvancementThresholds {
             drawdown_budget: t.advancement.drawdown_budget,
-            turnover_budget: t.advancement.turnover_budget,
+            turnover_budget: Some(t.advancement.turnover_budget),
             baseline_margin: t.advancement.baseline_margin,
             dispersion_budget: t.advancement.dispersion_budget,
             neighbor_tolerance: t.advancement.neighbor_tolerance,
             min_windows: t.advancement.min_windows,
+            cost_drag_share_ceiling: None,
+            per_trade_edge_floor: None,
         };
         let mut grids = Vec::new();
         if t.trend_alloc_v1.enabled {

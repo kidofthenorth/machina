@@ -4831,7 +4831,7 @@ creates execution capability. Never `git commit`/`git push` — the operator com
 
 ---
 
-### M-HF-C6 — Turnover-criterion replacement: additive HF advancement criteria (cost-drag / per-trade-edge) — `TODO`
+### M-HF-C6 — Turnover-criterion replacement: additive HF advancement criteria (cost-drag / per-trade-edge) — `DONE` *(2026-07-15; byte-identical-to-M4 regression held; sweep shasum moved by exactly the `schema_version` line; scope extended to an 8th file, `runner.rs`, not in the card's list — see worklog)*
 
 **Why this card exists (and why it is NARROW).** m-hf-track §4/§5 sketched C6 as "ladder rungs +
 turnover replacement + additive schema." A 2026-07-15 surface-map audit (5 agents, grep-verified)

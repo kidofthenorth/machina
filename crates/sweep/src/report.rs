@@ -16,31 +16,40 @@ use serde::Serialize;
 
 /// Version of the sweep-report schema this crate targets (matches `schema_version` in the JSON and
 /// `sweep-report.schema.json`).
-pub const SWEEP_SCHEMA_VERSION: &str = "1.1.0";
+pub const SWEEP_SCHEMA_VERSION: &str = "1.2.0";
 
 /// The fixed disclaimer embedded in every report (invariant 11).
 const REPORT_NOTE: &str = "Robustness filter only — not a profitability verdict. 'advanceable' means a candidate survived the robustness battery (costs, doubled costs, walk-forward, baselines) and is eligible for M5 review; it is never evidence the strategy is profitable. In-sample results never establish an edge.";
 
-/// The configured thresholds, serialized with decimal budgets as exact strings.
+/// The configured thresholds, serialized with decimal budgets as exact strings. The three HF-only
+/// fields are omitted from the JSON entirely when absent, so an M4-shape report (turnover present,
+/// the two new thresholds absent) serializes identically to its pre-C6 form.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ThresholdsDto {
     pub drawdown_budget: String,
-    pub turnover_budget: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turnover_budget: Option<String>,
     pub baseline_margin: String,
     pub dispersion_budget: String,
     pub neighbor_tolerance: String,
     pub min_windows: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_drag_share_ceiling: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub per_trade_edge_floor: Option<String>,
 }
 
 impl ThresholdsDto {
     fn from_thresholds(th: &AdvancementThresholds) -> Self {
         Self {
             drawdown_budget: th.drawdown_budget.to_string(),
-            turnover_budget: th.turnover_budget.to_string(),
+            turnover_budget: th.turnover_budget.map(|d| d.to_string()),
             baseline_margin: th.baseline_margin.to_string(),
             dispersion_budget: th.dispersion_budget.to_string(),
             neighbor_tolerance: th.neighbor_tolerance.to_string(),
             min_windows: th.min_windows,
+            cost_drag_share_ceiling: th.cost_drag_share_ceiling.map(|d| d.to_string()),
+            per_trade_edge_floor: th.per_trade_edge_floor.map(|d| d.to_string()),
         }
     }
 }
@@ -192,11 +201,13 @@ mod tests {
     fn thresholds() -> AdvancementThresholds {
         AdvancementThresholds {
             drawdown_budget: dec!(0.30),
-            turnover_budget: dec!(5),
+            turnover_budget: Some(dec!(5)),
             baseline_margin: dec!(0.02),
             dispersion_budget: dec!(0.50),
             neighbor_tolerance: dec!(0.10),
             min_windows: 4,
+            cost_drag_share_ceiling: None,
+            per_trade_edge_floor: None,
         }
     }
 
@@ -211,6 +222,8 @@ mod tests {
             fold_dispersion: dec!(0.20),
             neighbor_degradation: dec!(0.04),
             valid_windows: 7,
+            cost_drag_share: None,
+            per_trade_edge: None,
         }
     }
 

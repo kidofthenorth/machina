@@ -40,11 +40,13 @@ fn hf_spec() -> SweepSpec {
         walk_forward: WalkForward::new(WindowKind::Rolling, 900, 300, 300, 5).unwrap(),
         thresholds: AdvancementThresholds {
             drawdown_budget: dec!(0.35),
-            turnover_budget: dec!(12),
+            turnover_budget: Some(dec!(12)),
             baseline_margin: dec!(0.02),
             dispersion_budget: dec!(0.40),
             neighbor_tolerance: dec!(0.15),
             min_windows: 6,
+            cost_drag_share_ceiling: None,
+            per_trade_edge_floor: None,
         },
         grids: vec![
             ParamGrid::TrendAlloc {

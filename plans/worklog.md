@@ -1135,3 +1135,47 @@ recorded inline (not full logs).
   **OWED (separate small planner edit, flagged for a future session): correct m-hf-track §5's C6 row
   + §4/§5 gate language, which cite the non-existent consumer-audit/spec-lint surfaces.** Next:
   execute C6 (fresh session).
+- 2026-07-15 (executor): **M-HF-C6 executed → DONE.** Step 0 baseline matched exactly (385/0/1,
+  fmt/clippy clean, demo `ae064f79…`, sweep `7ad3df7d…`) before any edit. Implemented the card
+  verbatim: `AdvancementThresholds.turnover_budget`→`Option<Decimal>` (+`cost_drag_share_ceiling`,
+  `per_trade_edge_floor`); `CandidateEvidence` +`cost_drag_share`/`per_trade_edge` (both `Option`);
+  `RejectionKind` +`CostDragExcessive`/`PerTradeEdgeInsufficient` appended last + new exhaustive
+  `RejectionKind::label()`; `evaluate_candidate` turnover check `if let Some`-gated, two new checks
+  appended after it in canonical order, each gated on `if let (Some, Some)` so an M4 candidate
+  (both `None`) takes neither branch; `spec.rs` Some-wraps the TOML turnover (TOML/`AdvancementToml`
+  untouched); `report.rs` `ThresholdsDto` fields → `Option<String>` + `skip_serializing_if`,
+  `SWEEP_SCHEMA_VERSION` 1.1.0→1.2.0; schema additive (2 new `kind` enum strings, `turnover_budget`
+  moved out of `required`, 2 new optional threshold props). 6 new tests (4 in `advance.rs`: inactive-
+  when-`None`, cost-drag fires+gated, per-trade-edge fires+gated, `label()`≡serde-form≡schema-enum
+  via `include_str!`; 2 in `schema_validation.rs`: M4-shape and HF-shape both validate under 1.2.0).
+  **Scope note (escalated to the operator mid-session, not improvised):** the card's 7-file list and
+  its "six construction-sites" audit tracked only `AdvancementThresholds` sites and missed that
+  `crates/sweep/src/runner.rs:126` (`aggregate_evidence`, called directly by `run_sweep` — real
+  production code, not a test) also constructs `CandidateEvidence` and would not compile once the
+  struct gained two new required fields. Flagged this as a card gap hitting the card's own "edit
+  outside the 7 listed files → STOP" rule; the operator chose to extend scope by the same mechanical
+  `cost_drag_share: None, per_trade_edge: None` addition and continue rather than block on a planner
+  round-trip for a 2-line additive fix. **card gap, flag for planner:** M-HF-C6's file list should
+  have been 8 files (add `runner.rs`); note this if similar cards are drafted for C8.
+  Gate: `cargo fmt --all --check` clean; `cargo clippy --all-targets --all-features -- -D warnings`
+  clean; `cargo test --workspace --all-features` → **391 passed / 0 failed / 1 ignored** (385 + 6);
+  every PRE-C6 assertion verified unchanged by diff review (only mechanical `Some(dec!(5))`/
+  `.unwrap()` wrapping, no observed/threshold/order value touched). Sweep report diff before→after
+  is the single `"schema_version": "1.1.0"` → `"1.2.0"` line, confirmed by `diff`; **new sweep shasum
+  `85d06e5be4b1a2ac09713a30b56ba794624dc260`** (replaces `7ad3df7d…`) — recorded here per the card.
+  Empirically validated (not just reasoned): the real captured pre-C6 1.1.0 report parses and passes
+  the new 1.2.0 schema with zero errors (throwaway integration test, deleted before finishing —
+  never landed in the diff). Demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` **unchanged**.
+  `cargo run -p cli -- sweep-verify` → OK, byte-identical across sequential/2/8 threads and repeat at
+  1.2.0. `git status` scope = exactly `advance.rs`, `spec.rs`, `report.rs`, `runner.rs` (the approved
+  8th file), the 3 test files, `schemas/sweep-report.schema.json`, + this queue/worklog flip —
+  nothing else touched (`AdvancementToml`, config TOMLs, `run-result.schema.json`, `crates/results`,
+  `crates/cli`, master-plan pair all untouched, confirmed by `git status`). Not staged/committed
+  (operator commits). **Still OWED (unchanged from the drafting entry above): a planner session must
+  correct m-hf-track §5's C6 row/gate language** (the non-existent consumer-audit/spec-lint surfaces)
+  — separately, that planner pass should also add `runner.rs` to any future card's file-list template
+  reasoning so the "construction sites" grep covers every type touched, not just the one most obviously
+  implicated. `plans/current-state.md`'s "C6 DRAFTED (TODO)" pointer (line 5) is now stale too —
+  intentionally left untouched here (this card's own gate scopes `git status` to the code files + the
+  queue/worklog flip only); a planner session should refresh it alongside the m-hf-track fix. Next:
+  C7/C8 drafting is a planner job, not this session's.

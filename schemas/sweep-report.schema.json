@@ -37,7 +37,6 @@
       "additionalProperties": false,
       "required": [
         "drawdown_budget",
-        "turnover_budget",
         "baseline_margin",
         "dispersion_budget",
         "neighbor_tolerance",
@@ -49,7 +48,9 @@
         "baseline_margin": { "$ref": "#/$defs/decimalString" },
         "dispersion_budget": { "$ref": "#/$defs/decimalString" },
         "neighbor_tolerance": { "$ref": "#/$defs/decimalString" },
-        "min_windows": { "type": "integer", "minimum": 0 }
+        "min_windows": { "type": "integer", "minimum": 0 },
+        "cost_drag_share_ceiling": { "$ref": "#/$defs/decimalString" },
+        "per_trade_edge_floor": { "$ref": "#/$defs/decimalString" }
       }
     },
     "CandidateMetrics": {
@@ -139,7 +140,9 @@
             "parameter_fragile",
             "drawdown_exceeds_budget",
             "turnover_implausible",
-            "insufficient_data"
+            "insufficient_data",
+            "cost_drag_excessive",
+            "per_trade_edge_insufficient"
           ]
         },
         "observed": { "$ref": "#/$defs/decimalString" },

@@ -34,11 +34,13 @@ fn assert_valid(value: &Value) {
 fn thresholds() -> AdvancementThresholds {
     AdvancementThresholds {
         drawdown_budget: dec!(0.30),
-        turnover_budget: dec!(5),
+        turnover_budget: Some(dec!(5)),
         baseline_margin: dec!(0.02),
         dispersion_budget: dec!(0.50),
         neighbor_tolerance: dec!(0.10),
         min_windows: 4,
+        cost_drag_share_ceiling: None,
+        per_trade_edge_floor: None,
     }
 }
 
@@ -53,6 +55,8 @@ fn evidence(label: &str) -> CandidateEvidence {
         fold_dispersion: dec!(0.20),
         neighbor_degradation: dec!(0.04),
         valid_windows: 7,
+        cost_drag_share: None,
+        per_trade_edge: None,
     }
 }
 
@@ -115,6 +119,35 @@ fn built_report_validates_against_schema() {
 
     let report = SweepReport::new(&th, 48, vec![ok, bad, thin], vec![sample_candidate()]);
     assert_valid(&report.to_value());
+}
+
+#[test]
+fn m4_shape_report_validates_under_1_2_0() {
+    // M4 shape: turnover present, both new HF thresholds absent.
+    let report = SweepReport::new(&thresholds(), 1, vec![], vec![]);
+    assert_valid(&report.to_value());
+    let value = report.to_value();
+    assert_eq!(value["schema_version"], json!("1.2.0"));
+    assert!(value["thresholds"]["turnover_budget"].is_string());
+    assert!(value["thresholds"].get("cost_drag_share_ceiling").is_none());
+    assert!(value["thresholds"].get("per_trade_edge_floor").is_none());
+}
+
+#[test]
+fn hf_shape_report_validates_under_1_2_0() {
+    // HF shape: turnover absent, both new HF thresholds present.
+    let th = AdvancementThresholds {
+        turnover_budget: None,
+        cost_drag_share_ceiling: Some(dec!(0.5)),
+        per_trade_edge_floor: Some(dec!(0.001)),
+        ..thresholds()
+    };
+    let report = SweepReport::new(&th, 1, vec![], vec![]);
+    assert_valid(&report.to_value());
+    let value = report.to_value();
+    assert!(value["thresholds"].get("turnover_budget").is_none());
+    assert_eq!(value["thresholds"]["cost_drag_share_ceiling"], json!("0.5"));
+    assert_eq!(value["thresholds"]["per_trade_edge_floor"], json!("0.001"));
 }
 
 #[test]
