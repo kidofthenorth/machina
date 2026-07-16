@@ -140,12 +140,20 @@ slot-resolution families (1.1/1.3/1.4/1.7), which the survey already defers.
   (fee-sensitivity sums); no new collection pass.
 - **Provably additive:** the C6 card's primary gate is a regression proving an M4-era
   `CandidateEvidence`+thresholds (new fields `None`) yields byte-identical verdicts pre/post-C6.
-  **Spec lint:** an HF-kind spec that sets `turnover_budget` at all is a parse error — this
-  forecloses the `Some(Decimal::MAX)` authoring mistake that would silently resurrect the
-  backwards criterion *(adjudication must-address)*. The C6 gate also greps and re-verifies every
-  `RejectionKind` consumer (results, cli) — the exhaustive-match audit is part of the gate, not
-  assumed *(adjudication must-address)*.
-- Schema: two new kind strings + `data_provenance` (§2) in one additive minor version; old reports
+  **[CORRECTED 2026-07-15 — this paragraph drifted from the landed code; C6 executed under the
+  corrected scope, DONE.]** Two premises here were false against the code and moved to **C8**:
+  (1) *Spec lint (HF-kind spec sets `turnover_budget` → parse error)* presupposes an HF/standard
+  **spec-kind discriminator that does not exist** in `SweepSpec` — it is born in C8, so the lint
+  lives there. (2) *"greps and re-verifies every `RejectionKind` consumer (results, cli) —
+  exhaustive-match audit"* is **vacuous**: `RejectionKind` is referenced in neither `crates/results`
+  nor `crates/cli`, and no exhaustive `match RejectionKind` exists anywhere (the CLI emits opaque
+  JSON; `evaluate_candidate` uses `if`-chains). C6 instead added an exhaustive `RejectionKind::label()`
+  as a real compiler-forcing function. **What C6 actually did (narrow, per operator decision):** the
+  turnover-criterion replacement only — `turnover_budget → Option`, opt-in
+  `cost_drag_share`/`per_trade_edge` criteria + their two `RejectionKind`s, additive schema minor
+  bump. All ladder/`ScenarioId`/`hf_cost_scenarios`/`data_provenance` work also moved to **C8**.
+- Schema: two new kind strings (C6, done) + `data_provenance` (§2, **moved to C8**) in additive minor
+  version(s); old reports
   still validate.
 
 ## 5. Card sequence (gates on every card; workspace green at every step)
@@ -165,7 +173,7 @@ by a written note in questions.md.
 | 5 | **C3** | `run_hf`/`LatencyPipeline` (new file; `simulator.rs` untouched) | `run_hf(fixed_latency(1)) == run` bar-for-bar; splitmix64 lookup table byte-identical across thread counts (dedicated test); M2 suite untouched |
 | 6 | **C4** | HF cost model fields (depth-walk, regime priority, tip; HF-kind requires `depth_curve`) | hand-computed reference trade exact; `total > base-fee floor` asserted |
 | 7 | **C5** | adversarial terms: sandwich, pickoff, maker trade-through; base-rung expected adverse-selection term | worst-case rung reproduces τ-loss every taker fill; touch-without-trade-through → no fill |
-| 8 | **C6** | ladder rungs + turnover replacement + additive schema version | byte-identical-to-M4 regression is the PRIMARY gate; consumer-match audit; spec lint rejects HF+`turnover_budget` |
+| 8 | **C6** *(DONE 2026-07-15, narrow)* | **turnover replacement ONLY** (`turnover_budget→Option`, opt-in cost-drag/per-trade-edge criteria + 2 `RejectionKind`s + exhaustive `label()`; additive schema 1.1.0→1.2.0) | byte-identical-to-M4 regression (PRIMARY gate, met); version-only sweep diff. **Ladder rungs / `ScenarioId` / `hf_cost_scenarios` / `data_provenance` / HF-kind spec-lint all MOVED TO C8** (their C6 premises didn't exist in code — see §4 correction) |
 | 9 | **C7** (drafted) | `statarb_pairs_v1` + `intraday_meanrev_v1` (intent-only) | deterministic; weights only; ≥100k-bar cadence run within the C2.6 budget |
 | 10 | **C8** | `SweepSpec` HF-kind (resolution, cost blocks, `max_lookback_bars`, scenario declarations); windowed sweep wiring | full synthetic HF sweep deterministic across {1,2,3,7,8}; schema-valid; holdout counter 0; wall-clock re-measured and recorded |
 | 11 | **C9** (drafted; BLOCKED on HF-Q1) | real intraday ingestion → columnar snapshot, gitignored, credential-free | one real archived day loads/validates/sweeps deterministically |

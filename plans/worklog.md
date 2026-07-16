@@ -1179,3 +1179,27 @@ recorded inline (not full logs).
   intentionally left untouched here (this card's own gate scopes `git status` to the code files + the
   queue/worklog flip only); a planner session should refresh it alongside the m-hf-track fix. Next:
   C7/C8 drafting is a planner job, not this session's.
+- 2026-07-15 (verifier/planner): **M-HF-C6 independently verified — PASS**, and the owed planner
+  corrections done. Committed at `ac2b040` (operator committed the executor's 10-file diff + my
+  C6-draft/C5.1-verify at `e94e229`). Re-ran full gate from clean HEAD: fmt/clippy clean; **391
+  passed/0 failed/1 ignored** (385+6); demo shasum `ae064f79…` unchanged; **sweep shasum now
+  `85d06e5be4b1a2ac09713a30b56ba794624dc260`** (was `7ad3df7d…`); sweep-verify OK. Diff review:
+  `advance.rs` — `turnover_budget` Option-gated (`if let Some`), the two new criteria `if let
+  (Some,Some)`-gated and appended AFTER turnover (`>` cost-drag, `<` per-trade-edge), new
+  `RejectionKind`s appended LAST (existing 7 keep their `Ord`/discriminants), exhaustive `label()`
+  added; the M4-byte-identical property is structural (M4 thresholds `Some`+`None,None` take the same
+  branches). `report.rs` — `skip_serializing_if="Option::is_none"` on all three HF DTO fields, so an
+  M4 report omits them ⇒ the sweep-output diff is exactly `"schema_version":"1.1.0"→"1.2.0"`.
+  `runner.rs` — exactly `cost_drag_share: None, per_trade_edge: None` (the missed site). Schema — clean
+  additive superset (`turnover_budget` dropped from `required` but kept as a property; 2 optional
+  props + 2 enum strings appended). No pre-existing assertion changed (only mechanical `Some`/`None`
+  wrapping). **Owned card-audit miss:** the C6 card enumerated `AdvancementThresholds { }` sites but
+  not `CandidateEvidence { }` sites, so `runner.rs`'s `aggregate_evidence` was missing from the file
+  list; the executor's escalate-if caught it, operator approved the mechanical extension. Lesson
+  recorded (memory `planning-enumerate-construction-sites`): a card mutating a struct must grep EVERY
+  construction site of EVERY struct it touches. **Owed corrections DONE this session:** m-hf-track
+  §4/§5 C6 language corrected (vacuous consumer-audit + spec-lint + ladder/provenance all marked moved
+  to C8); current-state repointed to C6 DONE + the new sweep shasum. Next executor card is **C7**
+  (`statarb_pairs_v1` + `intraday_meanrev_v1`, intent-only) — but its §5-drafted text predates the
+  landed code, so a planner must reconcile it (grep its construction sites, per the lesson) before it
+  executes; C8 now carries all the deferred C6 ladder/scenario/spec-lint/provenance work.

@@ -2,7 +2,8 @@
 
 Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-15 (M-HF
 wave 2: C3/C4/C5/C5.1 DONE + verified; C3–C5 adversarial checkpoint PASS-with-hardening closed;
-**C6 DRAFTED (TODO)** — narrow scope: turnover-criterion replacement only).
+**C6 DONE + verified** (narrow: turnover-criterion replacement; sweep schema 1.2.0, new sweep shasum
+`85d06e5b…`); next executor card is C7 (verify its drafted text vs the landed code first)).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -49,15 +50,20 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   `DepthCurve::new` rejects strictly-decreasing `impact_bps`; `CongestionPriorityTable` fields private
   behind `new()` rejecting negatives; 3 new tests; 385/0/1; demo/sweep shasums unchanged; no
   priced-value moved). **C3–C5 block hardened; checkpoint fully closed.**
-  **C6 DRAFTED (TODO) 2026-07-15 — NARROW scope by operator decision:** turnover-criterion replacement
-  ONLY (`advance.rs`: `turnover_budget`→`Option`, +`cost_drag_share_ceiling`/`per_trade_edge_floor`
-  gating +`RejectionKind::{CostDragExcessive,PerTradeEdgeInsufficient}`; DTO+schema additive minor
-  bump 1.1.0→1.2.0; **primary gate = byte-identical-to-M4 regression**; the sweep shasum moves by the
-  one version line). A 5-agent surface map proved §4/§5's C6 sketch drifted from code — the
-  "RejectionKind consumer audit" is vacuous (no consumers in results/cli), the HF-kind spec-lint has
-  no discriminator (born in C8), and HF `ScenarioId` rungs don't reach the report without C8 wiring —
-  so **all ladder/scenario/provenance/spec-lint work moved to C8**. **Owed: a planner edit correcting
-  m-hf-track §5's C6 row + §4/§5 gate language** (the sketch cites non-existent surfaces). HF-Q1
+  **C6 DONE + independently verified 2026-07-15 — NARROW scope by operator decision:**
+  turnover-criterion replacement ONLY (`advance.rs`: `turnover_budget`→`Option`,
+  +`cost_drag_share_ceiling`/`per_trade_edge_floor` gating
+  +`RejectionKind::{CostDragExcessive,PerTradeEdgeInsufficient}` + exhaustive `label()`; DTO+schema
+  additive minor bump 1.1.0→1.2.0). Gate: **391/0/1**; primary byte-identical-to-M4 regression met;
+  sweep report diff is exactly the one `schema_version` line ⇒ **new sweep shasum
+  `85d06e5be4b1a2ac09713a30b56ba794624dc260`** (replaces `7ad3df7d…`); demo shasum unchanged; old
+  1.1.0 report validates against 1.2.0. A 5-agent surface map proved §4/§5's C6 sketch drifted from
+  code — the "RejectionKind consumer audit" is vacuous (no consumers in results/cli), the HF-kind
+  spec-lint has no discriminator (born in C8), HF `ScenarioId` rungs don't reach the report without
+  C8 — so **all ladder/scenario/provenance/spec-lint work moved to C8**; **m-hf-track §4/§5 corrected
+  2026-07-15**. Card-audit miss (owned): the card listed `AdvancementThresholds` construction sites
+  but not `CandidateEvidence`'s, missing `runner.rs` — executor's escalate-if caught it, operator
+  approved the mechanical `None,None` extension (lesson recorded). HF-Q1
   (deferred to wave 2) blocks C9/C10;
   HF-Q3 blocks C10. M6+ does NOT start (reject-all ⇒ no shadow candidate); M8/M9 (signing/submit)
   need **separate explicit human approval**.
@@ -83,7 +89,8 @@ through the milestone gates (money-moving capability stays gated by explicit hum
 - `cargo test --workspace --all-features` → **301 passed, 0 failed** (272 at 2026-07-06 `df18267` +
   cards M4-C8b…C8e; per-target counts in worklog).
 - `cargo run -p cli -- demo` → byte-identical across runs (determinism verified, shasum `ae064f79…`).
-- `cargo run -p cli -- sweep` → byte-identical across 2 runs and `--threads 8` (shasum `7ad3df7d…`);
+- `cargo run -p cli -- sweep` → byte-identical across 2 runs and `--threads 8` (shasum `7ad3df7d…`
+  at M4/M5; **now `85d06e5b…` after M-HF-C6's schema bump to 1.2.0**);
   `cargo run -p cli -- sweep-verify` → `OK`, exit 0 (byte-identical sequential/2/8 threads + repeat).
 - no-execution-deps grep gate → pass (comments ignored). Dep tree = rust_decimal/serde/serde_json/
   toml (+ dev jsonschema); **no Solana/Jupiter/HTTP/wallet/signing crate anywhere**.

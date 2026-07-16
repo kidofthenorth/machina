@@ -1,15 +1,16 @@
 # Handoff — for a new chat continuing machina
 
 You are picking up a build where **M5 is CLOSED (reject-all, holdout unread) and the M-HF
-research track is ACTIVE**. Cards **C1–C2.6, C3/C4/C5, and C5.1 are all DONE**; the mandatory C3–C5
-adversarial checkpoint (m-hf-track §5) PASSED-with-hardening and is fully closed. This is the single
-entry point. Read the pointer files below, confirm the gates are green, then execute **the next TODO
-card in task-queue.md §M-HF — currently `M-HF-C6`** (turnover-criterion replacement; NARROW scope by
-operator decision — see the card's "Why this card exists" + scope note) — and nothing beyond it.
-**C6 is the first card that legitimately moves the `sweep` shasum** (schema minor bump 1.1.0→1.2.0);
-its primary gate is a byte-identical-to-M4 regression and a version-only sweep diff — follow the card
-exactly. Never start M6+ (network) or M8/M9 (signing/submit — separate explicit human approval).
-**Do not commit or push — the operator commits.**
+research track is ACTIVE**. Cards **C1–C2.6, C3/C4/C5, C5.1, and C6 are all DONE**; the C3–C5
+adversarial checkpoint is closed. **The `sweep` shasum is now `85d06e5b…`** (C6 bumped the report
+schema to 1.2.0); demo shasum still `ae064f79…`; workspace **391/0/1**. This is the single entry
+point. **The next step is PLANNER work, not execution:** the next card is **C7** (`statarb_pairs_v1`
++ `intraday_meanrev_v1`, intent-only), but its m-hf-track §5-drafted text predates the code that has
+since landed — a planner must **reconcile C7 against the current source first** (grep every
+construction site of every struct it touches — see the C6 lesson in the worklog) before any executor
+runs it. All the ladder/`ScenarioId`/`hf_cost_scenarios`/`data_provenance`/spec-lint work that C6's
+sketch bundled has **moved to C8**. Never start M6+ (network) or M8/M9 (signing/submit — separate
+explicit human approval). **Do not commit or push — the operator commits.**
 
 ---
 
@@ -152,17 +153,15 @@ failed the frozen +0.02 baseline margin and edge-vanishes-under-doubled-costs (t
 `plans/m5-data-validation.md`). `evaluate_on_holdout` was never called; the 2026-01-01..2026-06-30
 holdout survives unseen for a future cycle. Step-0 review: PASS (6 agents).
 
-**The active queue is task-queue.md §M-HF.** Wave-1 C1–C2.6, C3/C4/C5, and C5.1 are DONE; the C3–C5
-adversarial checkpoint (m-hf-track §5) is fully closed. **The next TODO card is `M-HF-C6`** — the
-turnover-criterion replacement, **NARROW scope by operator decision (2026-07-15)**: `advance.rs`
-`turnover_budget`→`Option` + two opt-in criteria (`cost_drag_share`/`per_trade_edge`) + two new
-`RejectionKind`s, an additive schema minor bump (1.1.0→1.2.0), gated by a **byte-identical-to-M4
-regression**. A 5-agent surface map proved §4/§5's broader C6 sketch drifted from code (no
-`RejectionKind` consumers to audit; no HF-kind spec discriminator — born in C8; HF `ScenarioId` rungs
-don't reach the report without C8), so all ladder/scenario/`data_provenance`/spec-lint work moved to
-C8; the card's "Why this card exists" records this. **C6 is the first card to move the `sweep`
-shasum** (by the one `schema_version` line — the card handles it). Still owed: a small planner edit
-correcting m-hf-track §5's stale C6-row/gate language. HF-Q1 (deferred to wave 2) blocks C9/C10;
+**The active queue is task-queue.md §M-HF.** C1–C2.6, C3/C4/C5, C5.1, and **C6 (DONE + verified,
+narrow: turnover-criterion replacement; sweep schema 1.2.0; new sweep shasum `85d06e5b…`)** are done;
+the C3–C5 checkpoint is closed and m-hf-track §4/§5 was corrected 2026-07-15 to match the landed
+scope. **Next is a PLANNER reconciliation of C7**, not an executor run: C7 (`statarb_pairs_v1` +
+`intraday_meanrev_v1`, intent-only, marked "(drafted)" in §5) predates the current code, so its card
+text must be reconciled against source — and per the C6 lesson, grep EVERY construction site of EVERY
+struct it touches — before it is executor-ready. **C8** now carries all the deferred C6 work
+(`ScenarioId` rungs, `hf_cost_scenarios`, `data_provenance`, the HF-kind spec discriminator +
+spec-lint) plus SweepSpec HF-kind + windowed-sweep wiring. HF-Q1 (deferred to wave 2) blocks C9/C10;
 HF-Q3 blocks C10. Neither daily-bar family advances; M6 (shadow) has no candidate and does not start.
 
 The Q7 HF amendment was made 2026-07-09 (D-0012): master-plan pair amended in lockstep
@@ -220,21 +219,20 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 > is a hypothesis to test — no card claims a known-profitable algorithm, and rejecting them all
 > cleanly is a successful outcome.
 >
-> **State (2026-07-15):** M5 CLOSED (reject-all; holdout unread, seal intact). M-HF C1–C5 + C5.1
-> DONE. Workspace green at **385 passed, 0 failed, 1 ignored**; demo shasum
+> **State (2026-07-15):** M5 CLOSED (reject-all; holdout unread, seal intact). M-HF C1–C5, C5.1, and
+> C6 DONE. Workspace green at **391 passed, 0 failed, 1 ignored**; demo shasum
 > `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template sweep shasum
-> `7ad3df7de2e2c1139be427e9c953b57d4e289cb3`; `sweep-verify: OK`.
+> `85d06e5be4b1a2ac09713a30b56ba794624dc260` (C6 bumped it to schema 1.2.0); `sweep-verify: OK`.
 >
-> Your task is card **`M-HF-C6`** in `plans/task-queue.md` §M-HF — the turnover-criterion replacement
-> (NARROW scope): `advance.rs` `turnover_budget`→`Option` + two opt-in criteria + two new
-> `RejectionKind`s, an additive schema minor bump, gated by a byte-identical-to-M4 regression. Read
-> the §M-HF common rules and the whole card incl. its "Why this card exists" scope note. Step 0: run
-> the full-workspace gate BEFORE touching any file; if it is already red, STOP and report. **Two
-> things about C6 differ from prior cards, both spelled out in the card:** (1) it is EXPLICITLY
-> authorized to edit ONE schema — `schemas/sweep-report.schema.json` — additively (and no other); (2)
-> it is the first card whose `sweep` shasum legitimately MOVES, by exactly the one `schema_version`
-> line — verify the diff is version-only and record the new shasum. If the next TODO card isn't C6,
-> say so and stop.
+> **There is no executor-ready card right now — the next step is PLANNER work.** C7
+> (`statarb_pairs_v1` + `intraday_meanrev_v1`, intent-only) is marked "(drafted)" in m-hf-track §5 but
+> its text predates the landed code and has NOT been reconciled; C6 just proved how badly that sketch
+> can drift. So a planner session must FIRST reconcile C7 against current source — grep every
+> construction site of every struct it touches (the C6 lesson), verify every quoted signature, confirm
+> its strategies are intent-only and its gate matches reality — and only THEN issue an executor card.
+> If you are an executor and the next §M-HF card is an un-reconciled C7 (or a C8 that hasn't been
+> drafted yet), STOP and say a planner reconciliation is owed first. Do not execute drafted-but-
+> unreconciled text.
 >
 > When the gate passes: flip the card, one worklog line, stop — the next card gets a fresh chat.
 > If any escalate-if triggers: STOP, record the mismatch in the worklog, report.
