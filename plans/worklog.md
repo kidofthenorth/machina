@@ -1323,3 +1323,21 @@ recorded inline (not full logs).
   `report.rs`/`schema_validation.rs` predate the `candidates` field and the C6 Option fields) — looks
   like an abandoned isolated-agent run, not current work; flagged for the operator to clean up or
   investigate, left untouched here.
+
+## 2026-07-17 — Drift-audit remediation (D-0014): F1+F2 executed, F3 carded, F5 rule adopted
+
+Operator-approved remediation of `plans/reports/agent-drift-audit-2026-07-17.md` (report kept
+local-only via .gitignore, `/FOREMAN.md` precedent):
+- **F1 DONE:** `docs/DECISIONS.md` → root `DECISIONS.md` (git mv — root references valid again);
+  `docs/FOREMAN.md` + `docs/repo-kit/*` (10 template placeholders) `git rm`'d. Recorded as **D-0014**.
+- **F2 DONE:** stale worktree `.claude/worktrees/wf_9cb92e36-d58-1` removed + merged branch
+  `worktree-wf_9cb92e36-d58-1` deleted, after re-verifying its uncommitted draft is an earlier subset
+  of main's landed M-HF-C1 (193-line intraday.rs, no `Provenance`/`IntraBar` vs main's 218-line
+  version with both).
+- **F3:** operator ruled port-via-card → **CARD-HYG-1** written (black-box CLI e2e tests from
+  `df5e3e8`; missing-docs half parked as CARD-HYG-2 pending a planner doc-gap measure). Branch +
+  gnhf worktree kept until HYG-2 lands or is descoped. Stale AGENTS.md "288 tests" line corrected
+  to 402 with provenance note.
+- **F4:** deferred to a future card (plans/ archive + compression needs a reference sweep).
+- **F5:** standing rule adopted in D-0014 — every commit message is diffed against
+  `git diff --cached --stat` before handover.

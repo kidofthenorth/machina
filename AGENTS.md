@@ -23,7 +23,9 @@ require **separate explicit human approval**.
 ## Commands
 These run today (established in M0; CI runs the same from a clean checkout):
 - Build: `cargo build`
-- Test: `cargo test` *(deterministic and repeatable — 288 tests as of 2026-07-07)*
+- Test: `cargo test` *(deterministic and repeatable — 402 passed / 1 ignored as of 2026-07-17; the
+  prior "288 as of 2026-07-07" figure came from the unmerged `gnhf/unit-test-coverage` branch, not
+  `main` — see the 2026-07-17 drift audit, F3)*
 - Run / dev: `cargo run -p cli -- demo` *(deterministic research demo; no network, no keys)*
 - Sweep: cargo run -p cli -- sweep [--threads N] [--out PATH]; verify determinism: cargo run -p cli -- sweep-verify *(research only; no network, no keys)*
 - Lint / typecheck: `cargo clippy --all-targets --all-features -- -D warnings` + `cargo fmt --check`

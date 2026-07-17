@@ -6047,6 +6047,47 @@ C8.1–C8.7 touches the allowlist.
 
 ---
 
+## Repo-hygiene cards (agent-drift audit 2026-07-17 — see D-0014; independent of the M-HF sequence)
+
+### CARD-HYG-1 — Port the gnhf black-box CLI e2e tests onto current `main` — `TODO`
+
+**Why this card exists.** The 2026-07-17 drift audit (F3) found branch `gnhf/unit-test-coverage-i-b8ff70`
+(tip `df5e3e8`, forked at `df18267`, never merged) holds finished, gated work that was paid for once
+and lost: 4 offline black-box e2e tests driving the **compiled `machina` binary** (byte-identical
+determinism across processes; schema-valid embedded `RunResult`; exact Decimal accounting; deterministic
+CLI exit paths). `crates/cli` has NO `tests/` dir on `main` today. Operator ruled 2026-07-17: **port via
+card**, don't descope. The branch forked ~50 commits ago — its diff will NOT apply; use it as REFERENCE
+(`git show df5e3e8:crates/cli/tests/demo_end_to_end.rs`) and re-derive against current `main`.
+
+**Goal.** `crates/cli/tests/demo_end_to_end.rs` exists on `main` and pins the 4 black-box properties
+above against the CURRENT demo behavior (shasum `ae064f79…`), using only `std::process::Command` +
+existing workspace crates.
+
+**Files (3).** 1. `crates/cli/tests/demo_end_to_end.rs` (NEW — port/adapt from `df5e3e8`, updating any
+assertion the last ~50 commits invalidated; the demo shasum and 402-test baseline are the truth, not the
+branch). 2. `crates/cli/Cargo.toml` — add exactly the branch's `[dev-dependencies]` block:
+`serde_json = { workspace = true }`, `jsonschema = { workspace = true }` (both already workspace
+members — NOT new external deps; `Cargo.lock` will move by the two matching lines). 3. Queue/worklog flip.
+
+**Gate.** Step 0 baseline **402/0/1**, demo `ae064f79…`, sweep `85d06e5b…`, sweep-verify OK. After:
+fmt/clippy clean; `cargo test -p cli` green incl. the 4 new tests; workspace **406 passed / 0 failed /
+1 ignored**; **both shasums UNCHANGED** (tests observe the binary; they must not change it).
+`git status` = exactly the 3 files + `Cargo.lock`.
+
+**Guardrails.** No new external deps (the two dev-deps are pre-existing workspace crates); no edits to
+`main.rs` or any production code — if a test can only pass by changing product code, that is a real
+finding: STOP and report, don't fix; never `git commit`/`push`.
+
+**Escalate-if.** A branch assertion contradicts current `main` behavior in a way that looks like a real
+defect (not just drift); the port needs any file beyond the 3 listed; either shasum moves.
+
+**After this card:** the missing-docs half of the branch (`#![deny(missing_docs)]` on
+research-core/portfolio/market-data + rustdoc) stays parked as **CARD-HYG-2 (scoped, planner pass
+must first measure the doc-gap on current `main`)**. Branch `gnhf/unit-test-coverage-i-b8ff70` + its
+worktree are deleted only after HYG-2 is executed or descoped on the record.
+
+---
+
 ## Deferred / blocked (unchanged)
 
 | ID | Status | Milestone | File scope | Gate | Notes |

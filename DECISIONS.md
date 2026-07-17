@@ -7,7 +7,27 @@ do not authorize any new capability (no signing, no submission — see
 
 ---
 
-## D-0013 — Fixed-record columnar bar storage + `IntradaySource` for the HF scale/streaming proof (M-HF-C2.6)
+## D-0014 — Repo-hygiene remediation: DECISIONS.md restored to root; leaked repo-kit/FOREMAN scaffolding removed (agent-drift audit 2026-07-17)
+**Context.** Commit `f09761b` (2026-07-16), under a copy-pasted "plan files only" message, silently
+relocated this decision log to `docs/DECISIONS.md` and committed two things that never belonged in
+the tracked tree: `docs/FOREMAN.md` (the personal planner-cadence playbook — commit `73ffac7` had
+already recorded the decision to gitignore it, and the file's own header says "gitignore it; it's
+your playbook, not a project artifact") and `docs/repo-kit/*` (10 unfilled bootstrap-template
+placeholders for *other* repos, an older generation than `.claude/templates/`). Neither the
+relocation nor the additions got a DECISIONS entry. Found by the operator-requested agent-drift
+audit (`plans/reports/agent-drift-audit-2026-07-17.md`, findings F1/F5; report kept local-only by
+.gitignore, same precedent as `/FOREMAN.md`).
+**Decision (operator-approved 2026-07-17).** Forward-only cleanup, no history rewrite:
+`DECISIONS.md` moved back to repo root (where `plans/master-plan.md` and existing task-card gates
+reference it); `docs/FOREMAN.md` and `docs/repo-kit/` deleted from tracking. The mislabeled commits
+(`f09761b`, and the `3c653ba`/`6c4027d` duplicate-message pair) stay as-is in history — the worklog
+records the mismatch; amending was declined in favor of moving forward.
+**Consequences.** Root-path references to `DECISIONS.md` are valid again with no sweep needed. The
+FOREMAN playbook exists only at the gitignored repo root. Standing process rule (audit F5): before
+handing any commit message to the operator, diff it against `git diff --cached --stat` — the message
+must describe the actual staged content, every time. Remaining audit findings tracked separately:
+F2 (stale worktree — verify-then-remove approved), F3 (gnhf branch port — card to be written),
+F4 (plans/ archive + compression — future card).
 **Context.** m-hf-track.md §2/§5 flags a hard must-address: a full year of 1s bars (~31.5M rows)
 must never materialize whole in memory — sweeps slice only their evaluation window. The format and
 the sweep-facing seam needed to exist and be measured BEFORE the fill engine (C3+) is built on top
