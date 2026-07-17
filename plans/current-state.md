@@ -3,7 +3,8 @@
 Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-15 (M-HF
 wave 2: C3/C4/C5/C5.1 DONE + verified; C3–C5 adversarial checkpoint PASS-with-hardening closed;
 **C6 DONE + verified** (narrow: turnover-criterion replacement; sweep schema 1.2.0, new sweep shasum
-`85d06e5b…`); next executor card is C7 (verify its drafted text vs the landed code first)).
+`85d06e5b…`); **C7 RECONCILED 2026-07-15 (planner pass) → executor-ready: NARROW to
+`intraday_meanrev_v1` only; `statarb_pairs_v1` + the USDT/jitoSOL allowlist edit deferred to C8**).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -148,15 +149,16 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-**M-HF-C5 is DRAFTED (TODO)** (2026-07-15; card appended after M-HF-C4 in task-queue.md —
-adversarial execution terms as costs to us only: sandwich + pickoff τ priced at a worst rung (τ on
-every taker fill) and a base rung (expected `p·τ`, exact rational), plus a trade-through-only maker
-fill; pure pricing/fill functions like C4, NOT wired into `run_hf` — per-fill hash realization + the
-`(regime,percentile)→p` table are C8's job). Every reference number (τ@1000=4, τ@2000=8, expected
-p=5/100→0.2, p=1/2→2, p=1/1→4, p=0/1→0) was verified empirically against the real `apply_bps` /
-rust_decimal before drafting (throwaway test, run green, deleted; tree clean) — the C4 lesson
-applied. Next: an **executor session runs M-HF-C5** (fresh chat, one card). After C5: the
-**mandatory C3–C5 block adversarial review** runs before C6+ is drafted/expanded. M6 has no
-candidate and does not start.
+**M-HF-C7 is RECONCILED + executor-ready (TODO)** (2026-07-15 planner pass; card in task-queue.md
+§M-HF, after C6). NARROW by planner decision (mirrors NARROW-C6): **`intraday_meanrev_v1` ONLY** —
+survey §1.2, a single-series intent-only mean-reversion `Strategy` (SMA anchor + Decimal deviation
+band, no f64/RNG), proven deterministic at a **≥100k-bar cadence run via `run_hf(fixed_latency(1))`**
+on a C2 synthetic 1s series, within the C2.6 measured budget. **No sweep/`ParamGrid`/config/allowlist
+wiring** → demo shasum `ae064f79…` **and** sweep shasum `85d06e5b…` must stay UNCHANGED (the C7
+byte-identity guard). `statarb_pairs_v1` (survey §1.6, SOL/LST pair) **deferred to C8**: the
+single-series `Strategy`/`run_hf` engine can't express a two-leg pair, there is no correlated-LST
+synthetic data, and its jitoSOL leg needs the HF-Q2 allowlist edit (approved 2026-07-12; the verbatim
+`[[token]]` block — with operator-supplied mint/survivorship fields — lands at C8, not C7). Next: an
+**executor session runs M-HF-C7** (fresh chat, one card). M6 has no candidate and does not start.
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

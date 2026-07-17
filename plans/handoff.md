@@ -4,12 +4,15 @@ You are picking up a build where **M5 is CLOSED (reject-all, holdout unread) and
 research track is ACTIVE**. Cards **C1–C2.6, C3/C4/C5, C5.1, and C6 are all DONE**; the C3–C5
 adversarial checkpoint is closed. **The `sweep` shasum is now `85d06e5b…`** (C6 bumped the report
 schema to 1.2.0); demo shasum still `ae064f79…`; workspace **391/0/1**. This is the single entry
-point. **The next step is PLANNER work, not execution:** the next card is **C7** (`statarb_pairs_v1`
-+ `intraday_meanrev_v1`, intent-only), but its m-hf-track §5-drafted text predates the code that has
-since landed — a planner must **reconcile C7 against the current source first** (grep every
-construction site of every struct it touches — see the C6 lesson in the worklog) before any executor
-runs it. All the ladder/`ScenarioId`/`hf_cost_scenarios`/`data_provenance`/spec-lint work that C6's
-sketch bundled has **moved to C8**. Never start M6+ (network) or M8/M9 (signing/submit — separate
+point. **C7 is now RECONCILED + executor-ready (planner pass 2026-07-15):** the card in
+task-queue.md §M-HF is NARROW — **`intraday_meanrev_v1` ONLY** (survey §1.2, a single-series
+intent-only mean-reversion `Strategy`), with a **≥100k-bar deterministic cadence gate via `run_hf`**
+and demo+sweep shasums held UNCHANGED (byte-identity guard). **`statarb_pairs_v1` + the USDT/jitoSOL
+allowlist edit are DEFERRED to C8** — the single-series `Strategy`/`run_hf` engine can't express a
+SOL/LST pair, there's no correlated-LST synthetic data, and jitoSOL isn't allowlisted (see the C7
+card's planner-decision block). **The next step is an EXECUTOR run of C7** (fresh chat, one card).
+All the ladder/`ScenarioId`/`hf_cost_scenarios`/`data_provenance`/spec-lint work that C6's sketch
+bundled has also **moved to C8**. Never start M6+ (network) or M8/M9 (signing/submit — separate
 explicit human approval). **Do not commit or push — the operator commits.**
 
 ---
@@ -156,12 +159,15 @@ holdout survives unseen for a future cycle. Step-0 review: PASS (6 agents).
 **The active queue is task-queue.md §M-HF.** C1–C2.6, C3/C4/C5, C5.1, and **C6 (DONE + verified,
 narrow: turnover-criterion replacement; sweep schema 1.2.0; new sweep shasum `85d06e5b…`)** are done;
 the C3–C5 checkpoint is closed and m-hf-track §4/§5 was corrected 2026-07-15 to match the landed
-scope. **Next is a PLANNER reconciliation of C7**, not an executor run: C7 (`statarb_pairs_v1` +
-`intraday_meanrev_v1`, intent-only, marked "(drafted)" in §5) predates the current code, so its card
-text must be reconciled against source — and per the C6 lesson, grep EVERY construction site of EVERY
-struct it touches — before it is executor-ready. **C8** now carries all the deferred C6 work
-(`ScenarioId` rungs, `hf_cost_scenarios`, `data_provenance`, the HF-kind spec discriminator +
-spec-lint) plus SweepSpec HF-kind + windowed-sweep wiring. HF-Q1 (deferred to wave 2) blocks C9/C10;
+scope. **C7 is RECONCILED + executor-ready (planner pass 2026-07-15), NARROW:** `intraday_meanrev_v1`
+ONLY (survey §1.2, single-series intent-only mean-reversion), gated by a ≥100k-bar deterministic
+`run_hf` cadence run with demo+sweep shasums unchanged. **`statarb_pairs_v1` (survey §1.6, SOL/LST
+pair) is DEFERRED to C8** — it can't run on the single-series engine, has no correlated-LST synthetic
+data, and needs the HF-Q2 allowlist edit (jitoSOL/USDT approved 2026-07-12; the verbatim `[[token]]`
+block, with operator-supplied mint/survivorship fields, lands at C8). **C8** now carries all the
+deferred C6 work (`ScenarioId` rungs, `hf_cost_scenarios`, `data_provenance`, the HF-kind spec
+discriminator + spec-lint) plus SweepSpec HF-kind + windowed-sweep wiring **plus the deferred statarb
+pair machinery + allowlist edit**. HF-Q1 (deferred to wave 2) blocks C9/C10;
 HF-Q3 blocks C10. Neither daily-bar family advances; M6 (shadow) has no candidate and does not start.
 
 The Q7 HF amendment was made 2026-07-09 (D-0012): master-plan pair amended in lockstep
@@ -224,15 +230,19 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 > `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template sweep shasum
 > `85d06e5be4b1a2ac09713a30b56ba794624dc260` (C6 bumped it to schema 1.2.0); `sweep-verify: OK`.
 >
-> **There is no executor-ready card right now — the next step is PLANNER work.** C7
-> (`statarb_pairs_v1` + `intraday_meanrev_v1`, intent-only) is marked "(drafted)" in m-hf-track §5 but
-> its text predates the landed code and has NOT been reconciled; C6 just proved how badly that sketch
-> can drift. So a planner session must FIRST reconcile C7 against current source — grep every
-> construction site of every struct it touches (the C6 lesson), verify every quoted signature, confirm
-> its strategies are intent-only and its gate matches reality — and only THEN issue an executor card.
-> If you are an executor and the next §M-HF card is an un-reconciled C7 (or a C8 that hasn't been
-> drafted yet), STOP and say a planner reconciliation is owed first. Do not execute drafted-but-
-> unreconciled text.
+> **The next card is M-HF-C7 — RECONCILED + executor-ready (planner pass 2026-07-15), in
+> task-queue.md §M-HF.** It is NARROW by planner decision: implement **`intraday_meanrev_v1` ONLY**
+> (survey §1.2) as a single-series, intent-only `Strategy` (SMA anchor + Decimal deviation band — no
+> f64, no RNG, no external reference series), plus a **≥100k-bar deterministic cadence proof via
+> `run_hf(fixed_latency(1))`** on a C2 synthetic 1s series (new `crates/sweep/tests/hf_cadence.rs`).
+> **No sweep/`ParamGrid`/config/allowlist wiring** — the gate REQUIRES the demo shasum `ae064f79…`
+> AND the sweep shasum `85d06e5b…` to stay byte-identical (if either moves, C8 scope leaked in —
+> STOP). **`statarb_pairs_v1` + the jitoSOL/USDT allowlist edit are C8, NOT C7** — do not implement a
+> pair strategy, add a multi-series abstraction, touch the allowlist, or invent a mint address.
+> Execute exactly the card's Steps; on gate-pass flip the card + one worklog line and STOP. If any
+> Escalate-if triggers, STOP and record the mismatch. (If instead the next §M-HF card were an
+> un-reconciled draft or an undrafted C8, a planner reconciliation would be owed first — but C7 is
+> reconciled.)
 >
 > When the gate passes: flip the card, one worklog line, stop — the next card gets a fresh chat.
 > If any escalate-if triggers: STOP, record the mismatch in the worklog, report.

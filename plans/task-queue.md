@@ -5070,6 +5070,270 @@ capability. Never `git commit`/`git push` — the operator commits explicit path
 
 ---
 
+### M-HF-C7 — First intent-only HF hypothesis strategy: `intraday_meanrev_v1` (+ deterministic ≥100k-bar cadence gate) — `TODO`
+
+**Why this card exists (and why it is NARROW — one family, not two).** m-hf-track §5 row C7 and the
+superseded sketch (highfrequency-algo-plan.md:299) name **two** families, `statarb_pairs_v1` +
+`intraday_meanrev_v1`, "intent-only." A 2026-07-15 planner reconciliation (grep-verified against
+source + an 8-agent adversarial grounding workflow, verdicts all CONFIRMED) proved that the two
+families are **not equally buildable today**, exactly the way the C6 sketch drifted from landed code:
+
+1. **`intraday_meanrev_v1` (survey §1.2) is a drop-in single-series strategy — runnable NOW.** The
+   `Strategy` trait is single-series/single-scalar (`target_weight(&[Bar], Decimal) -> Decimal` —
+   one SOL/USDC series in, one SOL weight out), and C2.5's landed reuse proof
+   (`crates/sweep/tests/hf_reuse_proof.rs`) already runs such strategies over C2's synthetic 1s bars
+   with ZERO engine changes. A same-series mean-reversion signal fits this shape exactly.
+2. **`statarb_pairs_v1` (survey §1.6) CANNOT be built or run today — it is C8-class work.** It is a
+   *cointegrated pair* (SOL vs an LST, e.g. jitoSOL): its edge is a spread `s_t = ln p_A − γ ln p_B`
+   over **two correlated legs plus an on-chain fair ratio** (highfrequency-algo-plan.md:120-137,
+   "Data needed: Bar series for BOTH legs plus the on-chain fair ratio"). Against the landed code
+   this is impossible without new machinery, confirmed by fresh reads at HEAD `a52870b`:
+   - The `Strategy` trait feeds **one** `&[Bar]`; `portfolio::run`/`run_hf` and
+     `sweep::cell::eval_cell`/`run_sweep` each take **one** `bars` argument; `PortfolioState`
+     (`crates/portfolio/src/state.rs:12-17`) holds exactly **one** risky asset (SOL) vs USDC cash.
+     There is **no** multi-series / pair / spread abstraction anywhere (grep
+     `pair|statarb|cointegrat|spread_series|multi.series|MultiSeries` over `crates/` → zero hits
+     outside `plans/*.md` prose).
+   - C2's generator (`market_data::synthetic::generate`) emits **one** `bars_1s` series for a single
+     `venue`; there is no correlated-LST second-leg generator.
+   - The LST leg is **not allowlisted**: `config/tokens/allowlist.example.toml` has only USDC + SOL.
+     HF-Q2 (questions.md:169-178) *approved* adding USDT + jitoSOL to the research allowlist
+     (RESOLVED 2026-07-12) but the **file edit has not landed**, and its exact `[[token]]` fields
+     (mint address, decimals, `min_liquidity_usdc`, `min_age_days`, `risk_category`, `custody_notes`)
+     are an **external/migration-sensitive contract the operator supplies during planning, never an
+     executor default** (AGENTS.md; allowlist.example.toml:2-4,42-44; questions.md:176).
+
+**Planner decision (logged; reversible — operator may override).** Following m-hf-track §5's own
+contingency ("scope C7's gate to what IS runnable now … defer the rest to C8 explicitly") and the
+NARROW-C6 precedent: **C7 delivers `intraday_meanrev_v1` only**, exercised through the existing
+engine at ≥100k-bar cadence. **`statarb_pairs_v1` — and the USDT+jitoSOL allowlist edit it needs —
+DEFER to C8**, the card that first *runs* a family needing them (C8 owns "SweepSpec HF-kind +
+windowed sweep wiring" and is where the multi-series/pair interface, the correlated-LST synthetic
+data, and the verbatim `[[token]]` block belong). C7 trades only SOL/USDC (both already allowlisted),
+so **C7 does not touch the allowlist at all** — nothing to fabricate, nothing to escalate here.
+*(HF-Q2's note said the allowlist edit "lands with … C7"; that note (2026-07-12) predates the C6
+reconciliation that moved statarb to C8. Moving the edit C7→C8 is a reversible sequencing fork — the
+approval to add the tokens is unchanged — logged here and surfaced to the operator.)*
+
+**Goal.** Add `intraday_meanrev_v1` as a pure, deterministic, **intent-only** `Strategy` (survey
+§1.2: revert toward a slow anchor), and prove it runs **deterministically at ≥100k-bar cadence**
+through the existing latency-aware engine on a C2 synthetic 1s series, within the C2.6 budget —
+**without any sweep/`ParamGrid`/config wiring** (that is C8). The family emits target weights only;
+no keys, no RPC, no venue/execution awareness leaks into the trait.
+
+**Pinned semantics (planner decisions — do not re-decide).**
+- **Deterministic Decimal reformulation of the OU prose.** The survey's `dx = θ(μ−x)dt + σdW`
+  (highfrequency-algo-plan.md:55) has a stochastic `dW` term that is **forbidden** by the trait's
+  hard determinism ("must not … use randomness", lib.rs:24-37) and a z-score that would need a
+  stddev/`sqrt` (f64 — also forbidden for money-math). Realize it instead as a **rolling-mean
+  deviation band**, the exact pure-Decimal primitive `regime::classify` already uses
+  (`crates/strategies/src/regime.rs:27-44`): anchor = SMA over `anchor_period` bars;
+  `deviation = (last_close − anchor) / anchor`; **long when strictly cheap** (`deviation < −band`) →
+  `weight_in`, else `weight_out`. No sqrt, no stddev, no EWMA state, no f64, no RNG.
+- **Anchor is the SAME series' SMA — NOT an external reference series.** The survey also floats "a
+  cross-venue / CEX reference series" for the anchor (highfrequency-algo-plan.md:55,66-67). **No such
+  second/external data source exists** in `crates/market-data` (only `binance_csv` + `synthetic`,
+  both single-series). Using it would give `intraday_meanrev_v1` the *same* "cannot run today"
+  blocker as statarb. So the anchor is the trailing SMA of the one input series; a cross-venue anchor
+  is a later version, explicitly out of scope.
+- **Struct shape mirrors the existing families** (all `pub` fields, `Decimal`/`usize`, no `Option`;
+  an `illustrative()` constructor marked NOT tuned; strict-inequality band edges like
+  trend_alloc/threshold_rebalance). Fields: `anchor_period: usize`, `band: Decimal`,
+  `weight_in: Decimal`, `weight_out: Decimal`. `name()` → `"intraday_meanrev_v1"`.
+- **Guards (mirror the landed families, avoid div-by-zero, stay defensive):**
+  `anchor_period == 0 || history.len() < anchor_period` → `weight_out`; `anchor == 0` (all-zero
+  window) → `weight_out` (the `regime::classify` zero-mean guard). Insufficient history is defensive,
+  never a panic.
+- **Cadence run uses `run_hf(fixed_latency(1, n))` — the HF next-bar entry — over a WHOLE `Vec<Bar>`
+  in memory.** This is C2.5's proven pattern at larger scale, NOT C8's `IntradaySource`/windowed
+  access. 100k bars in memory is ≈0.3% of C2.6's measured 31.5M-row envelope (D-0013: ~290 MiB peak
+  RSS for the full year), so it is trivially "within the C2.6 budget"; wall-clock is *recorded*, not
+  asserted (m-hf-track §7: C2.6/C8 numbers are measurements, not gates). **No `run_sweep`, no
+  `ParamGrid`, no partitions/holdout** are involved — so there is nothing to seal and no
+  thread-count sweep determinism to assert here (that is a `run_sweep` property = C8). Determinism =
+  **repeated `run_hf` is byte-identical** (`HfRunOutput: PartialEq`).
+- **C7 wires NOTHING into the CLI sweep/demo.** No `ParamPoint`/`ParamGrid` variant, no
+  `SweepSpecToml` field, no `strategy-lab.example.toml` section. Therefore **`cargo run -p cli --
+  sweep` and `-- demo` are byte-identical → both shasums UNCHANGED** — a C6-style byte-identity guard
+  that proves C7 stayed out of C8's territory.
+
+**Files (3 code + plan flips — minimal by construction; the whole point is that a single-series
+family is a drop-in).**
+1. `crates/strategies/src/intraday_meanrev.rs` (**NEW**) — `IntradayMeanRevV1` struct +
+   `illustrative()` + `impl Strategy` + its in-file `#[cfg(test)] mod tests` (unit coverage +
+   a small deterministic "signal fires on a cheap dip" test).
+2. `crates/strategies/src/lib.rs` — add `pub mod intraday_meanrev;` (alphabetical, before
+   `pub mod regime;`) + `pub use intraday_meanrev::IntradayMeanRevV1;`; add one bullet to the crate
+   doc's "What ships here / Scaffolds" list. **Additive only — no `match` anywhere in this crate.**
+3. `crates/sweep/tests/hf_cadence.rs` (**NEW**) — the ≥100k-bar cadence + determinism integration
+   proof. **Home chosen deliberately:** `crates/sweep/Cargo.toml` already deps `market-data` +
+   `portfolio` + `strategies` (so `synthetic::generate`, `run_hf`, and `IntradayMeanRevV1` are all
+   reachable with **zero `Cargo.toml` edit**), and it sits beside its C2.5 twin `hf_reuse_proof.rs`.
+   *(`crates/strategies/Cargo.toml` dev-deps are only `portfolio` + `rust_decimal_macros` — it lacks
+   `market-data`, so putting the scale test there would force a manifest edit; sweep/tests avoids it.)*
+4. Plan flips (the executor's, on gate-pass): this card `TODO`→`DONE` + one `plans/worklog.md` line.
+   *(current-state.md / handoff.md / m-hf-track.md were already updated by the reconciling planner.)*
+
+**Construction-site audit — what C7 does NOT touch (the C8/statarb inheritance, listed so it is not
+re-discovered later).** Adding a family to the **sweep** (so it runs through `run_sweep` with a
+`ParamGrid`) is C8's job and touches an enum-variant blast radius — recorded here per the C6 lesson
+(a variant added to `ParamPoint`/`ParamGrid` breaks every exhaustive `match`, compiler-caught; a new
+**required** `SweepSpecToml` field breaks every TOML at runtime, NOT compiler-caught). C7 does **none**
+of this. The complete set C8 will need (grep-verified at `a52870b`):
+`crates/sweep/src/param.rs:14-26` (`ParamPoint` enum) + its matches `family()` :28-36, `param_id()`
+:44-65, `build_strategy()` :71-90; `param.rs:95-107` (`ParamGrid` enum) + `points()` :117-156;
+**`crates/sweep/src/runner.rs:234-249` (`in_grid_neighbors` — a THIRD `ParamGrid` match, S11
+neighbor battery, easy to miss)**; `crates/sweep/src/spec.rs:12-20` (`SweepSpecToml` fields), :47-60
+(per-family `*Toml` structs), :135-148 (`from_toml_str` push) + its doc at :69;
+`config/strategies/strategy-lab.example.toml` (new `[…]` section — and note: making the new
+`SweepSpecToml` field **`Option`/`#[serde(default)]`** avoids breaking the 6 existing TOML fixtures,
+incl. the immutable `m5-frozen.toml`); optionally `crates/cli/src/main.rs:363-374` (the demo roster
+`Vec<Box<dyn Strategy>>`). **If you (C7) find yourself editing any of these, STOP — you have crossed
+into C8.**
+
+**Current state (verbatim, verified 2026-07-15 at HEAD `a52870b`; code is byte-identical to `ac2b040`
+— `a52870b` is a plans-only reconciliation commit, `git diff ac2b040 a52870b` touches only
+`plans/*.md`. If what you find differs, escalate — don't adapt.)**
+- The trait the new family implements — `crates/strategies/src/lib.rs:28-37`:
+  ```rust
+  pub trait Strategy {
+      /// Stable strategy name, `<family>_v<n>` for versioned strategies.
+      fn name(&self) -> &str;
+
+      /// Target SOL weight given completed `history` (oldest first) and the `current_weight`.
+      fn target_weight(&self, history: &[Bar], current_weight: Decimal) -> Decimal;
+  }
+  ```
+  (imports at lib.rs:22 `use research_core::{Bar, Decimal};`; module list lib.rs:17-20; re-exports
+  lib.rs:39-42.)
+- The template to mirror — `crates/strategies/src/trend_alloc.rs:12-54` (struct with `pub` Decimal/
+  usize fields; `#[derive(Debug, Clone, PartialEq, Eq)]`; an `illustrative()` `#[must_use]`
+  constructor marked "NOT a recommendation"; `impl Strategy` with the insufficient-history and
+  zero-period guards returning the defensive weight; strict `>` band edge). Its `#[cfg(test)] mod
+  tests` (trend_alloc.rs:56-170) is the unit-test pattern to copy: a `series(closes: &[i64]) ->
+  Vec<Bar>` helper + one assertion per branch/guard/edge + a `deterministic` test + an
+  `illustrative_defaults_are_stable` test. The pure-Decimal deviation primitive to reuse is
+  `regime::classify` — `crates/strategies/src/regime.rs:27-44`
+  (`deviation = ((last − mean)/mean).abs()`, zero-mean guard, strict `>` threshold).
+- The HF engine entry the cadence run uses — `crates/portfolio/src/latency.rs:316-329`:
+  ```rust
+  pub fn run_hf<F>(
+      bars: &[Bar],
+      initial_cash_usdc: Decimal,
+      cost: &CostModel,
+      pipeline: &LatencyPipeline,
+      mut target_fn: F,
+  ) -> Result<HfRunOutput, HfError>
+  where
+      F: FnMut(&[Bar], Decimal) -> Decimal,
+  ```
+  and `fixed_latency` (latency.rs:61-78): `pub fn fixed_latency(offset_bars: usize, n_signals:
+  usize) -> LatencyPipeline` — `fixed_latency(1, bars.len())` IS next-bar execution
+  (`run_hf(fixed_latency(1)) == run`, the C3 regression). `HfRunOutput` (latency.rs:308-314) is
+  `{ base: RunOutput, unlanded_orders: u32 }` and derives `PartialEq, Eq` (so `a == b` is the
+  determinism check). All re-exported from `portfolio` (lib.rs:39-43): `run_hf`, `fixed_latency`,
+  `LatencyPipeline`, `HfRunOutput`, `CostModel`, `run`, `RunOutput`.
+- The ≥100k-bar source — `crates/market-data/src/synthetic.rs`: `pub fn generate(spec:
+  &SyntheticSpec) -> Result<SyntheticIntraday, SyntheticError>` (:191); `SyntheticSpec` (:19-48) has
+  `pub steps: usize` ("Number of 1-second steps (one bar per step); must be > 0") — **set
+  `steps: 100_000`**; `SyntheticIntraday` (:81-91) exposes `pub bars_1s: Vec<Bar>`. The exact spec
+  literal to copy is `crates/sweep/tests/hf_reuse_proof.rs:17-34` (`hf_bars()`), changing only
+  `steps: 4_000` → `steps: 100_000`. `generate` in-memory-materializes `Vec::with_capacity(steps)`
+  (synthetic.rs:199) — fine at 100k; no `IntradaySource` needed.
+- The reuse-first proof this rides — `crates/sweep/tests/hf_reuse_proof.rs:1-6` (doc): "1s bars need
+  no new bar type … proves the existing engine runs on 1s bars with ZERO source changes." (It runs
+  the *existing* families via `run_sweep`+`ParamGrid`; C7 instead runs the *new* family via `run_hf`
+  directly — no `ParamGrid`, so C7 stays off the C8 sweep-wiring path.)
+- Dev-dep reachability — `crates/sweep/Cargo.toml:10-24`: `[dependencies]` includes `market-data`,
+  `portfolio`, `strategies`; `[dev-dependencies]` includes `rust_decimal_macros`. (So
+  `hf_cadence.rs` needs no manifest change.) `crates/strategies/Cargo.toml:14-17` dev-deps are
+  `portfolio` + `rust_decimal_macros` only (no `market-data`).
+- Baseline gate numbers to expect at Step 0 (post-C6): **391 passed / 0 failed / 1 ignored**; demo
+  shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum
+  `85d06e5be4b1a2ac09713a30b56ba794624dc260`; `sweep-verify: OK`. *(The 1 ignored is C2.6's
+  `scale_proof_full_year_1s`; C7's cadence test is a normal, non-ignored test, so ignored stays 1.)*
+
+**Steps.**
+1. **Step 0 (before touching any file):** run the full-workspace gate. Expect **391 passed, 0 failed,
+   1 ignored**; fmt/clippy clean; demo shasum `ae064f79…`; sweep shasum `85d06e5b…`;
+   `sweep-verify: OK`. If already red, STOP and report the baseline in the worklog.
+2. `crates/strategies/src/intraday_meanrev.rs`: implement `IntradayMeanRevV1` per Pinned semantics —
+   fields `anchor_period: usize`, `band: Decimal`, `weight_in: Decimal`, `weight_out: Decimal`;
+   `illustrative()` (suggested NOT-tuned defaults: `anchor_period: 60`, `band: dec!(0.01)`,
+   `weight_in: dec!(0.5)`, `weight_out: dec!(0)` — one-minute anchor, 1% band; mark "NOT a
+   recommendation"); `impl Strategy` with the SMA anchor, the two guards, and the `deviation < −band
+   → weight_in else weight_out` rule. Pure `&[Bar]` + `Decimal` in, one `Decimal` out; no `use` of
+   `portfolio`/`market-data`/anything execution-adjacent.
+3. `crates/strategies/src/lib.rs`: `pub mod intraday_meanrev;` + `pub use
+   intraday_meanrev::IntradayMeanRevV1;`; add the doc bullet.
+4. In-file unit tests (in `intraday_meanrev.rs`, names pinned — mirror trend_alloc's coverage):
+   `defensive_until_enough_history`; `zero_period_stays_defensive`; `zero_anchor_stays_defensive`
+   (all-zero closes → `weight_out`, no div-by-zero); `long_when_cheap_below_band` (last strictly
+   `> band` below the SMA → `weight_in`); `defensive_when_at_or_above_anchor`;
+   `band_edge_is_defensive` (deviation exactly `== −band` → `weight_out`, strict `<`);
+   `only_last_anchor_period_bars_matter`; `deterministic` (same args, `current_weight` ignored → same
+   target); `illustrative_defaults_are_stable`.
+5. `crates/sweep/tests/hf_cadence.rs` (NEW): copy `hf_reuse_proof.rs`'s `SyntheticSpec` literal with
+   `steps: 100_000`; build `IntradayMeanRevV1::illustrative()`; run it through
+   `run_hf(&bars, dec!(10_000), &cost, &fixed_latency(1, bars.len()), |h, w| s.target_weight(h, w))`
+   twice. Pinned test `intraday_meanrev_v1_runs_deterministically_at_100k_bar_cadence`:
+   `assert!(bars.len() >= 100_000)`; `assert_eq!(a.base.equity_curve.len(), bars.len())` (proves the
+   engine processed all ≥100k bars end-to-end); `assert_eq!(a, b)` (byte-identical repeat =
+   determinism). Use the same `CostModel { dex_fee_bps: 5, slippage_bps: 20, base_fee_lamports:
+   5_000, priority_fee_lamports: 50_000 }` as `hf_reuse_proof.rs`. **Non-vacuity:** so the run is not
+   a silent no-op, also assert the family *acts* — either `a.base.n_trades > 0` on this synthetic
+   path, or, if the illustrative band never fires against this spec, add a co-located
+   `intraday_meanrev_v1_trades_on_a_cheap_dip` unit test on a hand-built dip series proving the
+   signal fires (keep the scale test's hard asserts to full-length + determinism; put "it acts" where
+   you can guarantee it). *(If you measure the 100k×2 run materially slowing `cargo test`, you MAY
+   mark it `#[ignore]` and run it explicitly in the gate + record that — but default is a normal
+   test so the workspace count includes it.)*
+6. `cargo fmt --all`; run the full gate (below); flip this card `TODO`→`DONE` + one worklog line.
+
+**Gate.**
+- `cargo test -p strategies` green incl. all new unit tests; `cargo test -p sweep hf_cadence` green
+  (the cadence test actually runs, not skipped — unless you deliberately `#[ignore]`d it and ran it
+  explicitly, which you must state).
+- Full workspace: `cargo fmt --all --check` clean; `cargo clippy --all-targets --all-features -- -D
+  warnings` clean; `cargo test --workspace --all-features` → **0 failed, 1 ignored, N passed** where
+  `N = 391 + (unit tests added) + (cadence tests added)` (with the pinned set that is 391 + 9 unit +
+  ≥1 cadence = **≥ 401**); **record the exact N** and confirm every pinned test name is present (if
+  N is short, a test failed to register — investigate before flipping).
+- **Byte-identity guard (proves C7 stayed off the sweep/CLI path):** `cargo run -p cli -- demo |
+  shasum` → `ae064f79242f823ffd8f55bf9104e3e1b45d425a` **unchanged**; `cargo run -p cli -- sweep |
+  shasum` → `85d06e5be4b1a2ac09713a30b56ba794624dc260` **unchanged**; `sweep-verify` → OK. **If
+  either shasum moves, something got wired into the sweep/demo — STOP** (that is C8 scope leaking in).
+- `git status` shows exactly the 3 code files (`crates/strategies/src/intraday_meanrev.rs`,
+  `crates/strategies/src/lib.rs`, `crates/sweep/tests/hf_cadence.rs`) + the queue/worklog flip — **no
+  `param.rs`, no `spec.rs`, no `runner.rs`, no `config/`, no `crates/cli`, no `schemas/`, no
+  `Cargo.toml`, no allowlist**.
+
+**Guardrails (restated).** `Decimal`/integer only for money and for the SMA/deviation math —
+**never f64** (no z-score/stddev/`sqrt`); no RNG, no clock (the family is a pure function of
+`history`); **no new dependencies / no `Cargo.toml` edits**; strategies stay **intent-only** — no
+keys, no RPC, no venue/execution awareness in the trait; determinism is the gate (repeated `run_hf`
+byte-identical). **Do NOT** add a `ParamPoint`/`ParamGrid` variant, a `SweepSpecToml` field, a
+`strategy-lab.example.toml` section, or edit `config/tokens/allowlist.example.toml` (all C8 /
+statarb); **do NOT** touch `param.rs`, `spec.rs`, `runner.rs`, `cli`, `schemas/`, existing
+`fixtures/`, `config/strategies/m5-frozen.toml`, the holdout machinery, or the master-plan pair.
+NOTHING here creates execution capability. Never `git commit`/`git push` — the operator commits
+explicit paths.
+
+**Escalate-if (STOP, record in plans/worklog.md, report — never improvise):**
+- any quoted signature/line/block above doesn't match source at `a52870b`;
+- the Step-0 baseline isn't 391/0/1 (or the shasums differ) — report, don't proceed on a wrong baseline;
+- **either the demo or sweep shasum moves** — C7 must be byte-identical for both; a move means sweep/
+  CLI wiring crept in (C8 scope) — STOP;
+- you find yourself needing to edit `param.rs`/`spec.rs`/`runner.rs`/a config TOML/the allowlist/a
+  `Cargo.toml`/a schema, or to add a `ParamGrid` variant — that is C8 or a scope breach — STOP;
+- the ≥100k-bar `run_hf` returns `Err`, or the repeated run is not byte-identical (`a != b`) — a real
+  determinism/engine problem — STOP and report (do not loosen the assertion);
+- any impulse to implement `statarb_pairs_v1`, add jitoSOL/USDT to the allowlist, invent a mint
+  address, or build a multi-series/pair/spread abstraction — all deferred to C8 with the operator
+  supplying the verbatim `[[token]]` fields — STOP.
+
+---
+
 ## Deferred / blocked (unchanged)
 
 | ID | Status | Milestone | File scope | Gate | Notes |
