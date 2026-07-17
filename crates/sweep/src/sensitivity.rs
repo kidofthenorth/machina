@@ -9,6 +9,12 @@
 //! - [`ScenarioId::Doubled`] — every cost field ×2, the mandated doubled-costs survival test.
 //! - [`ScenarioId::DoubledSlippage`] / [`ScenarioId::DoubledPriority`] — one axis ×2, to see which
 //!   cost the edge is most fragile to.
+//! - [`ScenarioId::HotCongestion`] — reserved name for the HF congestion-priced rung (`portfolio::
+//!   HfCostModel`); naming only here — not yet assembled into any ladder or wired into execution.
+//! - [`ScenarioId::AdversarialWorst`] — reserved name for the HF adverse-selection rung
+//!   (`portfolio::AdversarialModel`); naming only here, same as above.
+//! - [`ScenarioId::Latency2x`] — reserved name for a doubled-latency HF rung; naming only here, same
+//!   as above.
 //!
 //! The per-candidate [`FeeSensitivity`] block reports base-vs-doubled metrics plus the `Decimal`
 //! **return drag** from costs and from doubling — framed strictly as robustness, never profit
@@ -37,6 +43,17 @@ pub enum ScenarioId {
     /// Only the priority fee ×2 (isolates the priority-fee axis).
     #[serde(rename = "doubled_priority")]
     DoubledPriority,
+    /// HF congestion-priced rung — reserved name only; not yet assembled into any ladder or wired
+    /// into execution (`portfolio::HfCostModel`, C8.6/C8.7).
+    #[serde(rename = "hot_congestion")]
+    HotCongestion,
+    /// HF adverse-selection rung — reserved name only; same status as `HotCongestion`
+    /// (`portfolio::AdversarialModel`, C8.6/C8.7).
+    #[serde(rename = "adversarial_worst")]
+    AdversarialWorst,
+    /// HF doubled-latency rung — reserved name only; same status as `HotCongestion` (C8.6/C8.7).
+    #[serde(rename = "latency_2x")]
+    Latency2x,
 }
 
 impl ScenarioId {
@@ -49,6 +66,9 @@ impl ScenarioId {
             Self::Doubled => "doubled",
             Self::DoubledSlippage => "doubled_slippage",
             Self::DoubledPriority => "doubled_priority",
+            Self::HotCongestion => "hot_congestion",
+            Self::AdversarialWorst => "adversarial_worst",
+            Self::Latency2x => "latency_2x",
         }
     }
 }
@@ -328,6 +348,9 @@ mod tests {
             ScenarioId::Doubled,
             ScenarioId::DoubledSlippage,
             ScenarioId::DoubledPriority,
+            ScenarioId::HotCongestion,
+            ScenarioId::AdversarialWorst,
+            ScenarioId::Latency2x,
         ] {
             let json = serde_json::to_string(&id).unwrap();
             assert_eq!(json, format!("\"{}\"", id.label()));

@@ -5397,7 +5397,7 @@ says — before the C10 declaration.
 
 ---
 
-### M-HF-C8.1 — `ScenarioId` gains the three HF ladder rungs (enum + compiler-forced `label()` only) — `TODO`
+### M-HF-C8.1 — `ScenarioId` gains the three HF ladder rungs (enum + compiler-forced `label()` only) — `DONE`
 
 **Why NARROW.** m-hf-track §4 bundled the new variants with `hf_cost_scenarios`'s full ladder
 assembly. Per the reconciliation note above, the ladder-assembly function needs C8.6's execution
@@ -6049,7 +6049,11 @@ C8.1–C8.7 touches the allowlist.
 
 ## Repo-hygiene cards (agent-drift audit 2026-07-17 — see D-0014; independent of the M-HF sequence)
 
-### CARD-HYG-1 — Port the gnhf black-box CLI e2e tests onto current `main` — `TODO`
+### CARD-HYG-1 — Port the gnhf black-box CLI e2e tests onto current `main` — `DONE` *(2026-07-17;
+straight port from `df5e3e8` — no assertion adaptation needed, current `main` matched the reference
+field-for-field; `crates/cli/tests/demo_end_to_end.rs` (4 tests) + `crates/cli/Cargo.toml` dev-deps
++ `Cargo.lock`; workspace 406 passed/0 failed/1 ignored; demo `ae064f79242f823ffd8f55bf9104e3e1b45d425a`
+and sweep `85d06e5be4b1a2ac09713a30b56ba794624dc260` both unchanged; sweep-verify OK)*
 
 **Why this card exists.** The 2026-07-17 drift audit (F3) found branch `gnhf/unit-test-coverage-i-b8ff70`
 (tip `df5e3e8`, forked at `df18267`, never merged) holds finished, gated work that was paid for once

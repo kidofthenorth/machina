@@ -1341,3 +1341,41 @@ local-only via .gitignore, `/FOREMAN.md` precedent):
 - **F4:** deferred to a future card (plans/ archive + compression needs a reference sweep).
 - **F5:** standing rule adopted in D-0014 — every commit message is diffed against
   `git diff --cached --stat` before handover.
+
+## 2026-07-17 — M-HF-C8.1 DONE: `ScenarioId` gains the 3 HF ladder rungs (enum + `label()` only)
+
+Card verified verbatim against HEAD `36b2d2e` (no drift since the `3c653ba` audit) before editing.
+Added `ScenarioId::{HotCongestion, AdversarialWorst, Latency2x}` (snake_case serde tags
+`hot_congestion`/`adversarial_worst`/`latency_2x`) after `DoubledPriority`, the 3 matching `label()`
+arms (the one exhaustive match, so a missed arm would not compile), and 3 module-doc bullets —
+`cost_scenarios`, `ScenarioMetrics`/`FeeSensitivity`, and both wildcard-protected `runner.rs` matches
+left untouched per the card (C8.7's job). `scenario_label_matches_serde_form` extended to all 8
+variants; no new test fn (0 new assertions beyond the 3 loop iterations), so the count stays exactly
+at baseline. Gate: fmt clean; clippy clean; `cargo test --workspace --all-features` → **402
+passed / 0 failed / 1 ignored** (unchanged); demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`
+and sweep shasum `85d06e5be4b1a2ac09713a30b56ba794624dc260` both unchanged; `sweep-verify: OK`. `git
+status --porcelain` shows exactly `crates/sweep/src/sensitivity.rs` + this worklog/queue flip. Next
+executor card is **C8.2** (`data_provenance` typed rollup on `SweepReport`).
+
+## 2026-07-17 — CARD-HYG-1 DONE: ported the gnhf black-box CLI e2e tests onto current `main`
+
+Step 0 baseline confirmed before editing: fmt/clippy clean; `cargo test --workspace --all-features`
+→ **402 passed / 0 failed / 1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`;
+sweep shasum `85d06e5be4b1a2ac09713a30b56ba794624dc260`; `sweep-verify: OK` (baseline includes the
+staged M-HF-C8.1 diff, as expected). Read the reference test at `git show
+df5e3e8:crates/cli/tests/demo_end_to_end.rs` and diffed every field/marker/behavior it exercises
+against current `main` (`crates/cli/src/main.rs`, `crates/results/src/lib.rs`) before porting: usage
+text, exit-code-2 unknown-command path, the `--- RunResult (trend_alloc_v1), schema-valid ---`
+marker, all `RunResult`/`RunConfig`/`EquityPointDto`/`RoundTripDto` field names, and the `demo`'s
+24-bar/3-round-trip shape all matched the branch reference exactly — **no assertion needed
+adaptation**, so this was a straight port, not a reconciliation. Added `crates/cli/tests/
+demo_end_to_end.rs` (4 tests: `demo_stdout_is_byte_identical_across_runs`,
+`demo_embeds_a_schema_valid_run_result`, `demo_run_result_is_internally_consistent`,
+`usage_and_unknown_command_paths`) verbatim from the reference, plus `crates/cli/Cargo.toml`
+`[dev-dependencies]` (`serde_json`, `jsonschema`, both pre-existing workspace members — no new
+external deps) and the resulting `Cargo.lock` move. No production code touched. Gate: fmt/clippy
+clean; `cargo test -p cli` → 19 existing + 4 new, all green; `cargo test --workspace --all-features`
+→ **406 passed / 0 failed / 1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` and
+sweep shasum `85d06e5be4b1a2ac09713a30b56ba794624dc260` both **unchanged**; `sweep-verify: OK`. `git
+status --porcelain` shows exactly `crates/cli/tests/demo_end_to_end.rs` (new), `crates/cli/Cargo.toml`,
+`Cargo.lock`, plus this worklog/queue flip, on top of the still-untouched staged M-HF-C8.1 files.

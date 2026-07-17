@@ -21,5 +21,9 @@ results = { workspace = true }
 sweep = { workspace = true }
 rust_decimal = { workspace = true }
 
+[dev-dependencies]
+serde_json = { workspace = true }
+jsonschema = { workspace = true }
+
 [lints]
 workspace = true
