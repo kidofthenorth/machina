@@ -5070,7 +5070,7 @@ capability. Never `git commit`/`git push` — the operator commits explicit path
 
 ---
 
-### M-HF-C7 — First intent-only HF hypothesis strategy: `intraday_meanrev_v1` (+ deterministic ≥100k-bar cadence gate) — `TODO`
+### M-HF-C7 — First intent-only HF hypothesis strategy: `intraday_meanrev_v1` (+ deterministic ≥100k-bar cadence gate) — `DONE`
 
 **Why this card exists (and why it is NARROW — one family, not two).** m-hf-track §5 row C7 and the
 superseded sketch (highfrequency-algo-plan.md:299) name **two** families, `statarb_pairs_v1` +

@@ -9,12 +9,14 @@
 //! - Baselines: [`baselines::HoldUsdc`], [`baselines::BuyAndHoldSol`], [`baselines::Static5050`],
 //!   [`baselines::DcaIntoSol`].
 //! - Scaffolds: [`trend_alloc::TrendAllocV1`], [`threshold_rebalance::ThresholdRebalanceV1`],
-//!   [`regime::classify`] (regime classifier scaffold).
+//!   [`regime::classify`] (regime classifier scaffold),
+//!   [`intraday_meanrev::IntradayMeanRevV1`] (HF intraday mean-reversion scaffold).
 //!
 //! These are **scaffolds with deterministic tests**, not tuned models, and imply **no**
 //! profitability (invariant 11). Parameters are illustrative.
 
 pub mod baselines;
+pub mod intraday_meanrev;
 pub mod regime;
 pub mod threshold_rebalance;
 pub mod trend_alloc;
@@ -37,6 +39,7 @@ pub trait Strategy {
 }
 
 pub use baselines::{BuyAndHoldSol, DcaIntoSol, HoldUsdc, Static5050};
+pub use intraday_meanrev::IntradayMeanRevV1;
 pub use regime::{classify as classify_regime, Regime};
 pub use threshold_rebalance::ThresholdRebalanceV1;
 pub use trend_alloc::TrendAllocV1;

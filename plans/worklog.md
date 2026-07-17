@@ -1203,3 +1203,21 @@ recorded inline (not full logs).
   (`statarb_pairs_v1` + `intraday_meanrev_v1`, intent-only) — but its §5-drafted text predates the
   landed code, so a planner must reconcile it (grep its construction sites, per the lesson) before it
   executes; C8 now carries all the deferred C6 ladder/scenario/spec-lint/provenance work.
+- 2026-07-16 (executor, card M-HF-C7): **DONE.** Step 0 baseline matched exactly (391 passed/0
+  failed/1 ignored; demo shasum `ae064f79…`; sweep shasum `85d06e5b…`; sweep-verify OK). Added
+  `IntradayMeanRevV1` (`crates/strategies/src/intraday_meanrev.rs`, NEW): SMA anchor + deviation
+  band, pure Decimal, guards mirror `trend_alloc`/`regime::classify`; 9 pinned unit tests all pass.
+  `lib.rs` wired additively (`pub mod intraday_meanrev;` + re-export + doc bullet), no `match`
+  touched. `crates/sweep/tests/hf_cadence.rs` (NEW): `run_hf(fixed_latency(1, n))` over a
+  100k-bar C2 synthetic series — `equity_curve.len() == bars.len()` and a byte-identical repeat
+  (`assert_eq!(a, b)` on `HfRunOutput`) prove cadence + determinism; a second hand-built-series test
+  proves the family trades on a cheap dip (non-vacuity). Both tests run fast (~0.7s combined), no
+  `#[ignore]` needed. Full workspace gate after: fmt/clippy clean; **402 passed/0 failed/1 ignored**
+  (391+9 unit+2 cadence, matches the pinned N≥401 exactly at 402). Byte-identity guard: demo shasum
+  `ae064f79242f823ffd8f55bf9104e3e1b45d425a` unchanged, sweep shasum
+  `85d06e5be4b1a2ac09713a30b56ba794624dc260` unchanged, sweep-verify OK — confirms C7 never touched
+  the sweep/CLI path. `git status` shows exactly the 3 card files
+  (`intraday_meanrev.rs`, `lib.rs`, `hf_cadence.rs`) plus this queue/worklog flip; no `param.rs`,
+  `spec.rs`, `runner.rs`, `config/`, `cli`, `schemas/`, `Cargo.toml`, or allowlist touched. No
+  escalation triggered. Next executor card is **C8** (statarb_pairs_v1 + sweep/`ParamGrid` wiring
+  + the deferred allowlist edit) — planner-drafted, not yet executor-ready per this card's own note.
