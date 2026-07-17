@@ -8,12 +8,18 @@ point. **C7 is DONE (2026-07-16, committed at `f09761b`, independently re-verifi
 — `intraday_meanrev_v1` (survey §1.2) as a single-series intent-only `Strategy` + a ≥100k-bar
 deterministic `run_hf` cadence proof. Workspace is now **402 passed / 0 failed / 1 ignored**;
 demo shasum `ae064f79…` and sweep shasum `85d06e5b…` both UNCHANGED (the C7 byte-identity guard
-held); sweep-verify OK. **`statarb_pairs_v1` + the USDT/jitoSOL allowlist edit are DEFERRED to
-C8** — the single-series `Strategy`/`run_hf` engine can't express a SOL/LST pair, there's no
-correlated-LST synthetic data, and jitoSOL isn't allowlisted (see the C7 card's planner-decision
-block). **The next step is the C8 PLANNER PASS — there is no executor-ready card.** C8 inherits all
-the ladder/`ScenarioId`/`hf_cost_scenarios`/`data_provenance`/spec-lint work from C6's
-reconciliation plus the statarb pair machinery + allowlist edit from C7's. Never start M6+
+held); sweep-verify OK. **The C8 PLANNER PASS IS DONE (2026-07-16, plan files only, HEAD unchanged
+at `3c653ba`).** C8 is now **C8.1-C8.7** (task-queue.md's "M-HF-C8 planner reconciliation"
+section): **C8.1/C8.2/C8.3 are executor-ready now** (small, mechanical, additive: `ScenarioId`
+ladder enum, `data_provenance` rollup, `ParamPoint`/`ParamGrid` gain `IntradayMeanRev`); **C8.4**
+(intraday holdout seal, S9-pattern) and **C8.5** (HF-kind spec parsing) are drafted but want a
+fresh re-verify right before executing; **C8.6** (wire `HfCostModel`/`AdversarialModel` into
+execution) and **C8.7** (the real row-C8 gate: windowed HF sweep wiring) are scoped, not
+signature-pinned, and each need their own reconciliation pass once their prerequisites land.
+**`statarb_pairs_v1` is scoped OUT of C8 entirely**, into a deferred mini-track `M-HF-C8-PAIR`
+(operator ruling HF-Q4: build the real two-leg engine, not a spread-series approximation - still
+blocked on the USDT/jitoSOL allowlist fields, which the operator has not supplied). **The next
+command is executing C8.1** - fully unblocked, no operator input needed. Never start M6+
 (network) or M8/M9 (signing/submit — separate explicit human approval). **Do not commit or push —
 the operator commits.**
 
@@ -163,14 +169,22 @@ narrow: turnover-criterion replacement; sweep schema 1.2.0; new sweep shasum `85
 the C3–C5 checkpoint is closed and m-hf-track §4/§5 was corrected 2026-07-15 to match the landed
 scope. **C7 is DONE (2026-07-16 at `f09761b`, re-verified by a fresh session): `intraday_meanrev_v1`
 ONLY** (survey §1.2, single-series intent-only mean-reversion; 9 unit + 2 cadence tests; ≥100k-bar
-deterministic `run_hf` run; demo+sweep shasums unchanged — 402/0/1). **`statarb_pairs_v1` (survey
-§1.6, SOL/LST pair) is DEFERRED to C8** — it can't run on the single-series engine, has no
-correlated-LST synthetic data, and needs the HF-Q2 allowlist edit (jitoSOL/USDT approved 2026-07-12;
-the verbatim `[[token]]` block, with operator-supplied mint/survivorship fields, lands at C8).
-**C8** now carries all the deferred C6 work (`ScenarioId` rungs, `hf_cost_scenarios`,
-`data_provenance`, the HF-kind spec discriminator + spec-lint) plus SweepSpec HF-kind +
-windowed-sweep wiring **plus the deferred statarb pair machinery + allowlist edit — a PLANNER pass
-must draft it before any executor touches it**. HF-Q1 (deferred to wave 2) blocks C9/C10;
+deterministic `run_hf` run; demo+sweep shasums unchanged — 402/0/1). **The C8 planner pass is DONE
+(2026-07-16, plan files only): C8 is split into C8.1-C8.7 plus a deferred mini-track.** C8.1
+(`ScenarioId` ladder enum), C8.2 (`data_provenance` rollup), and C8.3 (`ParamPoint`/`ParamGrid` gain
+`IntradayMeanRev`) are **executor-ready now** - small, mechanical, additive, no operator input
+needed. C8.4 (intraday holdout seal, S9-pattern) and C8.5 (HF-kind spec parsing) are drafted but
+want a fresh re-verify right before executing. C8.6 (wire `HfCostModel`/`AdversarialModel` into a
+new execution entry) and C8.7 (the real row-C8 gate: windowed HF sweep wiring across thread counts)
+are scoped, not signature-pinned - each needs its own planner reconciliation pass once its
+prerequisites land, mirroring the C6→C8/C7→C8 pattern. **`statarb_pairs_v1` (survey §1.6, SOL/LST
+pair) is scoped OUT of C8 into a deferred mini-track, `M-HF-C8-PAIR`** (operator ruling HF-Q4,
+2026-07-16: build the real two-leg engine, not a precomputed-spread approximation, because the
+approximation risks the exact fabricated-edge failure mode the cost ladder exists to catch) - it
+still can't run on the single-series engine, has no correlated-LST synthetic data, and needs the
+HF-Q2 allowlist edit (jitoSOL/USDT approved 2026-07-12; the verbatim `[[token]]` block, with
+operator-supplied mint/survivorship fields, still hasn't been supplied - it now lands with whichever
+future PAIR card first needs it, not C8). HF-Q1 (deferred to wave 2) blocks C9/C10;
 HF-Q3 blocks C10. Neither daily-bar family advances; M6 (shadow) has no candidate and does not start.
 
 The Q7 HF amendment was made 2026-07-09 (D-0012): master-plan pair amended in lockstep
@@ -219,7 +233,7 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 
 ---
 
-## Seed prompt for the new chat — execute the next M-HF wave-1 card
+## Seed prompt for the new chat — execute M-HF-C8.1
 
 > You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
 > crypto trading-**research** platform in Rust built toward **genuine autonomous passive income**
@@ -228,23 +242,25 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 > is a hypothesis to test — no card claims a known-profitable algorithm, and rejecting them all
 > cleanly is a successful outcome.
 >
-> **State (2026-07-15):** M5 CLOSED (reject-all; holdout unread, seal intact). M-HF C1–C5, C5.1, and
-> C6 DONE. Workspace green at **391 passed, 0 failed, 1 ignored**; demo shasum
-> `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; template sweep shasum
-> `85d06e5be4b1a2ac09713a30b56ba794624dc260` (C6 bumped it to schema 1.2.0); `sweep-verify: OK`.
+> **State (2026-07-16):** M5 CLOSED (reject-all; holdout unread, seal intact). M-HF C1–C7 DONE.
+> Workspace green at **402 passed, 0 failed, 1 ignored**; demo shasum
+> `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum
+> `85d06e5be4b1a2ac09713a30b56ba794624dc260`; `sweep-verify: OK`.
 >
-> **There is NO executor-ready card — the next step is the C8 PLANNER PASS.** C7 is DONE
-> (2026-07-16 at `f09761b`, independently re-verified: 402/0/1; demo+sweep shasums unchanged).
-> **C8 is undrafted** and carries a double inheritance: from C6's reconciliation — `ScenarioId`
-> ladder rungs, `hf_cost_scenarios`, `data_provenance`, the HF-kind spec discriminator + spec-lint;
-> from C7's — `statarb_pairs_v1`'s pair/multi-series machinery and the verbatim USDT+jitoSOL
-> `[[token]]` allowlist edit (HF-Q2, resolved 2026-07-12 — the operator supplies mint/decimals/
-> survivorship fields; NEVER invent a mint address). The planner pass must also get an operator
-> ruling on the statarb pair interface (extend the engine for two legs vs a precomputed spread
-> series — a real semantic fork, see the C7 card's planner-decision block) and apply the C6/C7
-> lesson: grep EVERY construction site of EVERY struct the card touches, workspace-wide, before
-> quoting anything. If you are an executor reading this: STOP — say a planner pass is owed first.
-> Do not execute drafted-but-unreconciled text.
+> **The C8 planner pass is DONE.** C8 is now C8.1–C8.7 plus a deferred `M-HF-C8-PAIR` mini-track —
+> see task-queue.md's "M-HF-C8 planner reconciliation (2026-07-16)" section for the full audit and
+> every card's text. **Your card is M-HF-C8.1** (`ScenarioId` gains `HotCongestion`/
+> `AdversarialWorst`/`Latency2x` + a compiler-forced `label()` — enum only, nothing wired into
+> execution). It is small, mechanical, fully additive, and needs no operator input. Read the card in
+> full before touching anything; its "Current state (verbatim)" block is what to re-verify against
+> your HEAD before editing — if it doesn't match, STOP and report rather than adapt.
+>
+> Apply the C6/C7 lesson: re-grep every construction/match site this card's own audit names before
+> trusting it, don't assume the audit is still accurate at your HEAD. After C8.1, the queue continues
+> C8.2 → C8.3 (both also executor-ready) → C8.4/C8.5 (re-verify against HEAD first, each depends on
+> the prior cards having actually landed) → C8.6/C8.7 (need their own planner reconciliation pass
+> before anyone executes them — do not attempt to execute their scoped sketches as if they were
+> pinned cards).
 >
 > When the gate passes: flip the card, one worklog line, stop — the next card gets a fresh chat.
 > If any escalate-if triggers: STOP, record the mismatch in the worklog, report.

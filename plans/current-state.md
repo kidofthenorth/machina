@@ -1,12 +1,14 @@
 # Current state
 
-Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-15 (M-HF
+Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-16 (M-HF
 wave 2: C3/C4/C5/C5.1 DONE + verified; C3–C5 adversarial checkpoint PASS-with-hardening closed;
 **C6 DONE + verified** (narrow: turnover-criterion replacement; sweep schema 1.2.0, new sweep shasum
 `85d06e5b…`); **C7 DONE + independently re-verified 2026-07-16** (NARROW: `intraday_meanrev_v1`
 intent-only + ≥100k-bar deterministic `run_hf` cadence proof; **402/0/1**, demo+sweep shasums
-unchanged; `statarb_pairs_v1` + the USDT/jitoSOL allowlist edit deferred to C8); next is the
-**C8 planner pass** — C8 is NOT executor-ready).
+unchanged); **C8 PLANNER PASS DONE 2026-07-16 — C8 split into executor-ready C8.1–C8.3, drafted
+C8.4–C8.5, scoped C8.6–C8.7 (the real gate), plus a deferred `M-HF-C8-PAIR` mini-track for
+`statarb_pairs_v1` (operator ruling HF-Q4: build the real two-leg engine, own future card sequence,
+not part of C8's gate)**; next up is executing **C8.1** (fully unblocked, no operator input needed).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -157,12 +159,33 @@ tests + 2 `hf_cadence` tests, exactly the card's pinned N; demo `ae064f79…` an
 byte-identical — the C7 no-sweep-wiring guard held; sweep-verify OK; commit code scope exactly the
 3 card files). Known cosmetic drift, operator-only to fix: `f09761b`'s commit message duplicates
 `1d5c8b1`'s ("plan files only") but actually carries the C7 code + the `DECISIONS.md`→`docs/` move +
-`docs/FOREMAN.md`/`docs/repo-kit/*` (worklog 2026-07-16). Next: the **C8 planner pass** (fresh
-planner session) — C8 is NOT executor-ready; it inherits from C6: `ScenarioId` rungs,
-`hf_cost_scenarios`, `data_provenance`, HF-kind spec discriminator + lint; and from C7:
-`statarb_pairs_v1` pair/multi-series machinery + the verbatim USDT+jitoSOL `[[token]]` allowlist
-edit (HF-Q2 — operator supplies mint/survivorship fields; never an executor default). The pass also
-needs an operator ruling on the statarb pair interface (engine two-leg extension vs precomputed
-spread series). M6 has no candidate and does not start.
+`docs/FOREMAN.md`/`docs/repo-kit/*` (worklog 2026-07-16).
+
+**The C8 planner pass is DONE (2026-07-16, HEAD `3c653ba`, no code changed — plan files only).** A
+grep-verified reconciliation found row-C8's own m-hf-track sketch unbuildable as worded — see
+task-queue.md's "M-HF-C8 planner reconciliation (2026-07-16)" for the full audit. **C8 is now
+C8.1–C8.7:**
+- **C8.1** (`ScenarioId` gains the 3 HF ladder variants + compiler-forced `label()`), **C8.2**
+  (`data_provenance` typed rollup on `SweepReport`), **C8.3** (`ParamPoint`/`ParamGrid` gain
+  `IntradayMeanRev`) are drafted **executor-ready now** — each is small, mechanical, additive, and
+  independently gate-able (demo/sweep shasums unchanged by all three). **C8.1 is the next command.**
+- **C8.4** (`sweep::intraday_partition`, the S9-equivalent intraday holdout seal — structurally
+  duplicated from `partition.rs` per m-hf-track §1) and **C8.5** (`HfSweepSpec` HF-kind TOML parsing
+  + spec-lint, parse-only) are drafted to full rigor but want a fresh planner re-verify against HEAD
+  immediately before executing (each depends on prior cards having actually landed).
+- **C8.6** (wire `HfCostModel`+`AdversarialModel` pricing into a new `run_hf_priced` execution entry)
+  and **C8.7** (the actual row-C8 gate: `hf_cost_scenarios` ladder assembly + `IntradaySource`
+  windowed cells + a full deterministic HF sweep across thread counts) are **scoped, not
+  signature-pinned** — genuinely new architecture; each needs its own planner reconciliation pass
+  once its prerequisites land for real, mirroring the C6→C8/C7→C8 deferral pattern. New FOREMAN §3
+  review points recommended: after C8.4, after C8.6.
+- **Operator ruling HF-Q4 (this session):** `statarb_pairs_v1` gets a real two-leg engine (the
+  precomputed-spread-series shortcut was rejected as a fabricated-edge risk). Because that is roughly
+  as large as C1–C7 combined, it is scoped OUT of C8's gate into a deferred mini-track,
+  **`M-HF-C8-PAIR`** (task-queue.md) — its own future card sequence, not drafted yet. Blocked
+  additionally on HF-Q2's still-unsupplied USDT/jitoSOL `[[token]]` fields (exact list in
+  task-queue.md's `M-HF-C8-PAIR` section — external, migration-sensitive, never invented).
+
+M6 has no candidate and does not start.
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

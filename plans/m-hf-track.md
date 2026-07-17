@@ -155,6 +155,15 @@ slot-resolution families (1.1/1.3/1.4/1.7), which the survey already defers.
 - Schema: two new kind strings (C6, done) + `data_provenance` (§2, **moved to C8**) in additive minor
   version(s); old reports
   still validate.
+- **[CORRECTED 2026-07-16 — the C8 planner pass found this paragraph's own premise unbuildable as
+  worded.]** `hf_cost_scenarios(base_cost, base_pipeline) -> Vec<(ScenarioId, CostModel,
+  LatencyPipeline)>` cannot be assembled as a `(CostModel, LatencyPipeline)`-shaped ladder: the
+  `HotCongestion`/`AdversarialWorst` rungs price through `HfCostModel`/`AdversarialModel` (C4/C5),
+  types that are not `CostModel` and are explicitly "not yet wired into execution" by their own module
+  docs. The `ScenarioId` enum + its variants (safe, needed everywhere, zero dependency) is now its own
+  card (**C8.1**); the ladder-ASSEMBLY function moves to the windowed-wiring capstone (**C8.7**), once
+  the execution wiring it depends on (**C8.6**) exists. See task-queue.md's "M-HF-C8 planner
+  reconciliation (2026-07-16)" for the full audit.
 
 ## 5. Card sequence (gates on every card; workspace green at every step)
 
@@ -176,12 +185,22 @@ by a written note in questions.md. *(2026-07-15: earlier "(still open)" for HF-Q
 | 7 | **C5** | adversarial terms: sandwich, pickoff, maker trade-through; base-rung expected adverse-selection term | worst-case rung reproduces τ-loss every taker fill; touch-without-trade-through → no fill |
 | 8 | **C6** *(DONE 2026-07-15, narrow)* | **turnover replacement ONLY** (`turnover_budget→Option`, opt-in cost-drag/per-trade-edge criteria + 2 `RejectionKind`s + exhaustive `label()`; additive schema 1.1.0→1.2.0) | byte-identical-to-M4 regression (PRIMARY gate, met); version-only sweep diff. **Ladder rungs / `ScenarioId` / `hf_cost_scenarios` / `data_provenance` / HF-kind spec-lint all MOVED TO C8** (their C6 premises didn't exist in code — see §4 correction) |
 | 9 | **C7** *(reconciled 2026-07-15, NARROW — planner pass; card in task-queue.md §M-HF)* | **`intraday_meanrev_v1` ONLY** (survey §1.2, single-series intent-only mean-reversion). `statarb_pairs_v1` (survey §1.6, SOL/LST pair) **MOVED TO C8**: it cannot run on the single-series `Strategy`/`run_hf` engine (`PortfolioState` holds one risky asset; no multi-series/spread type exists), has no correlated-LST synthetic data, and needs the deferred jitoSOL allowlist edit (§6 HF-Q2) | deterministic; weights only; **≥100k-bar cadence run via `run_hf` — NO `ParamGrid`/sweep wiring (that's C8) — within the C2.6 measured budget**; demo+sweep shasums unchanged |
-| 10 | **C8** | `SweepSpec` HF-kind (resolution, cost blocks, `max_lookback_bars`, scenario declarations); windowed sweep wiring; **+ inherited: `ScenarioId` rungs / `hf_cost_scenarios` / `data_provenance` / HF-kind spec-lint (from C6), and `statarb_pairs_v1` pair/multi-series machinery + the verbatim USDT+jitoSOL `[[token]]` allowlist edit (HF-Q2; operator supplies mint/survivorship fields) (from C7)** | full synthetic HF sweep deterministic across {1,2,3,7,8}; schema-valid; holdout counter 0; wall-clock re-measured and recorded |
+| 10 | **C8** *(SPLIT 2026-07-16 — see below)* | see C8.1–C8.7 | row-C8's gate is C8.7's |
+| 10a | **C8.1** *(drafted, executor-ready)* | `ScenarioId` gains `HotCongestion`/`AdversarialWorst`/`Latency2x` + compiler-forced `label()` — enum only, no ladder assembly | compiles, demo/sweep shasums unchanged |
+| 10b | **C8.2** *(drafted, executor-ready)* | `data_provenance` computed rollup on `SweepReport` (typed `"synthetic"\|"real"\|"mixed"`, additive `with_data_provenance` builder, schema 1.2.0→1.3.0) | pure function proven by unit test; no caller yet |
+| 10c | **C8.3** *(drafted, executor-ready)* | `ParamPoint`/`ParamGrid` gain `IntradayMeanRev` (the compiler-forced blast radius C7's audit mapped, executed for the one HF family that exists) | compiles, demo/sweep shasums unchanged |
+| 10d | **C8.4** *(drafted, S9-pattern)* | `sweep::intraday_partition` — the intraday-resolution holdout seal, structurally duplicated from `partition.rs` per m-hf-track §1 (own `Sealed`-equivalent, own call-once `evaluate_on_holdout` sibling, own 3 `compile_fail` doctests) | duplicated test suite + 1 new spacing-gap-rejection test all green; nothing wired in yet |
+| 10e | **C8.5** *(drafted, parse-only)* | `HfSweepSpec`/`HfSweepSpecToml` — HF-kind TOML parsing (resolution, `HfCostModel` cost block, `max_lookback_bars`, grid) + spec-lint (HF-kind forbids `turnover_budget`, requires `depth_curve`); a NEW `hf-strategy-lab.example.toml` template, LF template/`SweepSpec` untouched | template parses/resolves; lint rejections tested; not wired to execution |
+| 10f | **C8.6** *(SCOPED, not signature-pinned — needs its own reconciliation pass)* | wire `HfCostModel` + `AdversarialModel` pricing into a new execution entry (`run_hf_priced`), additive sibling to `run_hf`; a pure congestion-regime classifier | goal + hard constraints + recommended direction recorded; exact signature deferred to reconciliation; recommended FOREMAN §3 review point |
+| 10g | **C8.7** *(SCOPED, not signature-pinned — the actual row-C8 gate)* | `hf_cost_scenarios` ladder assembly (now buildable) + `IntradaySource` windowed cells + a full deterministic HF `SweepReport` on `intraday_meanrev_v1`, wiring C8.1–C8.6 together | full synthetic HF sweep deterministic across {1,2,3,7,8}; schema-valid; holdout counter 0; wall-clock re-measured and recorded — **must be drafted only after C8.1–C8.6 are DONE and re-verified**; recommended FOREMAN §3 review point |
+| — | **M-HF-C8-PAIR** *(deferred mini-track, scoped OUT of C8's gate)* | `statarb_pairs_v1`'s real two-leg engine (operator ruling 2026-07-16, HF-Q4: build it properly, not a spread-series approximation) — its own future card sequence, roughly C1–C7-sized, drafted when picked up | BLOCKED additionally on the USDT+jitoSOL allowlist `[[token]]` fields (HF-Q2 resolved but fields never supplied — external, never invented) |
 | 11 | **C9** (drafted; BLOCKED on HF-Q1) | real intraday ingestion → columnar snapshot, gitignored, credential-free | one real archived day loads/validates/sweeps deterministically |
 | 12 | **C10** | HF research gate declaration | full ladder on real data; **sensitivity sweep over `competitor_floor`/`margin_fraction` showing verdicts robust to it**; the §3 targeting-decorrelation limitation stated verbatim; explicit advance/reject per candidate; track ends at a research decision — anything further is M6+/M8/M9 |
 
 Risk points earning an adversarial review (FOREMAN §3): after C2.5 (the bet), after C3 (the
-determinism primitive), after C6 (the load-bearing `advance.rs` seam), before the C10 declaration.
+determinism primitive), after C6 (the load-bearing `advance.rs` seam), **after C8.4 (a second holdout
+seal — get it wrong and invariant 11 is not structural), after C8.6 (first real HF cost/execution
+wiring, added 2026-07-16)**, before the C10 declaration.
 
 ## 6. Open operator decisions (recorded in questions.md)
 
@@ -189,10 +208,21 @@ determinism primitive), after C6 (the load-bearing `advance.rs` seam), before th
   depth + redistribution terms). Blocks C9/C10 only.
 - **HF-Q2** — allowlist additions (USDT for 1.4, LSTs for 1.6). **RESOLVED 2026-07-12 (questions.md):
   USDT + jitoSOL approved for the *research* allowlist. [CORRECTED 2026-07-15 — was stale "blocks
-  those families' C7+ runs".]** The verbatim `[[token]]` file edit now lands at **C8** (the card that
-  first *runs* `statarb_pairs_v1`/`tri_arb_v1`), not C7 — C7's reconciled scope (`intraday_meanrev_v1`)
-  trades only the already-allowlisted SOL/USDC. The operator supplies the mint/decimals/survivorship
-  fields (an external contract, never an executor default).
+  those families' C7+ runs".] [CORRECTED AGAIN 2026-07-16 — the C8 planner split moved the verbatim
+  edit further, to the deferred `M-HF-C8-PAIR` mini-track, not core C8.]** The verbatim `[[token]]`
+  file edit now lands with whichever card in the future `M-HF-C8-PAIR` sequence first *runs*
+  `statarb_pairs_v1` — C7's reconciled scope (`intraday_meanrev_v1`) and all of core C8.1–C8.7 trade
+  only the already-allowlisted SOL/USDC. The operator still owes the mint/decimals/survivorship fields
+  (an external, migration-sensitive contract, never an executor or planner default) — see
+  task-queue.md's `M-HF-C8-PAIR` section for the exact field list.
+- **HF-Q4 — statarb_pairs_v1 engine interface — RESOLVED 2026-07-16.** Two architectures were laid
+  out with costs (extend the engine for genuine two-leg accounting, vs. approximate a pair as one
+  precomputed spread series through the existing single-series engine) and escalated to the operator.
+  **Resolution: build the real two-leg engine.** The spread-series shortcut was rejected on the
+  merits — it would price fills against a synthetic unit that doesn't correspond to two real on-chain
+  swaps, the same fabricated-edge failure mode the cost ladder exists to catch. Because this is, by
+  the operator's own acknowledgment, roughly as large as C1–C7 combined, it is scoped OUT of C8's gate
+  into its own future mini-track (`M-HF-C8-PAIR`, task-queue.md) rather than folded into C8.7.
 - **HF-Q3** — freeze intraday walk-forward sizing, the landing/priority percentile tables, and the
   HF advancement numbers (`cost_drag_share_ceiling`, `per_trade_edge_floor`, auction margins) —
   BEFORE the C10 sweep, same one-way ratchet as Q5.

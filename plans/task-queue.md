@@ -5334,6 +5334,719 @@ explicit paths.
 
 ---
 
+## M-HF-C8 planner reconciliation (2026-07-16) — C8 split into C8.1…C8.7 + a deferred PAIR track
+
+**Why the split.** m-hf-track §5's row C8 bundled six genuinely different pieces of work behind one
+gate ("SweepSpec HF-kind… windowed sweep wiring… + inherited ladder/scenario/provenance/spec-lint
+(C6) + statarb pair machinery + allowlist edit (C7)"). A fresh grep-verified read at HEAD `3c653ba`
+found real, load-bearing dependencies between those pieces that make one card impossible and make
+some of the m-hf-track §4 sketch's own claims unbuildable as worded:
+
+1. **`hf_cost_scenarios(base_cost, base_pipeline) -> Vec<(ScenarioId, CostModel, LatencyPipeline)>`
+   (§4) cannot be assembled honestly yet.** `HotCongestion`/`AdversarialWorst` rungs price via
+   `portfolio::HfCostModel`/`AdversarialModel` (from C4/C5) — types that are **not** `CostModel`, and
+   both modules say verbatim they are "not yet wired into execution... later cards" (`hf_cost.rs:8-10`,
+   `adversarial.rs:12-16`). A `(ScenarioId, CostModel, LatencyPipeline)`-shaped ladder can't express
+   depth-curve/adverse-selection pricing at all. Building the full ladder-assembly function before
+   that wiring exists would repeat C6's original mistake (citing a surface that doesn't exist) — so
+   the `ScenarioId` enum work (safe, mechanical, needed everywhere) is split from `hf_cost_scenarios`
+   itself (which moves to the windowed-wiring capstone, after the wiring it depends on lands).
+2. **No HF strategy has a `ParamPoint`/`ParamGrid` representation.** C7 deliberately built
+   `intraday_meanrev_v1` WITHOUT touching `param.rs` (its own construction-site audit lists exactly
+   this as C8's job). Any HF-kind spec that wants to enumerate a grid over it needs a new
+   `ParamPoint::IntradayMeanRev`/`ParamGrid::IntradayMeanRev` variant first — its own small,
+   compiler-forced blast radius (`param.rs`'s three exhaustive matches + `runner.rs:234`
+   `in_grid_neighbors`, the third match the C6 lesson exists to catch).
+3. **The intraday holdout seal does not exist and is not optional.** m-hf-track §1 is explicit:
+   `sweep::partition` (S9) is reused only *at the pattern level* — a **new, structurally identical**
+   `sweep::intraday_partition` module, "own `Sealed`-equivalent, own by-value call-once
+   `evaluate_on_holdout` sibling, own 3 `compile_fail` doctests," because "a leaked holdout is
+   categorically worse than duplicated code." No HF sweep can honestly claim "holdout counter 0"
+   (the row-C8 gate) without this existing first — it is exactly as load-bearing as S9 was, and S9 got
+   its own 12-agent adversarial review. This has not been built by any prior card.
+4. **`HfCostModel`/`AdversarialModel` pricing is not wired into any execution entry.** `run_hf` takes
+   `cost: &CostModel` (latency.rs:320-329) — the plain LF cost model. Actually pricing a trade through
+   the HF depth-walk/congestion/adverse-selection stack needs new execution surface, not just new spec
+   parsing. This is the single largest remaining piece of new architecture in the whole HF track.
+5. **statarb_pairs_v1 needs its own engine, confirmed again at this HEAD.** `PortfolioState`
+   (`crates/portfolio/src/state.rs`) still holds exactly one risky asset vs USDC cash; `Strategy`,
+   `run`, `run_hf`, `eval_cell`/`run_sweep` all take exactly one `&[Bar]`; `market_data::synthetic`
+   emits exactly one venue/series. C7's "cannot be built today" analysis is unchanged at `3c653ba`.
+   **Operator ruling (this session, recorded as HF-Q4 in questions.md): build the real two-leg
+   engine**, not a precomputed-spread approximation — a synthetic spread series would price fills
+   against a unit that doesn't correspond to two real on-chain swaps, the same fabricated-edge
+   failure mode the cost ladder exists to catch. Because of (5) alone this is roughly as large as
+   C1–C7 combined, so it is **scoped OUT of C8's gate entirely** into its own future mini-track
+   (`M-HF-C8-PAIR`, sketched below, not drafted as executor cards yet) — **C8's own gate is satisfied
+   using `intraday_meanrev_v1` alone** (already built, C7).
+
+**Consequence: C8 is now C8.1…C8.7**, ordered by real dependency (each still gates on the full
+workspace battery; "gate" below is *in addition to* fmt/clippy/full-suite/demo+sweep-shasum checks
+unless a card explicitly says a shasum is expected to move). C8.1–C8.3 are mechanical/additive and
+**executor-ready now**. C8.4 (intraday holdout seal) and C8.5 (HF-kind spec) are well-understood,
+S9/C2-pattern work and are drafted to full rigor but **should each get a planner's one-more-glance
+re-verification against HEAD immediately before executing**, since each depends on the card(s) before
+it having actually landed. C8.6 (HF cost/adversarial execution wiring) and C8.7 (the windowed-sweep
+capstone that is row-C8's actual gate) are **design-scoped, not signature-pinned** — new architecture
+whose exact shape depends on C8.1–C8.5 as landed, not as sketched; each explicitly requires **its own
+planner reconciliation pass** before an executor touches it (the C6→C8, C7→C8 pattern, applied
+proactively this time instead of being discovered after drafting). **New FOREMAN §3 risk points,
+recommended for adversarial review:** after C8.4 (a second holdout seal — get it wrong and invariant
+11 is not structural), after C8.6 (first real HF cost/execution wiring), and — as m-hf-track already
+says — before the C10 declaration.
+
+---
+
+### M-HF-C8.1 — `ScenarioId` gains the three HF ladder rungs (enum + compiler-forced `label()` only) — `TODO`
+
+**Why NARROW.** m-hf-track §4 bundled the new variants with `hf_cost_scenarios`'s full ladder
+assembly. Per the reconciliation note above, the ladder-assembly function needs C8.6's execution
+wiring to know what each rung actually varies — so this card is **only** the enum + its label, the
+one piece every later HF card needs to *name* a scenario by, safe and correct on its own.
+
+**Goal.** Add `ScenarioId::{HotCongestion, AdversarialWorst, Latency2x}` so later cards can reference
+them, with `label()` extended so the compiler forces every future variant to be handled (mirrors
+`RejectionKind::label()`, C6). Zero behavior change to any existing scenario.
+
+**Pinned semantics (planner decisions — do not re-decide).**
+- Three new unit variants, appended **after** `DoubledPriority` (cosmetic only — `ScenarioId` derives
+  `Debug, Clone, Copy, PartialEq, Eq, Serialize`, **no** `Ord`, so append position affects no derived
+  ordering; done for readability parity with the existing list, not correctness).
+- Serde tags (snake_case, matching the existing rename convention): `HotCongestion` →
+  `"hot_congestion"`, `AdversarialWorst` → `"adversarial_worst"`, `Latency2x` → `"latency_2x"`.
+- `label()` gains the three matching arms — this is the ONE exhaustive match over `ScenarioId` in the
+  workspace (confirmed by grep; see construction-site audit), so leaving an arm off is a compile
+  error, not a silent gap.
+- `cost_scenarios()` (sensitivity.rs:95-124) is **UNTOUCHED** — it still returns exactly the 5-entry
+  LF ladder over the 5 original variants. This card does **not** add `hf_cost_scenarios`,
+  does **not** touch `ScenarioMetrics`/`FeeSensitivity` (both hard-locked to the 3 named
+  before/base/doubled slots — surfacing new rungs there is C8.7's job), and does **not** touch
+  `runner.rs`'s two `ScenarioId` matches (both already have a `_` wildcard arm — see audit below).
+
+**Files (1 — the whole point: this is the smallest possible unit of the ladder work).**
+1. `crates/sweep/src/sensitivity.rs` — `ScenarioId` enum (+3 variants/tags), `label()` (+3 arms),
+   module doc (+3 bullet lines mirroring the existing 5), + a new test extending
+   `scenario_label_matches_serde_form`'s coverage to the 3 new variants.
+
+**Construction-site audit — every `ScenarioId` match/construction in the workspace, grep-verified at
+`3c653ba` (`grep -rn "ScenarioId" --include="*.rs" crates`), so nothing here is rediscovered later.**
+- `crates/sweep/src/sensitivity.rs:42-54` `label()` — **exhaustive, no wildcard.** The only site this
+  card must edit to keep compiling.
+- `crates/sweep/src/runner.rs:87-97` (`aggregate_evidence`, `match k.scenario { Base => …, Doubled =>
+  …, _ => {} }`) — has a `_` wildcard. Compiles untouched; the 3 new variants are silently ignored
+  here for now. **Flag for C8.7:** once HF cells actually carry these scenarios, this wildcard must
+  become real arms or HF evidence silently vanishes — noted here so it isn't rediscovered as a
+  surprise.
+- `crates/sweep/src/runner.rs:173-178` (`aggregate_fee_sensitivity`, `match k.scenario { BeforeCosts
+  => 0, Base => 1, Doubled => 2, _ => continue }`) — same: wildcard-protected, same C8.7 flag.
+- `crates/sweep/src/report.rs` — no `ScenarioId` match at all (`FeeSensitivityDto` hardcodes 3 named
+  fields, never enumerates the enum). Untouched.
+- `crates/sweep/tests/schema_validation.rs:63,77-79` — constructs `ScenarioMetrics` over the 3
+  existing variants only via a local helper. Untouched.
+- No other file references `ScenarioId`.
+
+**Current state (verbatim, verified 2026-07-16 at HEAD `3c653ba`; if it differs, escalate — don't
+adapt).**
+```rust
+// crates/sweep/src/sensitivity.rs:24-40
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub enum ScenarioId {
+    #[serde(rename = "before_costs")]
+    BeforeCosts,
+    #[serde(rename = "base")]
+    Base,
+    #[serde(rename = "doubled")]
+    Doubled,
+    #[serde(rename = "doubled_slippage")]
+    DoubledSlippage,
+    #[serde(rename = "doubled_priority")]
+    DoubledPriority,
+}
+
+impl ScenarioId {
+    #[must_use]
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::BeforeCosts => "before_costs",
+            Self::Base => "base",
+            Self::Doubled => "doubled",
+            Self::DoubledSlippage => "doubled_slippage",
+            Self::DoubledPriority => "doubled_priority",
+        }
+    }
+}
+```
+Baseline gate numbers at Step 0: **402 passed / 0 failed / 1 ignored**; demo shasum
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum `85d06e5be4b1a2ac09713a30b56ba794624dc260`;
+`sweep-verify: OK` (unchanged since C7).
+
+**Steps.**
+1. Step 0: run the full-workspace gate; confirm the baseline numbers above. If different, STOP and
+   report — don't proceed on a wrong baseline.
+2. Add the 3 variants + serde tags after `DoubledPriority`; add the 3 `label()` arms; add the 3
+   module-doc bullets (mirroring the existing `ScenarioId::Variant` bullets at the top of the file).
+3. Extend `scenario_label_matches_serde_form` (or add a sibling test) so all 8 variants are asserted
+   `serde_json::to_string(&id) == format!("\"{}\"", id.label())`.
+4. `cargo fmt --all`; run the full gate; flip this card to `DONE` + one worklog line, noting the
+   C8.7 wildcard flag above is now live (both runner.rs matches silently ignore the new variants
+   until C8.7 gives them real arms).
+
+**Gate.**
+- `cargo test -p sweep` green including the extended label test.
+- Full workspace: fmt clean; clippy clean; `cargo test --workspace --all-features` → **0 failed, 1
+  ignored, N passed** where `N = 402 + (new assertions, likely +0 to +1 test fn)`; record exact N.
+- Demo shasum `ae064f79…` **unchanged**; sweep shasum `85d06e5b…` **unchanged** (nothing is wired
+  into execution or the report by this card — if either moves, STOP, something leaked in).
+- `git status` shows exactly `crates/sweep/src/sensitivity.rs` + the queue/worklog flip.
+
+**Guardrails.** Do NOT touch `cost_scenarios`, `ScenarioMetrics`, `FeeSensitivity`, either match in
+`runner.rs`, `report.rs`, or add `hf_cost_scenarios` (C8.7). No new dependency. No money math in this
+card at all (it's an enum) — nothing to keep Decimal-only, but don't introduce any.
+
+**Escalate-if:** the quoted block doesn't match source at `3c653ba`; the Step-0 baseline isn't
+402/0/1 or either shasum differs; you find yourself wanting to write `hf_cost_scenarios` or touch
+`runner.rs`/`report.rs` — that's C8.7, STOP; either shasum moves after your change — STOP.
+
+---
+
+### M-HF-C8.2 — `data_provenance` computed rollup on `SweepReport` (typed, additive) — `TODO`
+
+**Why.** m-hf-track §2: provenance must be "a typed field, not prose… a report with any synthetic
+input can never render as real." Today the **only** provenance mechanism on `SweepReport` is
+`with_provenance(self, provenance: &str) -> Self` (report.rs:188-193) — a free-text suffix appended
+to `note`, added for M5's real-data path (`cli/main.rs:306-309`, hand-written prose: `"binance
+data.binance.vision SOLUSDC 1d snapshot…"`). That's exactly the hand-written label m-hf-track wants
+replaced by a **computed** fact for HF reports. Grep-verified: `SweepReport::new` has 11 call sites
+across the workspace (`schema_validation.rs` ×8, `runner.rs` ×1, `report.rs` ×2) — changing its
+signature would touch all of them. Mirroring the already-proven `with_provenance` **builder** shape
+(one additive method, zero existing call sites touched) avoids that entirely.
+
+**Pinned semantics.**
+- `SweepReport` gains `#[serde(skip_serializing_if = "Option::is_none")] pub data_provenance:
+  Option<String>`, defaulting to `None` (set inside `SweepReport::new`, which stays otherwise
+  unchanged) — so every existing report (M4/M5/LF, and C8.1) serializes identically; the field is
+  simply absent.
+- New builder `pub fn with_data_provenance(mut self, items: &[research_core::intraday::Provenance])
+  -> Self` computing: `"synthetic"` if every item is `Provenance::Synthetic`, `"real"` if every item
+  is `Provenance::Real`, `"mixed"` otherwise. **An empty slice is defined as `"synthetic"`**
+  (vacuously — no real data is present; document this, don't panic on it). Pure, no I/O.
+- Nobody calls this builder yet (no HF sweep entry exists) — this card proves the function is correct
+  in isolation, matching the established C4/C5 "pure logic first, sweep wiring later" pattern. C8.7
+  is the first real caller.
+- Additive schema: add optional `"data_provenance": {"type": "string", "enum": ["synthetic", "real",
+  "mixed"]}` to the root object's `properties` (**not** `required`). Bump
+  `SWEEP_SCHEMA_VERSION` `"1.2.0"` → `"1.3.0"` (additive minor, same precedent as C6's 1.1.0→1.2.0).
+  An old 1.2.0 report (missing the field) still validates under 1.3.0.
+
+**Files (3).**
+1. `crates/sweep/src/report.rs` — `SweepReport` struct (+field), `SweepReport::new` (sets `None`),
+   new `with_data_provenance` builder, bump `SWEEP_SCHEMA_VERSION`, new unit tests (synthetic-only →
+   `"synthetic"`; real-only → `"real"`; mixed → `"mixed"`; empty → `"synthetic"`; a report without
+   the builder call omits the field entirely from `to_value()`).
+2. `schemas/sweep-report.schema.json` — add the optional `data_provenance` property to the root
+   object (alongside `schema_version`/`note`/etc.), leave `required` unchanged.
+3. `crates/sweep/tests/schema_validation.rs` — one new test: a report **with**
+   `with_data_provenance(&[Provenance::Real{..}])` applied validates under 1.3.0 and the value round
+   -trips; confirm every EXISTING test (report without the field) still validates (no edit needed if
+   true — run them, don't assume).
+
+**Current state (verbatim, verified 2026-07-16 at HEAD `3c653ba`).**
+```rust
+// crates/sweep/src/report.rs:17-22
+pub const SWEEP_SCHEMA_VERSION: &str = "1.2.0";
+const REPORT_NOTE: &str = "Robustness filter only — not a profitability verdict. …";
+```
+```rust
+// crates/sweep/src/report.rs:137-147
+pub struct SweepReport {
+    pub schema_version: String,
+    pub note: String,
+    pub trial_count: u32,
+    pub thresholds: ThresholdsDto,
+    pub candidates: Vec<CandidateMetricsDto>,
+    pub verdicts: Vec<CandidateVerdict>,
+}
+```
+```rust
+// crates/sweep/src/report.rs:188-193 (the builder shape to mirror, untouched by this card)
+pub fn with_provenance(mut self, provenance: &str) -> Self {
+    self.note = format!("{} | data: {provenance}", self.note);
+    self
+}
+```
+`research_core::intraday::Provenance` (research-core/src/intraday.rs:22-29):
+```rust
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum Provenance {
+    Synthetic { spec_hash: u64 },
+    Real { source_id: String },
+}
+```
+`SweepReport::new` call sites (grep-verified, all 11): `schema_validation.rs:120,127,145,155,170,
+195,206,218`; `runner.rs:382`; `report.rs:237,301-302`. None need editing — `new`'s signature and
+body (beyond adding `data_provenance: None`) are unchanged.
+Baseline gate at Step 0: same as C8.1's post-card numbers (run C8.1 first if sequencing strictly, or
+independently if run alone — record whichever N you actually observe).
+
+**Steps.**
+1. Step 0: full-workspace gate, record baseline.
+2. `report.rs`: add the field + `skip_serializing_if`; `SweepReport::new` sets `data_provenance:
+   None`; add `with_data_provenance`; bump the version const; 5 new tests per Pinned semantics.
+3. `schemas/sweep-report.schema.json`: add the optional property + its enum.
+4. `schema_validation.rs`: add the "with provenance validates" test; re-run every existing test.
+5. `cargo fmt --all`; full gate; flip to `DONE` + worklog line.
+
+**Gate.**
+- `cargo test -p sweep` green incl. the 5 new `report.rs` tests + the new schema test.
+- Full workspace: fmt/clippy clean; `cargo test --workspace --all-features` → 0 failed, 1 ignored,
+  record exact N (baseline + ~6 new tests).
+- `cargo run -p cli -- sweep` output: the **only** diff vs. before this card is
+  `"schema_version": "1.2.0"` → `"1.3.0"` (the CLI path never calls `with_data_provenance`, so the
+  field stays absent) — diff before/after and confirm, then record the **new sweep shasum**. Demo
+  shasum unchanged.
+- `git status` shows exactly the 3 files + queue/worklog flip.
+
+**Guardrails.** Decimal/String only — no f64; `with_data_provenance` is pure (no I/O, no clock); do
+NOT change `SweepReport::new`'s signature or touch any of its 11 call sites; do NOT wire this into
+`run_sweep`/the CLI (no caller exists yet — that's C8.7); do NOT touch `with_provenance` (the
+existing M5 mechanism stays as-is, both can coexist).
+
+**Escalate-if:** the quoted blocks don't match source; the sweep-report diff is anything beyond the
+one `schema_version` line; the demo shasum moves; you find yourself wiring this into `run_sweep` or
+`cli` — STOP, that's C8.7.
+
+---
+
+### M-HF-C8.3 — `ParamPoint`/`ParamGrid` gain an `IntradayMeanRev` variant (mechanical enum extension) — `TODO`
+
+**Why.** C7 built `intraday_meanrev_v1` deliberately WITHOUT touching `param.rs` (its own
+construction-site audit names this as C8's job). No HF spec can enumerate a grid over it — or over
+any HF family — until `ParamPoint`/`ParamGrid` know how to build one. This is the compiler-forced
+blast radius C7's audit already mapped; this card executes exactly that mapping for the one HF family
+that exists today.
+
+**Pinned semantics.**
+- `ParamPoint::IntradayMeanRev { anchor_period: usize, band: Decimal, weight_in: Decimal, weight_out:
+  Decimal }` — field names/types verbatim match `IntradayMeanRevV1`'s struct
+  (`crates/strategies/src/intraday_meanrev.rs:13-21`, confirmed at HEAD).
+- `ParamGrid::IntradayMeanRev { anchor_periods: Vec<usize>, bands: Vec<Decimal>, weights_in:
+  Vec<Decimal>, weights_out: Vec<Decimal> }` — 4-axis Cartesian product, nested
+  anchor_period(outer)→band→weight_in→weight_out(inner), same fixed-order convention as
+  `TrendAlloc`'s 3 axes.
+- `family()` → `"intraday_meanrev_v1"` (must equal `IntradayMeanRevV1::name()`, asserted by test).
+- `param_id()` → `format!("anchor={};band={};in={};out={}", anchor_period,
+  band.normalize(), weight_in.normalize(), weight_out.normalize())` — scale-canonical, same
+  `.normalize()` convention as the other two families.
+- `build_strategy()` → `Box::new(IntradayMeanRevV1 { anchor_period, band, weight_in, weight_out })`.
+- `in_grid_neighbors`'s `dims` match gains: `ParamGrid::IntradayMeanRev { anchor_periods, bands,
+  weights_in, weights_out } => vec![anchor_periods.len(), bands.len(), weights_in.len(),
+  weights_out.len()]`.
+- This card does **not** wire the new variant into any `SweepSpecToml`/TOML config, the CLI roster,
+  or a running sweep — it only makes the enums able to represent and build the family. Spec parsing
+  is C8.5; execution wiring is C8.6; the windowed sweep that actually runs it is C8.7.
+
+**Files (2 — the compiler-forced set, confirmed by grep at `3c653ba`; no other site touches
+`ParamPoint`/`ParamGrid` construction or matches them exhaustively).**
+1. `crates/sweep/src/param.rs` — `ParamPoint` enum (+variant), `family()` (+arm, :31-36), `param_id()`
+   (+arm, :44-65), `build_strategy()` (+arm, :71-90), `ParamGrid` enum (+variant, :95-107), `points()`
+   (+arm, :117-156), + new tests (grid-is-fixed-order-cartesian-product, build_strategy round-trip,
+   param_id scale-canonical — mirroring the existing per-family test trio).
+2. `crates/sweep/src/runner.rs` — `in_grid_neighbors`'s `dims` match (:234-249, the exhaustive
+   3rd match the C6 lesson flags) + one new test proving neighbor computation over a 4-axis grid.
+
+**Construction-site audit (grep-verified at `3c653ba`; the complete set — nothing else references
+`ParamPoint::`/`ParamGrid::` or matches either exhaustively).**
+- `crates/sweep/src/param.rs:32,45,72,118` — the 4 exhaustive matches (`family`, `param_id`,
+  `build_strategy`, `ParamGrid::points`) — **all 4 must gain an arm or this card fails to compile**
+  (compiler-caught, not a silent gap).
+- `crates/sweep/src/runner.rs:234-249` `in_grid_neighbors` — the 3rd exhaustive match, **not**
+  compiler-obvious from `param.rs` alone (this is the exact site the C6 lesson exists to catch).
+- `crates/sweep/src/cell.rs`, `crates/sweep/src/sensitivity.rs` (test-only), `crates/sweep/src/
+  partition.rs` (test-only), `crates/sweep/src/parallel.rs` reference `ParamPoint` only as an opaque
+  `&ParamPoint`/generic type parameter, never matching it — untouched, confirmed by grep.
+- `crates/sweep/tests/determinism.rs`, `hf_reuse_proof.rs`, `holdout_sealing.rs`, `sweep_runner.rs`
+  construct `ParamGrid::TrendAlloc`/`ThresholdRebalance` literals only — adding a variant elsewhere in
+  the enum does not require editing them (Rust enums don't need every variant touched by every
+  construction site, only by exhaustive matches) — confirmed untouched by grep.
+- `config/strategies/strategy-lab.example.toml`, `config/strategies/m5-frozen.toml`,
+  `SweepSpecToml` (spec.rs) — **not** touched by this card (no TOML section for the new family yet;
+  that's C8.5).
+
+**Current state (verbatim, verified 2026-07-16 at HEAD `3c653ba`).** Already quoted in full in the
+C7 card above (`param.rs:14-26,28-36,44-65,71-90,95-107,109-157`; `runner.rs:234-249`) — re-verify at
+your HEAD before editing; if it differs, escalate.
+
+**Steps.**
+1. Step 0: full-workspace gate, record baseline.
+2. `param.rs`: add the `ParamPoint`/`ParamGrid` variants and the 4 matching arms per Pinned semantics.
+3. `runner.rs`: add the `in_grid_neighbors` arm.
+4. Tests: family/param_id/build_strategy/grid-cartesian-product/neighbor tests per the existing
+   per-family pattern (mirror `param.rs`'s `ThresholdRebalance` test block, `runner.rs`'s
+   `neighbor_degradation_picks_the_worst_axis_neighbor`).
+5. `cargo fmt --all`; full gate; flip to `DONE` + worklog line.
+
+**Gate.**
+- `cargo test -p sweep` green incl. all new tests.
+- Full workspace: fmt/clippy clean; test count = baseline + new test fns, 0 failed, 1 ignored.
+- Demo shasum + sweep shasum **both unchanged** (no TOML/CLI wiring — nothing runs this variant yet).
+- `git status` shows exactly `param.rs`, `runner.rs` + queue/worklog flip.
+
+**Guardrails.** Do NOT touch `spec.rs`/`SweepSpecToml`, any config TOML, or `cli/src/main.rs` (all
+C8.5+). No new dependency. `Decimal`-only for the new fields (matches `IntradayMeanRevV1`'s types
+exactly — don't re-derive types, copy them).
+
+**Escalate-if:** the quoted param.rs/runner.rs blocks don't match source; a 5th match over
+`ParamPoint`/`ParamGrid` turns up that this audit missed — STOP, re-grep before proceeding; either
+shasum moves — STOP (this card must be a no-op on any running path).
+
+---
+
+### M-HF-C8.4 — `sweep::intraday_partition`: the intraday-resolution holdout seal (S9-equivalent, deliberately duplicated) — `TODO`
+
+**Why a duplicate module, not a generic one.** m-hf-track §1, verbatim: "a new, structurally identical
+`sweep::intraday_partition` module: own `Sealed`-equivalent, own by-value call-once
+`evaluate_on_holdout` sibling, own 3 `compile_fail` doctests… reopening it for generics buys nothing
+since intraday and daily partitions never mix in one sweep. A leaked holdout is categorically worse
+than duplicated code." No HF sweep can honestly report "holdout counter 0" without this — it is
+exactly as load-bearing as S9 (which got a 12-agent adversarial review before M4's gate). This card
+is a near-verbatim duplicate of `crates/sweep/src/partition.rs`, differing in exactly one place: the
+series-hygiene check.
+
+**Pinned semantics.**
+- Reuses `crate::config::PartitionSpec` **as-is** — confirmed resolution-agnostic at HEAD:
+  `ByIndex` is pure bar-index arithmetic; `ByDate` compares `Timestamp`s via `partition_point`, which
+  works identically at 1s or 1d spacing. **No new spec type needed** — only the sealing machinery
+  is duplicated, not the boundary-description type.
+- The one real difference from `partition.rs`: `IntradayPartitionedBars::from_spec` validates the
+  series with `market_data::validate_series_spacing(&bars, 1)` (1-second spacing) instead of
+  `market_data::validate_series` (which only checks non-empty/OHLC/sorted+unique, no spacing rule).
+  Confirmed at HEAD: `validate_series_spacing` calls `validate_series` internally then adds a `Gap`
+  check — **same `DataError` return type**, so `IntradayPartitionError::InvalidSeries(DataError)`
+  mirrors `PartitionError::InvalidSeries(DataError)` field-for-field; no new error variant needed
+  for this difference.
+- Every other type is a mechanical rename-duplicate: `IntradayPartitionedBars` (↔`PartitionedBars`),
+  `IntradayDevValidation` (↔`DevValidation`), `IntradaySealed` (↔`Sealed`), `IntradayHoldout`
+  (↔the private `Holdout`), `IntradayPartitionError` (↔`PartitionError`, same 5 variants),
+  `evaluate_intraday_on_holdout` (↔`evaluate_on_holdout`) — same physical `split_off` move, same
+  `Cell<u32>` read-counter gateway, same within-process `digest_bars` witness, same 3
+  `compile_fail`/`no_run` doctest pattern (no-holdout-accessor-on-DevValidation-equivalent, no seal
+  forgery, call-once).
+- `evaluate_intraday_on_holdout`'s scoring call: this module has no opinion on WHAT prices a cell —
+  it stays parameterized exactly like `evaluate_on_holdout` (`chosen: &ParamPoint, cost: &CostModel,
+  ...`) for now, calling the same `crate::cell::eval_cell`. (Once C8.6 lands, a later reconciliation
+  may add an HF-priced sibling call — not this card's job; flagged, not built, here.)
+
+**Files (1 new, big but self-contained by design — S9 itself was one file, `partition.rs`, 649
+lines).**
+1. `crates/sweep/src/intraday_partition.rs` (**NEW**) — the full duplicate described above, plus its
+   own `#[cfg(test)] mod tests` mirroring `partition.rs`'s 11 tests verbatim (by-index split,
+   by-date half-open boundaries, separate-allocation proof, read-counter/audit-hook proof, digest
+   stability, empty/unsorted/duplicate/overlap rejections, `evaluate_intraday_on_holdout` scores
+   exactly the sealed tail) — adapted to a 1s-spaced fixture generator instead of daily bars, and one
+   NEW test proving a series that IS OHLC-valid/sorted/unique but has a spacing gap (e.g. two bars 2s
+   apart) is rejected by `IntradayPartitionedBars::from_spec` where `PartitionedBars::from_spec`
+   would have accepted it (the one behavioral difference this duplicate exists for).
+2. `crates/sweep/src/lib.rs` — `pub mod intraday_partition;` + re-exports (mirroring the existing
+   `pub use partition::{...}` line) — additive only.
+
+**Construction-site audit.** This is a NEW module; nothing in the workspace constructs or matches
+its types yet (confirmed — nothing calls anything named `intraday_partition` at HEAD `3c653ba`, by
+construction). Nothing else needs auditing for this card. Flag for whoever writes C8.7: this module's
+public surface (`IntradayPartitionedBars::from_spec`, `.seal_holdout()`,
+`evaluate_intraday_on_holdout`) is the ONE new construction site C8.7 must wire in.
+
+**Current state (verbatim, verified 2026-07-16 at HEAD `3c653ba`) — the file being duplicated.**
+`crates/sweep/src/partition.rs` in full is the template; its exact current content is quoted at
+length above in this same reconciliation pass's research (module doc :1-21; `PartitionError` :34-52;
+`Holdout` :88-107; `digest_bars` :115-121; `PartitionedBars` :126-278; `DevValidation` :301-347;
+`Sealed` :369-406; `evaluate_on_holdout` :448-458). `market_data::validate_series_spacing`
+(`crates/market-data/src/validation.rs:116-129`) — confirmed same `DataError` return type as
+`validate_series` (:84), calls it internally then adds the `Gap` check.
+
+**Steps.**
+1. Step 0: full-workspace gate, record baseline.
+2. Copy `partition.rs` to `intraday_partition.rs`; rename every type per Pinned semantics; change the
+   one `validate_series` call to `validate_series_spacing(&bars, 1)`; keep every other line's logic
+   identical (the `split_off`, the debug_asserts, the doctests, the read-counter).
+3. Adapt the test module's `series(n)` helper to emit 1s-spaced bars (`ts: i as i64` instead of `i as
+   i64 * 86_400`); add the new spacing-gap-rejection test.
+4. `lib.rs`: add the module + re-exports.
+5. `cargo fmt --all`; full gate; flip to `DONE` + worklog line.
+
+**Gate.**
+- `cargo test -p sweep intraday_partition` green — all duplicated + the 1 new test.
+- The 3 `compile_fail`/`no_run` doctests for the new module compile/fail exactly like their
+  `partition.rs` twins (run `cargo test --doc -p sweep`, confirm 3 new doctest results alongside the
+  existing 6).
+- Full workspace: fmt/clippy clean; test count = baseline + (11 duplicated + 1 new unit tests) + 3
+  doctests; 0 failed, 1 ignored.
+- Demo shasum + sweep shasum **unchanged** (nothing calls this module yet).
+- `git status` shows exactly `intraday_partition.rs` (NEW), `lib.rs` + queue/worklog flip.
+
+**Guardrails.** Do NOT touch `partition.rs` itself (it stays the LF/daily seal, untouched — S9's proof
+must not be reopened, per m-hf-track §1's own reasoning). Do NOT add a holdout accessor to
+`IntradayDevValidation` (mirrors the standing `DevValidation` guardrail). Do NOT wire this into any
+running sweep (C8.7). `Decimal`-only for any money-shaped field (none in this module — it's pure bar
+partitioning). No new dependency.
+
+**Escalate-if:** any duplicated logic needs to diverge from `partition.rs` beyond the one hygiene-
+check swap — STOP, that's a real design question, not a mechanical duplicate, escalate it; the
+spacing-gap test does NOT distinguish the two validators (i.e., `validate_series` would have also
+rejected it) — STOP, the fixture is wrong, fix it so the test actually proves the difference; either
+shasum moves — STOP.
+
+---
+
+### M-HF-C8.5 — `HfSweepSpec`: HF-kind TOML parsing + spec-lint (parse-only, not wired to execution) — `TODO`
+
+**Why a separate struct, not an `HfSweepSpec` variant bolted onto `SweepSpec`.** `SweepSpec` is a
+plain struct (not an enum) and `run_sweep`/every LF test reads its fields directly
+(`spec.partition`, `spec.walk_forward`, `spec.thresholds`, `spec.grids`) — converting it to an enum
+to add an HF arm would break every LF call site. A **new, separate** `HfSweepSpec` +
+`HfSweepSpecToml` (own `from_toml_str`) keeps `SweepSpec`/`SweepSpecToml`/every LF TOML fixture
+**completely untouched** (zero risk to the 6 existing fixtures, matches the "Option/`#[serde(default)]`
+avoids breaking fixtures" guidance the C7 card already flagged for whoever builds this).
+
+**Pinned semantics.**
+- `HfSweepSpec` fields: `allowlist_version: String`, `partition: PartitionSpec` (reused, C8.4),
+  `walk_forward: WalkForward` (reused, S8, unchanged), `thresholds: AdvancementThresholds` (reused;
+  for an HF-kind spec, `turnover_budget` **must be `None`** — see spec-lint below —
+  `cost_drag_share_ceiling`/`per_trade_edge_floor` **must both be `Some`**, mirroring C6's pairing
+  rule), `grids: Vec<ParamGrid>` (reused; C8.3's `IntradayMeanRev` variant is the only HF-buildable
+  one today), `resolution_secs: i64` (must be `1` for the families that exist; carried as a field, not
+  hardcoded, so a future coarser-than-1s HF resolution isn't a rewrite), `max_lookback_bars: usize`
+  (m-hf-track §2's lookback bound — validated `> 0` at parse time, so an unbounded warm-up can't
+  silently break the windowed-memory bound C2.6 measured), `hf_cost: HfSweepCostToml`-derived
+  `portfolio::HfCostModel` (parsed, **REQUIRED** — an HF-kind spec omitting `depth_curve` is a parse
+  error, m-hf-track §3: "constant-bps slippage… is structurally forbidden [as the HF base case]").
+- **Spec-lint (the piece the original C6 sketch wrongly assumed already existed):**
+  `HfSweepSpec::from_toml_str` returns `Err(HfSpecError::TurnoverBudgetNotAllowed)` if the TOML's
+  `[advancement]` block sets a `turnover_budget` key at all (HF specs must go through the `None` path
+  C6 built — the field is simply absent from `HfAdvancementToml`, so setting it is a **TOML parse-
+  time unknown-key rejection** via `#[serde(deny_unknown_fields)]` on that one sub-struct, not a
+  runtime check — the cheapest, most fail-closed way to enforce this). Returns
+  `Err(HfSpecError::MissingDepthCurve)` if `[hf_cost.depth_curve]` bands are empty (delegates to
+  `DepthCurve::new`'s existing `EmptyDepthCurve` rejection — don't re-implement the check, surface
+  its error).
+- This card is **parse-only** — `HfSweepSpec` is not consumed by `run_sweep`, `run_hf`, or the CLI.
+  Matches the established C4/C5 pattern (types + pure logic first, wiring later — here, C8.7).
+- A NEW checked-in template, `config/strategies/hf-strategy-lab.example.toml` (secret-free, mirrors
+  `strategy-lab.example.toml`'s existing template convention), with illustrative (**NOT tuned**,
+  frozen later at HF-Q3) values: `resolution_secs = 1`, `max_lookback_bars = 500`, an
+  `[intraday_meanrev_v1]` grid section, `[hf_cost.depth_curve]` bands mirroring `hf_cost.rs`'s test
+  reference curve, `[hf_cost.congestion_priority_table]` mirroring its test reference table,
+  `tip_bps`. **This template does NOT touch `strategy-lab.example.toml` or `m5-frozen.toml`** — it is
+  a wholly new file, so the "6 existing TOML fixtures" (C7's audit) are provably unaffected (nothing
+  here can break them; there is no shared struct).
+
+**Files (4).**
+1. `crates/sweep/src/hf_spec.rs` (**NEW**) — `HfSweepSpecToml`/`HfSweepSpec`/`HfSpecError` + parsing,
+   mirroring `spec.rs`'s shape (own `from_toml_str`, own error enum) but importing `portfolio::{
+   HfCostModel, DepthCurve, DepthBand, CongestionPriorityTable}` for the cost block and `crate::param
+   ::ParamGrid` (C8.3) for the grid.
+2. `crates/sweep/src/lib.rs` — `pub mod hf_spec;` + re-exports, additive.
+3. `config/strategies/hf-strategy-lab.example.toml` (**NEW**) — the illustrative template above.
+4. `crates/sweep/tests/hf_spec_parsing.rs` (**NEW**) — the template parses and resolves (values match
+   what was written); a TOML with `turnover_budget` set under an HF spec is rejected; a TOML with an
+   empty `depth_curve` is rejected with the underlying `DepthCurve` error surfaced; `max_lookback_bars
+   = 0` is rejected.
+
+**Construction-site audit.** New module + new file; nothing else references `HfSweepSpec` yet
+(confirmed — grep for `HfSweepSpec`/`hf_spec` at HEAD `3c653ba` returns nothing). This card does
+**not** touch `spec.rs`/`SweepSpecToml`/`SweepSpec` at all — confirm with `git status` at gate time
+that neither file appears in the diff.
+
+**Current state referenced (verbatim, verified 2026-07-16 at HEAD `3c653ba`).**
+- `crates/sweep/src/spec.rs:12-71` — the LF `SweepSpecToml`/`SweepSpec` shape to mirror structurally
+  (NOT to edit) — already quoted in full earlier in this reconciliation.
+- `crates/portfolio/src/hf_cost.rs:164-170` `HfCostModel { base: CostModel, depth_curve: DepthCurve,
+  congestion_priority_table: CongestionPriorityTable, tip_bps: u32 }`; `DepthCurve::new` (:34-48)
+  rejects empty/unsorted/non-monotonic bands; `CongestionPriorityTable::new` (:86-105) rejects
+  negative lamports — both already fail-closed, this card's spec-lint surfaces their existing errors
+  rather than re-validating.
+- `crates/sweep/src/advance.rs:19-43` `AdvancementThresholds`/`CandidateEvidence` — unchanged since
+  C6; this card only CONSTRUCTS instances (`turnover_budget: None, cost_drag_share_ceiling: Some(..),
+  per_trade_edge_floor: Some(..)`), adding no new call site to the audited list beyond this one.
+- `crates/sweep/src/param.rs` — `ParamGrid::IntradayMeanRev` (C8.3, must land first).
+
+**Steps.**
+1. Step 0: full-workspace gate; confirm C8.1-C8.4 landed (or record whichever subset has, and note
+   it); record baseline N.
+2. Write `hf_spec.rs`: TOML structs, `HfSpecError`, `from_toml_str` with the spec-lint rules above.
+3. Write `hf-strategy-lab.example.toml` with illustrative values (mark NOT tuned).
+4. `lib.rs`: wire the module in.
+5. `hf_spec_parsing.rs`: the 4 tests above.
+6. `cargo fmt --all`; full gate; flip to `DONE` + worklog line.
+
+**Gate.**
+- `cargo test -p sweep hf_spec` green (both the in-module tests and `hf_spec_parsing.rs`).
+- Full workspace: fmt/clippy clean; 0 failed, 1 ignored; record exact N.
+- Demo shasum + sweep shasum **unchanged** (parse-only, no execution path touches this).
+- `git status` shows exactly the 4 files + queue/worklog flip — **no** `spec.rs`, no
+  `strategy-lab.example.toml`, no `m5-frozen.toml`.
+
+**Guardrails.** Do NOT touch `spec.rs`/`SweepSpecToml`/`SweepSpec` or either existing config TOML.
+`Decimal`/integer only for money/cost fields (matches `HfCostModel`'s own types). No new dependency
+(`toml`/`serde` are already workspace deps). Do NOT wire `HfSweepSpec` into `run_sweep`, `run_hf`, or
+`cli` (C8.7).
+
+**Escalate-if:** `HfCostModel`/`DepthCurve`/`CongestionPriorityTable`'s constructors or fields don't
+match the quoted shape at your HEAD; you find yourself needing to edit `spec.rs` to make this work
+(a sign the "fully separate struct" design broke down) — STOP, escalate; either shasum moves — STOP.
+
+---
+
+### M-HF-C8.6 — Wire `HfCostModel` + adversarial pricing into a new execution entry (`run_hf_priced`) — `SCOPED, not signature-pinned; needs a planner reconciliation pass before an executor touches it`
+
+**Why this card is scoped rather than pinned.** Unlike C8.1–C8.5 (mechanical extensions of surface
+that already exists), this is genuinely new architecture: nothing in the tree today prices a trade
+through `HfCostModel`/`AdversarialModel` — both modules say so verbatim ("Nothing here is wired into
+`run`/`run_hf` yet", hf_cost.rs:8; "NOT wired into `run`/`run_hf` here", adversarial.rs:12). Pinning
+an exact function signature now, before C8.1–C8.5 land and before anyone has actually written the
+loop, would risk exactly the C6/C7 mistake (a sketch that drifts from what building it actually
+requires). This section records the goal, the real constraints, and a recommended direction — the
+executing session (or a dedicated planner pass immediately beforehand) must re-verify against
+whatever C8.1–C8.5 actually look like at that HEAD before writing code.
+
+**Goal.** A new, additive execution entry that prices trades through the full HF cost stack (depth-
+walk slippage + congestion-regime priority fee + tip from `HfCostModel`, plus the base-rung expected
+sandwich/pickoff term from `AdversarialModel`) instead of `run_hf`'s flat `CostModel`, so an HF sweep
+can measure real (not fabricated-cheap) costs.
+
+**Hard constraints (non-negotiable, regardless of final signature).**
+- `run_hf`/`simulator::run` stay **byte-identical to today** — the C3 regression
+  (`run_hf(fixed_latency(1)) == run`) and C7's `intraday_meanrev_v1` cadence test must not need a
+  single assertion changed. The new entry is **additive**, never a modification of `run_hf`.
+- Every priced cost is a cost to us, never a benefit (mirrors `HfCostModel`/`AdversarialModel`'s own
+  fail-closed construction guarantees, C4/C5.1) — this new entry must not be able to construct a
+  scenario where HF-priced execution is cheaper than the plain `CostModel` path for the same trade.
+- Deterministic by construction: no RNG, no clock. The `(cell_id, event_index)` splitmix64 primitive
+  (latency.rs:138-143, `landing_draw`) is the established pattern for "probability without RNG" —
+  reuse it for the base-rung adverse-selection draw, but **keyed distinguishably** from the landing
+  draw (e.g. XOR a distinguishing tag into the hash input before drawing) so "did this order land" and
+  "did this fill get sandwiched" are not accidentally perfectly correlated — this independence
+  property deserves an explicit dedicated test once built, not an assumption.
+- Congestion-regime classification (`CongestionRegime::{Calm,Busy,Hot}`) must be a pure, non-lookahead
+  function of trailing history (m-hf-track §3) — `hf_cost.rs`'s own doc says deriving it "is NOT
+  built here — that is C8's job." It belongs in `sweep` (it needs windowed bar/print history that
+  `portfolio` doesn't have access to), passed into the pricing entry point per-bar, not computed
+  inside `portfolio`.
+- The fail-closed `(regime, percentile) → p` adverse-selection probability table (m-hf-track §3) is a
+  **checked-in, illustrative** table (NOT tuned, frozen later at HF-Q3, same Q4/Q5-pattern default) —
+  it does not need operator input now, only at the HF-Q3 freeze before C10.
+
+**Recommended direction (planner decision, logged, reversible — an internal engine fork per
+AGENTS.md, not an external/migration-sensitive one, so no operator escalation needed for this part).**
+Add a new sibling function (working name `run_hf_priced`, likely in a new `crates/portfolio/src/
+hf_priced.rs` rather than extending `latency.rs`) that duplicates `run_hf`'s loop structure with its
+internal pricing swapped for `hf_trade_cost`/`adverse_selection_cost_expected`, **rather than**
+threading a generic pricing trait through both `run_hf` and the new entry. This matches the
+codebase's own established convention: `latency.rs` already duplicates C2's `splitmix64` verbatim
+rather than sharing it with `market-data` ("a shared home would couple portfolio to market-data for
+seven lines of integer arithmetic", latency.rs:124-127), and m-hf-track §1 makes the identical call
+for `intraday_partition` vs. genericizing `partition.rs`. Pattern-level reuse, duplicated code, is
+this project's explicit, repeated choice over generic abstraction — follow it here too rather than
+inventing a shared `TradeCost` trait.
+
+**What is explicitly NOT decided here (for the reconciliation pass to pin against real source):**
+- Exact function signature and module location.
+- Whether `n_trades`/`RunOutput`/`HfRunOutput`-shaped fields need new HF-only counters (e.g. total
+  adverse-selection cost paid) or reuse existing ones.
+- The exact regime-classifier function signature and where its output is threaded through (a
+  parallel `Vec<CongestionRegime>` alongside `bars`, most likely, mirroring `LatencyPipeline.landing`'s
+  shape).
+- Whether this needs its own dedicated fresh-session adversarial review before landing (recommended,
+  per the FOREMAN §3 risk-point note in this reconciliation's preamble) — first real HF cost/execution
+  wiring is exactly the kind of load-bearing seam this project reviews before trusting.
+
+**Escalate-if (for whoever picks this up):** if pinning a real signature reveals `run_hf` itself needs
+to change (not just a new sibling) — STOP, that breaks the "byte-identical" constraint above, escalate
+to a fresh planner pass rather than loosening the C3/C7 regressions.
+
+---
+
+### M-HF-C8.7 — Windowed HF sweep wiring (the row-C8 gate): `hf_cost_scenarios` + `IntradaySource` cells + a full deterministic HF `SweepReport` — `SCOPED, not signature-pinned; needs a planner reconciliation pass before an executor touches it, once C8.1–C8.6 have actually landed`
+
+**Why this is last and why it's scoped, not pinned.** This is the actual gate m-hf-track's row C8
+names: "full synthetic HF sweep deterministic across {1,2,3,7,8}; schema-valid; holdout counter 0;
+wall-clock re-measured and recorded." It depends on every prior card's REAL landed shape (the ladder
+enum from C8.1, the provenance builder from C8.2, the grid variant from C8.3, the holdout seal from
+C8.4, the spec parser from C8.5, and the pricing entry from C8.6) — pinning its exact plumbing now,
+before any of those exist as code, would be pure speculation. This section is a goal + assembly list,
+not an executor-ready card.
+
+**Goal.** Produce one deterministic `SweepReport` (via a new `run_hf_sweep`, mirroring `run_sweep`'s
+shape) that: reads an `HfSweepSpec` (C8.5); slices bars through an `IntradaySource` (C2.6's
+`ColumnarFile`/in-memory `Vec<Bar>` both already implement it) in windows only, never materializing
+the whole series per cell (peak memory ≈ `n_threads × max_window_bars`, per C2.6/D-0013); seals an
+intraday holdout (C8.4) before any cell runs; assembles `hf_cost_scenarios` — now buildable, since
+C8.6 defines what an HF rung actually varies — over `intraday_meanrev_v1` (C8.3's grid); prices every
+cell through `run_hf_priced` (C8.6); rolls up `data_provenance` (C8.2) from the input series'
+`Provenance`; computes real `cost_drag_share`/`per_trade_edge` evidence (the `CandidateEvidence`
+fields C6 already added as `Option`, still `None` in every path today) from the fee-sensitivity sums
+— the one piece of C6's original promise ("C8 computes these") this card actually redeems; and proves
+the whole pipeline is byte-identical across thread counts {1,2,3,7,8}, matching the S7/C2.5 pattern.
+
+**What is explicitly NOT decided here:** the exact `run_hf_sweep` signature; whether
+`aggregate_evidence`/`aggregate_fee_sensitivity`'s wildcard-protected `ScenarioId` matches
+(flagged in C8.1's audit) get real arms or a wholly new HF-specific aggregation path is written
+alongside them (recommended, to avoid destabilizing the LF `aggregate_evidence`/`aggregate_fee_
+sensitivity` that M4/M5 already depend on byte-for-byte); whether `FeeSensitivity`/`ScenarioMetricsDto`
+(hard-locked to 3 named slots) grow new optional fields or a wholly new `HfFeeSensitivity` DTO ships
+alongside them (an additive-schema fork with real tradeoffs, itself worth a short planner note when
+this card is actually drafted); the wall-clock/memory measurement protocol (mirror C2.6's `#[ignore]`
+convention if the full sweep is slow).
+
+**Recommended sequencing note for the reconciliation pass:** draft this card, and only this card,
+AFTER C8.1–C8.6 are DONE and independently re-verified — grep every real signature they landed with,
+exactly as this whole document did for C6/C7. Recommend a dedicated adversarial review after this
+card lands, before it's trusted (FOREMAN §3 risk point, alongside C8.6).
+
+---
+
+## M-HF-C8-PAIR (deferred mini-track — `statarb_pairs_v1`, own future card sequence, NOT part of C8's gate)
+
+**Operator ruling (this session, recorded as HF-Q4 in questions.md, RESOLVED):** build the real
+two-leg engine for `statarb_pairs_v1`, not a precomputed-spread-series approximation. The
+spread-series approximation was rejected on the merits: it would price fills against a synthetic unit
+that doesn't correspond to two real on-chain swaps, understating real two-leg execution cost/risk —
+the same fabricated-edge failure mode the whole cost ladder exists to catch, and the same optimism-
+bias pattern m-hf-track §3 already calls out for hash-based adversarial targeting. Confirmed unchanged
+at HEAD `3c653ba`: `PortfolioState` holds exactly one risky asset vs. USDC cash; `Strategy`/`run`/
+`run_hf`/`eval_cell`/`run_sweep` all take exactly one `&[Bar]`; `market_data::synthetic` emits exactly
+one venue/series; grep for `pair|statarb|cointegrat|spread_series|multi.series|MultiSeries` across
+`crates/` still returns zero hits outside `plans/*.md` prose.
+
+**Why this is scoped OUT of C8's gate, not folded in.** Building a real two-leg engine is, by the
+operator's own choice of the higher-cost option, roughly as large as C1–C7 combined: a two-asset
+`PairPortfolioState` (SOL + one LST + USDC cash, replacing today's single-risky-asset accounting for
+this family only — `state.rs` for the LF/single-series path stays untouched, mirroring the
+`intraday_partition`-not-`partition.rs` precedent), a `PairStrategy` trait (two histories + an
+on-chain fair ratio in, one net spread-exposure weight out — a new trait, not a `Strategy` extension,
+since the single-series shape is load-bearing everywhere else), a `run_hf_pair` execution entry (both
+legs' fees/slippage/gas priced independently per fill — no single-leg approximation), a correlated-
+LST synthetic data generator (`market_data::synthetic` emits exactly one venue/series today; a second,
+correlated series needs its own generator, not a parameter on the existing one, per the same
+reuse-vs-duplicate reasoning used throughout this reconciliation), and pair-aware sweep enumeration
+(`ParamPoint`/`ParamGrid::StatarbPairs`, the identical compiler-forced blast radius C8.3 just walked
+for `IntradayMeanRev`, applied to a two-leg family). None of this is drafted as executor cards yet —
+it gets its own future planner pass, its own numbered card sequence (`M-HF-C8-PAIR-1…N`), when picked
+up. **C8's own gate (C8.7) is satisfied using `intraday_meanrev_v1` alone** and does not wait on this.
+
+**Blocked, additionally and independently, on the USDT + jitoSOL allowlist edit.** HF-Q2 (RESOLVED
+2026-07-12) approved adding both tokens to the research allowlist, but the verbatim `[[token]]` block
+was never supplied — these are external, migration-sensitive, consensus-critical values (mint
+addresses) that neither planner nor executor may invent (AGENTS.md; `config/tokens/
+allowlist.example.toml:9-11` names the required schema). **Exact fields the operator must supply, for
+BOTH jitoSOL and USDT**, matching every existing entry's shape (`allowlist.example.toml:16-40`):
+`token_id`, `symbol`, `mint` (the on-chain mint address — never invented), `decimals`, `first_allowed`
+(YYYY-MM-DD), `last_allowed` (empty = still active), `venues` (e.g. `["jupiter"]`), `min_liquidity_usdc`,
+`min_age_days`, `risk_category`, `custody_notes`. This blocks only the PAIR mini-track — nothing in
+C8.1–C8.7 touches the allowlist.
+
+---
+
 ## Deferred / blocked (unchanged)
 
 | ID | Status | Milestone | File scope | Gate | Notes |

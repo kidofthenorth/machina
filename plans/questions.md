@@ -4,11 +4,14 @@ Only **real** operator decisions live here. Each has a safe default already appl
 block autonomous M0–M4 *engine* work. Format: Question · Why it matters · Safe default (applied) ·
 What's blocked.
 
-> Status: **0 blocking**, 5 non-blocking open (Q1, Q2, Q4, HF-Q1, HF-Q3), 5 resolved
-> (Q3, Q5, Q6, Q7, HF-Q2). **M5 is CLOSED — gate declared 2026-07-12: reject-all, holdout unread**
+> Status: **0 blocking**, 5 non-blocking open (Q1, Q2, Q4, HF-Q1, HF-Q3), 6 resolved
+> (Q3, Q5, Q6, Q7, HF-Q2, HF-Q4). **M5 is CLOSED — gate declared 2026-07-12: reject-all, holdout unread**
 > (see the M5 OUTCOME block after Q7). **M-HF wave 1 is ACTIVE:** C1–C2.6 unblocked by operator
-> note (HF-Q1, 2026-07-12); HF-Q2 resolved (USDT + jitoSOL research allowlist); HF-Q1 deferred to
-> wave 2 (blocks C9/C10); HF-Q3 gates the decisive HF sweep (C10), same ratchet as Q5.
+> note (HF-Q1, 2026-07-12); HF-Q2 resolved (USDT + jitoSOL research allowlist, exact per-token fields
+> still owed — now blocks only the deferred `M-HF-C8-PAIR` mini-track, not core C8); HF-Q1 deferred to
+> wave 2 (blocks C9/C10); HF-Q3 gates the decisive HF sweep (C10), same ratchet as Q5. **HF-Q4
+> (2026-07-16): statarb_pairs_v1 gets a real two-leg engine, scoped into its own future mini-track,
+> not folded into C8.**
 
 ---
 
@@ -176,6 +179,32 @@ execution work starts. Next research work: M-HF entry, gated on HF-Q1/HF-Q2 belo
 - **Why it matters.** `tri_arb_v1` needs USDT; `statarb_pairs_v1` needs an LST (mSOL/jitoSOL).
   The allowlist is a hard trading gate; additions are operator decisions, never executor defaults.
 - **Blocked:** nothing (was: those families' M-HF-C7+ runs).
+
+## HF-Q4 — `statarb_pairs_v1` engine interface: extend for two real legs, or approximate with a precomputed spread series? — **RESOLVED 2026-07-16**
+- **Why it matters.** `statarb_pairs_v1` (survey §1.6) trades a cointegrated spread across two legs
+  (SOL vs an LST) plus an on-chain fair ratio. Today's engine (`Strategy`, `PortfolioState`, `run_hf`,
+  `sweep::cell`/`run_sweep`) is single-series/single-asset only — confirmed again at HEAD `3c653ba`:
+  no pair/spread/multi-series abstraction exists anywhere in `crates/`. Building the family means a
+  real architecture choice: (a) extend the engine for genuine two-leg accounting (both legs' fees/
+  slippage/gas priced independently — correct economics, but the largest new surface in the whole HF
+  track, roughly as large as C1–C7 combined), or (b) precompute a single synthetic spread series
+  `s_t = ln(p_A) − γ·ln(p_B)` and run the existing single-series engine on it unmodified (C7-style
+  reuse — much cheaper, but a synthetic spread isn't a tradeable unit, so the cost model would price
+  fills against a unit that doesn't correspond to two real on-chain swaps, understating real
+  execution cost/risk).
+- **Resolution (operator, 2026-07-16, via the C8 planner pass).** Build the real two-leg engine
+  (option a). The spread-series shortcut was rejected on the merits: it risks the exact fabricated-
+  edge failure mode (an artificially cheap/clean proxy for real two-leg execution) that the entire
+  cost-sensitivity ladder exists to catch, and that m-hf-track §3 already flags as a structural risk
+  for hash-based adversarial targeting — accepting the same failure mode here to save engineering
+  time would be inconsistent with the rest of the track's standards.
+- **Consequence.** Because of its real size, `statarb_pairs_v1` is scoped OUT of `M-HF-C8`'s own gate
+  entirely and moved to a deferred future mini-track, `M-HF-C8-PAIR` (task-queue.md), sized and
+  card-sequenced only when picked up. Core C8 (C8.1–C8.7) satisfies its "full synthetic HF sweep"
+  gate using `intraday_meanrev_v1` alone (already built, C7). The mini-track is additionally blocked
+  on HF-Q2's still-unsupplied allowlist fields (see HF-Q2 above).
+- **Blocked:** nothing further here; the mini-track itself is blocked on HF-Q2's data + its own future
+  planner pass, not on this architecture question.
 
 ## HF-Q3 — Freeze the HF research policy before the decisive HF sweep (same ratchet as Q5)
 - **What must be frozen, in one sitting, before any real-intraday strategy result is computed:**

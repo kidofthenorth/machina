@@ -1230,3 +1230,96 @@ recorded inline (not full logs).
   and states "Plan files only; no code," but the commit actually adds the 3 C7 code files, the
   queue/worklog flips, the `DECISIONS.md` → `docs/DECISIONS.md` rename, and unrelated
   `docs/FOREMAN.md` + `docs/repo-kit/*` files. History rewrite is operator-only; not amended.
+- 2026-07-16 (planner session, M-HF-C8 planner pass): **DONE, plan files only, HEAD unchanged at
+  `3c653ba`.** Re-verified every surface m-hf-track §4/§5's row-C8 sketch assigned to "C8" against
+  live source (`sensitivity.rs`, `advance.rs`, `report.rs`, `runner.rs`, `param.rs`, `spec.rs`,
+  `research-core::intraday`, `market-data::synthetic`/`columnar`, `portfolio::latency`/`hf_cost`/
+  `adversarial`, `allowlist.example.toml`, `sweep-report.schema.json`) and found the single-card
+  framing unbuildable, same failure mode as C6/C7's drift: `hf_cost_scenarios` can't be assembled
+  before `HfCostModel`/`AdversarialModel` are wired into execution (both modules say so verbatim);
+  the intraday holdout seal (m-hf-track §1) doesn't exist and isn't optional; `ParamPoint`/`ParamGrid`
+  have no HF variant; `SweepSpec` has no HF-kind discriminator; `statarb_pairs_v1` still can't be
+  built on today's single-series engine (re-confirmed). **Escalated the statarb interface fork to the
+  operator (two-leg engine extension vs. precomputed spread series vs. defer) — resolved as HF-Q4:
+  build the real two-leg engine**, rejecting the spread-series shortcut as a fabricated-edge risk
+  (would price fills against a synthetic unit not corresponding to two real on-chain swaps). Because
+  that's roughly as large as C1–C7 combined (operator's own acknowledgment), scoped OUT of C8's gate
+  into a deferred mini-track, `M-HF-C8-PAIR` — not drafted as executor cards, picked up later with its
+  own planner pass, additionally blocked on HF-Q2's still-unsupplied USDT/jitoSOL `[[token]]` fields
+  (exact 11-field list per token recorded in task-queue.md; external/migration-sensitive, never
+  invented). **Core C8 split into C8.1–C8.7**, drafted in `task-queue.md`: C8.1 (`ScenarioId` gains 3
+  HF ladder variants + compiler-forced `label()`), C8.2 (`data_provenance` typed rollup on
+  `SweepReport`, additive `with_data_provenance` builder mirroring the existing `with_provenance`
+  shape, schema 1.2.0→1.3.0), C8.3 (`ParamPoint`/`ParamGrid` gain `IntradayMeanRev`, the compiler-
+  forced blast radius C7's own audit mapped) are **executor-ready now** — each independently gated,
+  demo/sweep shasums unchanged by all three, zero operator input needed. C8.4 (`sweep::
+  intraday_partition`, a structural duplicate of `partition.rs`/S9 per m-hf-track §1's own adjudicated
+  design — reuses `PartitionSpec`/`PartitionError` verbatim, confirmed resolution-agnostic) and C8.5
+  (`HfSweepSpec` HF-kind TOML parsing + spec-lint — a wholly new struct, `SweepSpec`/`SweepSpecToml`
+  and both existing config TOMLs stay untouched) are drafted to full rigor but flagged to re-verify
+  against HEAD immediately before executing. C8.6 (wire `HfCostModel`+`AdversarialModel` pricing into
+  a new `run_hf_priced` execution entry) and C8.7 (the actual row-C8 gate: `hf_cost_scenarios` ladder
+  assembly + `IntradaySource` windowed cells + a full deterministic HF sweep across thread counts
+  {1,2,3,7,8}) are deliberately **scoped, not signature-pinned** — genuinely new architecture; each
+  needs its own planner reconciliation pass once its prerequisites land for real, applying the C6→C8/
+  C7→C8 deferral pattern proactively instead of discovering the drift after drafting. New FOREMAN §3
+  adversarial-review risk points recorded: after C8.4 (a second holdout seal), after C8.6 (first real
+  HF cost/execution wiring). `plans/m-hf-track.md` §4/§5/§6 corrected in the same pass (row C8 split
+  table, HF-Q2/HF-Q4 notes); `plans/questions.md` HF-Q4 added (RESOLVED) and HF-Q2's note corrected
+  (allowlist fields now block only `M-HF-C8-PAIR`, not core C8); `current-state.md`/`handoff.md`
+  pointers refreshed, seed prompt now targets C8.1. Next: execute **M-HF-C8.1** (fresh session).
+- 2026-07-16 (planner, M-HF-C8 pass): **C8 drafted — split into C8.1–C8.7 + a deferred
+  `M-HF-C8-PAIR` mini-track. No code touched; plan files only, HEAD unchanged at `3c653ba`.**
+  Grep-verified re-audit of every construction/match site the reconciliation would need (`ScenarioId`,
+  `AdvancementThresholds`, `CandidateEvidence`, `ParamPoint`/`ParamGrid`/`in_grid_neighbors`,
+  `SweepSpecToml`, `SweepReport::new`/`with_provenance`, `research_core::intraday::Provenance`,
+  `market_data::synthetic`/`columnar`, `portfolio::latency`/`hf_cost`/`adversarial`,
+  `config/tokens/allowlist.example.toml`) found row-C8's own m-hf-track §4/§5 sketch unbuildable as
+  worded in three places: (1) `hf_cost_scenarios`'s `(ScenarioId, CostModel, LatencyPipeline)`-triple
+  signature can't express `HotCongestion`/`AdversarialWorst` pricing, since those price through
+  `HfCostModel`/`AdversarialModel` — types explicitly "not yet wired into execution" per their own
+  module docs (hf_cost.rs:8-10, adversarial.rs:12-16); (2) no HF family has a `ParamPoint`/`ParamGrid`
+  representation — C7 deliberately didn't touch `param.rs`; (3) the intraday holdout seal
+  (`sweep::intraday_partition`, m-hf-track §1) does not exist and is a real prerequisite, not
+  optional, for any "holdout counter 0" claim. **Also confirmed via full re-grep (not trusted from
+  the card text): runner.rs's two `ScenarioId` matches (`aggregate_evidence`/
+  `aggregate_fee_sensitivity`) both carry a `_` wildcard arm — new variants compile silently ignored,
+  a real footgun flagged for C8.7 rather than fixed now (fixing it prematurely, before real HF cells
+  exist, has nothing to test against).** Split: **C8.1** (`ScenarioId` +3 variants + `label()`),
+  **C8.2** (`data_provenance` typed rollup, mirrors the existing `with_provenance` builder shape so
+  none of `SweepReport::new`'s 11 call sites need touching), **C8.3** (`ParamPoint`/`ParamGrid` gain
+  `IntradayMeanRev`, executing exactly the blast radius C7's own audit had already mapped) are drafted
+  **executor-ready**. **C8.4** (`sweep::intraday_partition`, a near-verbatim duplicate of
+  `partition.rs` per m-hf-track §1's own "duplicate, don't genericize" instruction — confirmed
+  `config::PartitionSpec` is resolution-agnostic so only the sealing machinery needs duplicating, not
+  the spec type) and **C8.5** (`HfSweepSpec`/`HfSweepSpecToml`, a wholly separate struct from
+  `SweepSpec` so the 6 existing LF TOML fixtures are provably unaffected) are drafted to full rigor.
+  **C8.6** (wire `HfCostModel`+`AdversarialModel` into a new `run_hf_priced` execution entry) and
+  **C8.7** (the actual row-C8 gate — ladder assembly + `IntradaySource` windowed cells + a full
+  deterministic HF sweep) are deliberately left **scoped, not signature-pinned**: pinning exact
+  signatures for architecture that doesn't exist yet, before its real prerequisites (C8.1–C8.5) have
+  landed, is exactly the mistake that produced the C6/C7 reconciliation churn — both explicitly
+  require their own planner pass immediately before an executor touches them. Recommended two new
+  FOREMAN §3 adversarial-review points: after C8.4 (a second holdout seal), after C8.6 (first real HF
+  cost/execution wiring).
+  **Operator ruling this session, recorded as HF-Q4 (questions.md, RESOLVED):** `statarb_pairs_v1`
+  gets a real two-leg engine, not a precomputed-spread-series approximation — the fork was laid out
+  with costs (real two-leg accounting vs. a synthetic `s_t = ln p_A − γ ln p_B` series through the
+  existing single-series engine) and escalated via `AskUserQuestion`; the operator picked the
+  higher-realism, higher-cost option, rejecting the shortcut as risking the same fabricated-edge
+  failure mode the cost-sensitivity ladder exists to catch. Because that choice makes the family
+  roughly as large as C1–C7 combined, it is scoped OUT of C8's gate entirely into a deferred mini-
+  track, `M-HF-C8-PAIR` (task-queue.md) — not drafted as executor cards yet, its own future planner
+  pass when picked up. It remains additionally blocked on HF-Q2's still-unsupplied USDT/jitoSOL
+  `[[token]]` fields (exact list recorded in task-queue.md's `M-HF-C8-PAIR` section; external,
+  migration-sensitive, never invented by planner or executor).
+  Updated in the same pass: `m-hf-track.md` §4 (corrected the `hf_cost_scenarios` premise), §5 (the
+  C8 row replaced by rows C8.1–C8.7 + the PAIR row, risk-points line extended), §6 (HF-Q2's note
+  corrected again, HF-Q4 added); `questions.md` (HF-Q4 added RESOLVED, status line bumped);
+  `current-state.md` + `handoff.md` (header, "Next recommended command"/DOING pointer, and the seed
+  prompt all repointed at C8.1 as the next executor-ready card).
+  **Noted, not acted on (out of scope for a planner session):** a stray, uncommitted worktree exists
+  at `.claude/worktrees/wf_9cb92e36-d58-1/` containing a pre-C6 snapshot of `crates/sweep` (its
+  `report.rs`/`schema_validation.rs` predate the `candidates` field and the C6 Option fields) — looks
+  like an abandoned isolated-agent run, not current work; flagged for the operator to clean up or
+  investigate, left untouched here.
