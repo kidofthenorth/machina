@@ -3,8 +3,10 @@
 Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-15 (M-HF
 wave 2: C3/C4/C5/C5.1 DONE + verified; C3–C5 adversarial checkpoint PASS-with-hardening closed;
 **C6 DONE + verified** (narrow: turnover-criterion replacement; sweep schema 1.2.0, new sweep shasum
-`85d06e5b…`); **C7 RECONCILED 2026-07-15 (planner pass) → executor-ready: NARROW to
-`intraday_meanrev_v1` only; `statarb_pairs_v1` + the USDT/jitoSOL allowlist edit deferred to C8**).
+`85d06e5b…`); **C7 DONE + independently re-verified 2026-07-16** (NARROW: `intraday_meanrev_v1`
+intent-only + ≥100k-bar deterministic `run_hf` cadence proof; **402/0/1**, demo+sweep shasums
+unchanged; `statarb_pairs_v1` + the USDT/jitoSOL allowlist edit deferred to C8); next is the
+**C8 planner pass** — C8 is NOT executor-ready).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -149,16 +151,18 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-**M-HF-C7 is RECONCILED + executor-ready (TODO)** (2026-07-15 planner pass; card in task-queue.md
-§M-HF, after C6). NARROW by planner decision (mirrors NARROW-C6): **`intraday_meanrev_v1` ONLY** —
-survey §1.2, a single-series intent-only mean-reversion `Strategy` (SMA anchor + Decimal deviation
-band, no f64/RNG), proven deterministic at a **≥100k-bar cadence run via `run_hf(fixed_latency(1))`**
-on a C2 synthetic 1s series, within the C2.6 measured budget. **No sweep/`ParamGrid`/config/allowlist
-wiring** → demo shasum `ae064f79…` **and** sweep shasum `85d06e5b…` must stay UNCHANGED (the C7
-byte-identity guard). `statarb_pairs_v1` (survey §1.6, SOL/LST pair) **deferred to C8**: the
-single-series `Strategy`/`run_hf` engine can't express a two-leg pair, there is no correlated-LST
-synthetic data, and its jitoSOL leg needs the HF-Q2 allowlist edit (approved 2026-07-12; the verbatim
-`[[token]]` block — with operator-supplied mint/survivorship fields — lands at C8, not C7). Next: an
-**executor session runs M-HF-C7** (fresh chat, one card). M6 has no candidate and does not start.
+**M-HF-C7 is DONE (2026-07-16), independently re-verified at HEAD `f09761b`** (fresh-session gate
+re-run: fmt/clippy clean; **402 passed / 0 failed / 1 ignored** = 391 + 9 `intraday_meanrev` unit
+tests + 2 `hf_cadence` tests, exactly the card's pinned N; demo `ae064f79…` and sweep `85d06e5b…`
+byte-identical — the C7 no-sweep-wiring guard held; sweep-verify OK; commit code scope exactly the
+3 card files). Known cosmetic drift, operator-only to fix: `f09761b`'s commit message duplicates
+`1d5c8b1`'s ("plan files only") but actually carries the C7 code + the `DECISIONS.md`→`docs/` move +
+`docs/FOREMAN.md`/`docs/repo-kit/*` (worklog 2026-07-16). Next: the **C8 planner pass** (fresh
+planner session) — C8 is NOT executor-ready; it inherits from C6: `ScenarioId` rungs,
+`hf_cost_scenarios`, `data_provenance`, HF-kind spec discriminator + lint; and from C7:
+`statarb_pairs_v1` pair/multi-series machinery + the verbatim USDT+jitoSOL `[[token]]` allowlist
+edit (HF-Q2 — operator supplies mint/survivorship fields; never an executor default). The pass also
+needs an operator ruling on the statarb pair interface (engine two-leg extension vs precomputed
+spread series). M6 has no candidate and does not start.
 
 Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate explicit human approval).

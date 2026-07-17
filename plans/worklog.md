@@ -1221,3 +1221,12 @@ recorded inline (not full logs).
   `spec.rs`, `runner.rs`, `config/`, `cli`, `schemas/`, `Cargo.toml`, or allowlist touched. No
   escalation triggered. Next executor card is **C8** (statarb_pairs_v1 + sweep/`ParamGrid` wiring
   + the deferred allowlist edit) — planner-drafted, not yet executor-ready per this card's own note.
+- 2026-07-16 (executor session, C7 re-verify): dispatched to execute M-HF-C7 but found it already
+  DONE and committed at HEAD `f09761b`. Re-ran the full gate independently at that HEAD: fmt/clippy
+  clean; **402 passed/0 failed/1 ignored**; 9 `intraday_meanrev` unit tests + 2 `hf_cadence` tests
+  present; demo shasum `ae064f79…` and sweep shasum `85d06e5b…` unchanged; sweep-verify OK. The
+  prior session's DONE entry above is confirmed by fresh evidence. **Drift flagged for the
+  operator:** commit `f09761b`'s message duplicates the planner-reconcile message from `1d5c8b1`
+  and states "Plan files only; no code," but the commit actually adds the 3 C7 code files, the
+  queue/worklog flips, the `DECISIONS.md` → `docs/DECISIONS.md` rename, and unrelated
+  `docs/FOREMAN.md` + `docs/repo-kit/*` files. History rewrite is operator-only; not amended.
