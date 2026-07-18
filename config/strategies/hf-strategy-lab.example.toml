@@ -1,0 +1,83 @@
+# ── HF Strategy Lab config (TEMPLATE) ────────────────────────────────────────
+# HF-kind sweep specification (M-HF card C8.5) parsed by `sweep::HfSweepSpec`.
+# Copy to `hf-strategy-lab.toml` (gitignored). Research-only: no secrets, no
+# network; strategies produce TARGET WEIGHTS (intent) only.
+#
+# ALL values below are illustrative, NOT tuned — real values are frozen at
+# HF-Q3, before any HF advancement decision. Nothing here implies profitability.
+#
+# HF spec-lint (fail-closed at parse time):
+#   - `[advancement]` must NOT set `turnover_budget` (HF turnover is the design,
+#     priced via cost drag) — setting it is a parse error.
+#   - `cost_drag_share_ceiling` and `per_trade_edge_floor` are REQUIRED.
+#   - `[hf_cost.depth_curve]` is REQUIRED and must be non-empty (constant-bps
+#     slippage is structurally forbidden as the HF base case, m-hf-track §3).
+
+allowlist_version = "2026-06-29"    # must match the active allowlist; embedded in results
+
+# Bar resolution in seconds. Must be 1 for the HF families that exist today.
+resolution_secs = 1
+# Strategy warm-up bound in bars (m-hf-track §2's lookback bound); must be > 0.
+max_lookback_bars = 500
+
+# Data partitions (starts only; synthetic intraday data). Defined BEFORE tuning.
+[partitions]
+validation = { start = "2024-01-01" }
+holdout    = { start = "2025-01-01" }
+
+# ── intraday_meanrev_v1 ──────────────────────────────────────────────────────
+# SMA-deviation-band intraday mean reversion — the only HF-buildable family
+# today (C8.3). A hypothesis to test, not a known edge. Axes illustrative.
+[intraday_meanrev_v1]
+enabled = true
+anchor_periods = [60, 300]
+bands = ["0.005", "0.01"]
+weights_in = ["0.50"]
+weights_out = ["0.00"]
+
+# ── walk-forward schedule (in bars, 1s resolution) ───────────────────────────
+# Illustrative: 1h train / 15m test folds on 1s bars; freeze at HF-Q3.
+[walk_forward]
+kind = "rolling"
+train_len = 3600
+test_len = 900
+step = 900
+embargo = 60
+
+# ── advancement thresholds (HF robustness battery) ───────────────────────────
+# Decimal strings; clearly NOT tuned. NOTE: no `turnover_budget` here — an
+# HF spec setting it is rejected at parse time (see spec-lint above).
+[advancement]
+drawdown_budget = "0.35"
+baseline_margin = "0"
+dispersion_budget = "0.40"
+neighbor_tolerance = "0.15"
+min_windows = 3
+cost_drag_share_ceiling = "0.50"    # max fraction of gross return consumed by costs
+per_trade_edge_floor = "0"          # min net edge per trade (quote terms)
+
+# ── HF cost model (REQUIRED for an HF-kind spec) ─────────────────────────────
+# Mirrors `portfolio::hf_cost`'s reference test values; illustrative, NOT tuned.
+[hf_cost]
+tip_bps = 2
+
+[hf_cost.base]
+dex_fee_bps = 10
+slippage_bps = 0
+base_fee_lamports = 5000
+priority_fee_lamports = 0
+
+# Depth-walk slippage curve: trades up to `notional_upto` (quote terms) incur
+# `impact_bps`. Sorted strictly ascending; impact non-decreasing.
+[hf_cost.depth_curve]
+bands = [
+    { notional_upto = "100", impact_bps = 5 },
+    { notional_upto = "1000", impact_bps = 20 },
+    { notional_upto = "10000", impact_bps = 50 },
+]
+
+# Congestion-regime-keyed priority fee (lamports; each >= 0).
+[hf_cost.congestion_priority_table]
+calm_lamports = 1000
+busy_lamports = 10000
+hot_lamports = 100000

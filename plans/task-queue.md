@@ -5798,7 +5798,7 @@ shasum moves — STOP.
 
 ---
 
-### M-HF-C8.5 — `HfSweepSpec`: HF-kind TOML parsing + spec-lint (parse-only, not wired to execution) — `TODO`
+### M-HF-C8.5 — `HfSweepSpec`: HF-kind TOML parsing + spec-lint (parse-only, not wired to execution) — `DONE`
 
 **Why a separate struct, not an `HfSweepSpec` variant bolted onto `SweepSpec`.** `SweepSpec` is a
 plain struct (not an enum) and `run_sweep`/every LF test reads its fields directly

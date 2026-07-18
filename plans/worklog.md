@@ -1523,3 +1523,18 @@ collision; **(2)** baseline is 433/0/1 + sweep `94e90c3c…`, not the card's pre
 **(3)** quoted line numbers ±5, cosmetic. Verdict: **C8.5 READY** — executor seed prompt refreshed
 in handoff.md; current-state.md/handoff.md "next is C8.1" lag corrected to C8.5. C8.6/C8.7 still
 need their own reconciliation passes after C8.5 lands.
+
+## 2026-07-18 — Executor: M-HF-C8.5 DONE (HfSweepSpec parse-only + spec-lint)
+
+- C8.5: 441/0/1 (433 + 4 in-module + 4 integration tests, all matched by `cargo test -p sweep
+  hf_spec`); fmt/clippy clean; demo `ae064f79…` and sweep stdout `94e90c3c…` both UNCHANGED;
+  sweep-verify OK (18990 bytes). Exactly 4 files: NEW `crates/sweep/src/hf_spec.rs`
+  (`HfSweepSpecToml`/`HfSweepSpec`/`HfSpecError`; `turnover_budget` rejected at parse time via
+  `deny_unknown_fields` on `HfAdvancementToml` mapped to `TurnoverBudgetNotAllowed`; empty depth
+  curve surfaces `DepthCurve::new`'s `EmptyDepthCurve` via `MissingDepthCurve(HfCostError)`;
+  `max_lookback_bars == 0` rejected; cost_drag/per-trade pair required → always `Some`), additive
+  `lib.rs` re-export, NEW `config/strategies/hf-strategy-lab.example.toml` (illustrative, NOT
+  tuned; [hf_cost] mirrors hf_cost.rs's reference test values), NEW
+  `crates/sweep/tests/hf_spec_parsing.rs`. `spec.rs`/`strategy-lab.example.toml`/`m5-frozen.toml`
+  untouched (git status verified). All 3 pre-ruled drifts held; no other mismatch. Next: C8.6
+  planner reconciliation pass (never execute its scoped sketch directly).
