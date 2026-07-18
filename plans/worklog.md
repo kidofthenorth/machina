@@ -1505,3 +1505,21 @@ Planner (§6) independently re-verified each executor report before staging was 
 Combined 9-file slice staged for the operator. Next: **C8.5 pre-verify** (fresh planner re-check of
 its card vs post-C8.4 HEAD, per the queue's own instruction), then a C8.5 executor; C8.6/C8.7 need
 their own reconciliation passes once C8.4/C8.5 are landed.
+
+## 2026-07-18 — Planner: Step-0 reconcile + C8.5 pre-verify PASS (3 drifts pre-ruled); pointers refreshed
+
+Step 0 at HEAD `ddd4512` (clean tree): full gate independently re-run — fmt/clippy clean;
+**433 passed / 0 failed / 1 ignored**; demo `ae064f79…`; sweep stdout `94e90c3c…`; sweep-verify OK
+(18990 bytes). (Note for future gate runs: the canonical sweep shasum is over **stdout**;
+`--out FILE` writes the same bytes minus the trailing newline, hashing `651ac5fd…` — not a drift.)
+C8.5 pre-verify vs `ddd4512`: every pinned shape holds — `HfCostModel`/`DepthCurve::new`/
+`CongestionPriorityTable::new` (hf_cost.rs), `AdvancementThresholds` Option-pair (advance.rs),
+`ParamGrid::IntradayMeanRev` (param.rs:27), `intraday_partition` reuses `config::PartitionSpec`
+(intraday_partition.rs:34), `spec.rs` mirror target intact, `toml`/`serde` already sweep deps,
+`reference_depth_curve`/`reference_priority_table` at hf_cost.rs:266/:284 for the template.
+**Pre-ruled drifts (executor must not escalate on these): (1)** the card's "grep `hf_spec`
+returns nothing" is stale — `tests/hf_reuse_proof.rs:36` has a local `fn hf_spec()` helper, no
+collision; **(2)** baseline is 433/0/1 + sweep `94e90c3c…`, not the card's pre-C8.2 402/`85d06e5b…`;
+**(3)** quoted line numbers ±5, cosmetic. Verdict: **C8.5 READY** — executor seed prompt refreshed
+in handoff.md; current-state.md/handoff.md "next is C8.1" lag corrected to C8.5. C8.6/C8.7 still
+need their own reconciliation passes after C8.5 lands.

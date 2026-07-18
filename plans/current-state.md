@@ -1,14 +1,15 @@
 # Current state
 
-Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-16 (M-HF
-wave 2: C3/C4/C5/C5.1 DONE + verified; C3–C5 adversarial checkpoint PASS-with-hardening closed;
-**C6 DONE + verified** (narrow: turnover-criterion replacement; sweep schema 1.2.0, new sweep shasum
-`85d06e5b…`); **C7 DONE + independently re-verified 2026-07-16** (NARROW: `intraday_meanrev_v1`
-intent-only + ≥100k-bar deterministic `run_hf` cadence proof; **402/0/1**, demo+sweep shasums
-unchanged); **C8 PLANNER PASS DONE 2026-07-16 — C8 split into executor-ready C8.1–C8.3, drafted
-C8.4–C8.5, scoped C8.6–C8.7 (the real gate), plus a deferred `M-HF-C8-PAIR` mini-track for
-`statarb_pairs_v1` (operator ruling HF-Q4: build the real two-leg engine, own future card sequence,
-not part of C8's gate)**; next up is executing **C8.1** (fully unblocked, no operator input needed).
+Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-18 (M-HF
+wave 2: C1–C7 DONE + verified; **C8.1–C8.4 + CARD-HYG-1 DONE + planner-verified, committed at
+`ddd4512`/`3757d2a`**: `ScenarioId` HF rungs, `data_provenance` rollup (sweep schema **1.3.0**,
+sweep shasum moved to `94e90c3c…`), `ParamGrid::IntradayMeanRev`, `sweep::intraday_partition`
+holdout seal, gnhf e2e-test port. Gate re-verified 2026-07-18 at `ddd4512`, clean tree:
+**433 passed / 0 failed / 1 ignored**; demo `ae064f79…`; sweep `94e90c3c…`; sweep-verify OK.
+**C8.5 pre-verify DONE 2026-07-18** (fresh card-vs-HEAD re-check; one drift pre-ruled: the
+`hf_spec` grep hits `hf_reuse_proof.rs`'s local test helper — benign, no collision); next up is
+executing **C8.5** (`HfSweepSpec` parse-only). C8.6/C8.7 each still need their own planner
+reconciliation pass before any executor. `M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -153,26 +154,23 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   and gate declaration all complete, cards M4-C1…C10.)
 
 ## Next recommended command
-**M-HF-C7 is DONE (2026-07-16), independently re-verified at HEAD `f09761b`** (fresh-session gate
-re-run: fmt/clippy clean; **402 passed / 0 failed / 1 ignored** = 391 + 9 `intraday_meanrev` unit
-tests + 2 `hf_cadence` tests, exactly the card's pinned N; demo `ae064f79…` and sweep `85d06e5b…`
-byte-identical — the C7 no-sweep-wiring guard held; sweep-verify OK; commit code scope exactly the
-3 card files). Known cosmetic drift, operator-only to fix: `f09761b`'s commit message duplicates
-`1d5c8b1`'s ("plan files only") but actually carries the C7 code + the `DECISIONS.md`→`docs/` move +
-`docs/FOREMAN.md`/`docs/repo-kit/*` (worklog 2026-07-16).
+**C8.1–C8.4 + CARD-HYG-1 are DONE + planner-verified (2026-07-17), committed at
+`3757d2a`+`ddd4512`.** Per-card verification evidence is in worklog 2026-07-17 ("Planner
+verification wrap"). Gate freshly re-verified 2026-07-18 at HEAD `ddd4512` (clean tree):
+fmt/clippy clean; **433/0/1**; demo `ae064f79…` unchanged; sweep `94e90c3c…` (moved once, at
+C8.2's schema 1.2.0→1.3.0 bump, byte-diff-explained); sweep-verify OK.
 
-**The C8 planner pass is DONE (2026-07-16, HEAD `3c653ba`, no code changed — plan files only).** A
-grep-verified reconciliation found row-C8's own m-hf-track sketch unbuildable as worded — see
-task-queue.md's "M-HF-C8 planner reconciliation (2026-07-16)" for the full audit. **C8 is now
-C8.1–C8.7:**
-- **C8.1** (`ScenarioId` gains the 3 HF ladder variants + compiler-forced `label()`), **C8.2**
-  (`data_provenance` typed rollup on `SweepReport`), **C8.3** (`ParamPoint`/`ParamGrid` gain
-  `IntradayMeanRev`) are drafted **executor-ready now** — each is small, mechanical, additive, and
-  independently gate-able (demo/sweep shasums unchanged by all three). **C8.1 is the next command.**
-- **C8.4** (`sweep::intraday_partition`, the S9-equivalent intraday holdout seal — structurally
-  duplicated from `partition.rs` per m-hf-track §1) and **C8.5** (`HfSweepSpec` HF-kind TOML parsing
-  + spec-lint, parse-only) are drafted to full rigor but want a fresh planner re-verify against HEAD
-  immediately before executing (each depends on prior cards having actually landed).
+**The next command is executing M-HF-C8.5** (`HfSweepSpec`: HF-kind TOML parsing + spec-lint,
+parse-only — task-queue.md). Its planner pre-verify ran 2026-07-18 against `ddd4512`: all pinned
+shapes hold (`HfCostModel`/`DepthCurve::new`/`CongestionPriorityTable::new`,
+`AdvancementThresholds` Option-pair, `ParamGrid::IntradayMeanRev`, `PartitionSpec` reuse,
+`spec.rs` untouched-mirror target, `toml`/`serde` already deps, `reference_depth_curve`/
+`reference_priority_table` at hf_cost.rs:266/:284 for the template). **Pre-ruled drifts** (card
+says escalate on mismatch — these are cleared in advance): (1) the card's "grep `hf_spec` returns
+nothing" is stale — `crates/sweep/tests/hf_reuse_proof.rs:36` has a *local test helper*
+`fn hf_spec()`; no module/type collision, proceed; (2) baseline numbers are now 433/0/1 and sweep
+`94e90c3c…` (the card predates C8.2's shasum move); (3) quoted line numbers may be ±5 (cosmetic).
+- **C8.6** and **C8.7** remain as below: scoped, NOT executor-ready.
 - **C8.6** (wire `HfCostModel`+`AdversarialModel` pricing into a new `run_hf_priced` execution entry)
   and **C8.7** (the actual row-C8 gate: `hf_cost_scenarios` ladder assembly + `IntradaySource`
   windowed cells + a full deterministic HF sweep across thread counts) are **scoped, not
