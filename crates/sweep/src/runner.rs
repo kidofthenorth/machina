@@ -246,6 +246,19 @@ fn in_grid_neighbors(grid: &ParamGrid, local: usize) -> Vec<usize> {
         } => {
             vec![target_sol_weights.len(), bands.len()]
         }
+        ParamGrid::IntradayMeanRev {
+            anchor_periods,
+            bands,
+            weights_in,
+            weights_out,
+        } => {
+            vec![
+                anchor_periods.len(),
+                bands.len(),
+                weights_in.len(),
+                weights_out.len(),
+            ]
+        }
     };
     let mut idx = vec![0usize; dims.len()];
     let mut rem = local;
@@ -565,6 +578,28 @@ mod tests {
         assert_eq!(evidence[0].neighbor_degradation, Decimal::ZERO);
         assert_eq!(evidence[1].neighbor_degradation, dec!(0.4));
         assert_eq!(evidence[2].neighbor_degradation, Decimal::ZERO);
+    }
+
+    #[test]
+    fn in_grid_neighbors_over_a_four_axis_intraday_grid() {
+        // dims = [2, 2, 2, 1]: anchor_periods, bands, weights_in vary; weights_out is a singleton
+        // axis and must contribute zero neighbors on its own.
+        let grid = ParamGrid::IntradayMeanRev {
+            anchor_periods: vec![10, 20],
+            bands: vec![dec!(0.01), dec!(0.02)],
+            weights_in: vec![dec!(0.3), dec!(0.5)],
+            weights_out: vec![dec!(0)],
+        };
+        // local index 0 == (anchor=10, band=0.01, weight_in=0.3, weight_out=0): the first point,
+        // one step from an edge on every varying axis.
+        let mut neighbors_first = in_grid_neighbors(&grid, 0);
+        neighbors_first.sort_unstable();
+        assert_eq!(neighbors_first, vec![1, 2, 4]);
+
+        // local index 7 == (anchor=20, band=0.02, weight_in=0.5, weight_out=0): the last point.
+        let mut neighbors_last = in_grid_neighbors(&grid, 7);
+        neighbors_last.sort_unstable();
+        assert_eq!(neighbors_last, vec![3, 5, 6]);
     }
 
     #[test]

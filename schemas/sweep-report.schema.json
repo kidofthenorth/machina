@@ -23,6 +23,11 @@
     "verdicts": {
       "type": "array",
       "items": { "$ref": "#/$defs/CandidateVerdict" }
+    },
+    "data_provenance": {
+      "description": "Computed rollup over the input data actually fed to the sweep (m-hf-track §2: a typed field, not prose). 'synthetic' if every item was synthetic, 'real' if every item was real, 'mixed' otherwise. Absent entirely when the sweep never computed it (all M4/M5/LF and pre-C8.2 reports).",
+      "type": "string",
+      "enum": ["synthetic", "real", "mixed"]
     }
   },
   "$defs": {

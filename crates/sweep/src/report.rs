@@ -16,7 +16,7 @@ use serde::Serialize;
 
 /// Version of the sweep-report schema this crate targets (matches `schema_version` in the JSON and
 /// `sweep-report.schema.json`).
-pub const SWEEP_SCHEMA_VERSION: &str = "1.2.0";
+pub const SWEEP_SCHEMA_VERSION: &str = "1.3.0";
 
 /// The fixed disclaimer embedded in every report (invariant 11).
 const REPORT_NOTE: &str = "Robustness filter only — not a profitability verdict. 'advanceable' means a candidate survived the robustness battery (costs, doubled costs, walk-forward, baselines) and is eligible for M5 review; it is never evidence the strategy is profitable. In-sample results never establish an edge.";
@@ -144,6 +144,11 @@ pub struct SweepReport {
     pub thresholds: ThresholdsDto,
     pub candidates: Vec<CandidateMetricsDto>,
     pub verdicts: Vec<CandidateVerdict>,
+    /// Computed provenance rollup over the input data actually fed to the sweep — `"synthetic"`,
+    /// `"real"`, or `"mixed"` (see [`SweepReport::with_data_provenance`]). Absent (not just null)
+    /// when never set, so pre-C8.2 reports serialize identically.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_provenance: Option<String>,
 }
 
 impl SweepReport {
@@ -167,6 +172,7 @@ impl SweepReport {
             thresholds: ThresholdsDto::from_thresholds(thresholds),
             candidates,
             verdicts,
+            data_provenance: None,
         }
     }
 
@@ -188,6 +194,30 @@ impl SweepReport {
     #[must_use]
     pub fn with_provenance(mut self, provenance: &str) -> Self {
         self.note = format!("{} | data: {provenance}", self.note);
+        self
+    }
+
+    /// Compute the typed `data_provenance` rollup over the input data actually fed to the sweep
+    /// (m-hf-track §2: "a typed field, not prose"). `"synthetic"` if every item is
+    /// [`research_core::intraday::Provenance::Synthetic`], `"real"` if every item is `Real`,
+    /// `"mixed"` otherwise. An empty slice is defined as `"synthetic"` (vacuously — no real data
+    /// is present). Pure, no I/O; does not touch `note` (coexists with [`Self::with_provenance`]).
+    #[must_use]
+    pub fn with_data_provenance(mut self, items: &[research_core::intraday::Provenance]) -> Self {
+        let all_synthetic = items
+            .iter()
+            .all(|p| matches!(p, research_core::intraday::Provenance::Synthetic { .. }));
+        let all_real = items
+            .iter()
+            .all(|p| matches!(p, research_core::intraday::Provenance::Real { .. }));
+        let rollup = if all_synthetic {
+            "synthetic"
+        } else if all_real {
+            "real"
+        } else {
+            "mixed"
+        };
+        self.data_provenance = Some(rollup.to_string());
         self
     }
 }
@@ -301,5 +331,56 @@ mod tests {
         let r1 = SweepReport::new(&th, 2, vec![advanceable.clone(), rejected.clone()], vec![]);
         let r2 = SweepReport::new(&th, 2, vec![rejected, advanceable], vec![]);
         assert_eq!(r1.to_json(), r2.to_json());
+    }
+
+    #[test]
+    fn data_provenance_all_synthetic_rolls_up_to_synthetic() {
+        let items = vec![
+            research_core::intraday::Provenance::Synthetic { spec_hash: 1 },
+            research_core::intraday::Provenance::Synthetic { spec_hash: 2 },
+        ];
+        let r = sample_report().with_data_provenance(&items);
+        assert_eq!(r.data_provenance.as_deref(), Some("synthetic"));
+    }
+
+    #[test]
+    fn data_provenance_all_real_rolls_up_to_real() {
+        let items = vec![
+            research_core::intraday::Provenance::Real {
+                source_id: "binance-snapshot-1".to_string(),
+            },
+            research_core::intraday::Provenance::Real {
+                source_id: "binance-snapshot-2".to_string(),
+            },
+        ];
+        let r = sample_report().with_data_provenance(&items);
+        assert_eq!(r.data_provenance.as_deref(), Some("real"));
+    }
+
+    #[test]
+    fn data_provenance_mixed_rolls_up_to_mixed() {
+        let items = vec![
+            research_core::intraday::Provenance::Synthetic { spec_hash: 1 },
+            research_core::intraday::Provenance::Real {
+                source_id: "binance-snapshot-1".to_string(),
+            },
+        ];
+        let r = sample_report().with_data_provenance(&items);
+        assert_eq!(r.data_provenance.as_deref(), Some("mixed"));
+    }
+
+    #[test]
+    fn data_provenance_empty_slice_rolls_up_to_synthetic() {
+        let r = sample_report().with_data_provenance(&[]);
+        assert_eq!(r.data_provenance.as_deref(), Some("synthetic"));
+    }
+
+    #[test]
+    fn report_without_data_provenance_omits_the_field_entirely() {
+        let value = sample_report().to_value();
+        assert!(
+            value.get("data_provenance").is_none(),
+            "data_provenance must be entirely absent (not null) when never set"
+        );
     }
 }

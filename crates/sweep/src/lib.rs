@@ -29,6 +29,7 @@ pub mod advance;
 pub mod baseline;
 pub mod cell;
 pub mod config;
+pub mod intraday_partition;
 pub mod parallel;
 pub mod param;
 pub mod partition;
@@ -46,6 +47,10 @@ pub use advance::{
 pub use baseline::{best_baseline_return, eval_all_baselines, eval_baseline, BaselineId};
 pub use cell::{eval_cell, CellResult};
 pub use config::PartitionSpec;
+pub use intraday_partition::{
+    evaluate_intraday_on_holdout, IntradayDevValidation, IntradayPartitionError,
+    IntradayPartitionedBars, IntradaySealed,
+};
 pub use parallel::{run_cells, run_in_parallel, Parallelism, SweepCell};
 pub use param::{build_strategy, ParamGrid, ParamPoint};
 pub use partition::{evaluate_on_holdout, DevValidation, PartitionError, PartitionedBars, Sealed};

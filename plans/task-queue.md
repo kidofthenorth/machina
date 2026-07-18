@@ -5509,7 +5509,7 @@ card at all (it's an enum) — nothing to keep Decimal-only, but don't introduce
 
 ---
 
-### M-HF-C8.2 — `data_provenance` computed rollup on `SweepReport` (typed, additive) — `TODO`
+### M-HF-C8.2 — `data_provenance` computed rollup on `SweepReport` (typed, additive) — `DONE`
 
 **Why.** m-hf-track §2: provenance must be "a typed field, not prose… a report with any synthetic
 input can never render as real." Today the **only** provenance mechanism on `SweepReport` is
@@ -5618,7 +5618,7 @@ one `schema_version` line; the demo shasum moves; you find yourself wiring this 
 
 ---
 
-### M-HF-C8.3 — `ParamPoint`/`ParamGrid` gain an `IntradayMeanRev` variant (mechanical enum extension) — `TODO`
+### M-HF-C8.3 — `ParamPoint`/`ParamGrid` gain an `IntradayMeanRev` variant (mechanical enum extension) — `DONE`
 
 **Why.** C7 built `intraday_meanrev_v1` deliberately WITHOUT touching `param.rs` (its own
 construction-site audit names this as C8's job). No HF spec can enumerate a grid over it — or over
@@ -5702,7 +5702,7 @@ shasum moves — STOP (this card must be a no-op on any running path).
 
 ---
 
-### M-HF-C8.4 — `sweep::intraday_partition`: the intraday-resolution holdout seal (S9-equivalent, deliberately duplicated) — `TODO`
+### M-HF-C8.4 — `sweep::intraday_partition`: the intraday-resolution holdout seal (S9-equivalent, deliberately duplicated) — `DONE`
 
 **Why a duplicate module, not a generic one.** m-hf-track §1, verbatim: "a new, structurally identical
 `sweep::intraday_partition` module: own `Sealed`-equivalent, own by-value call-once

@@ -1379,3 +1379,129 @@ clean; `cargo test -p cli` → 19 existing + 4 new, all green; `cargo test --wor
 sweep shasum `85d06e5be4b1a2ac09713a30b56ba794624dc260` both **unchanged**; `sweep-verify: OK`. `git
 status --porcelain` shows exactly `crates/cli/tests/demo_end_to_end.rs` (new), `crates/cli/Cargo.toml`,
 `Cargo.lock`, plus this worklog/queue flip, on top of the still-untouched staged M-HF-C8.1 files.
+
+## 2026-07-17 — M-HF-C8.2 DONE: `data_provenance` computed rollup on `SweepReport` (typed, additive)
+
+Step 0 baseline confirmed before editing: fmt/clippy clean; `cargo test --workspace --all-features`
+→ **406 passed / 0 failed / 1 ignored** (4 higher than the card's pinned 402, matching CARD-HYG-1
+landing after the C8 planner pass wrote the cards — noted, not a drift); demo shasum
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum `85d06e5be4b1a2ac09713a30b56ba794624dc260`;
+`sweep-verify: OK`. Card's quoted `report.rs` blocks and the 11 `SweepReport::new` call sites
+re-verified verbatim against HEAD `3757d2a` — no drift. Added `SweepReport::data_provenance:
+Option<String>` (`#[serde(skip_serializing_if = "Option::is_none")]`, `SweepReport::new` sets
+`None`, unchanged signature/11 call sites untouched) and the pure builder
+`with_data_provenance(&[research_core::intraday::Provenance]) -> Self` (all-synthetic → `"synthetic"`,
+all-real → `"real"`, else `"mixed"`, empty slice → `"synthetic"` vacuously); bumped
+`SWEEP_SCHEMA_VERSION` `"1.2.0"` → `"1.3.0"`; added the optional `data_provenance` enum property to
+`schemas/sweep-report.schema.json` (not `required`); added 1 schema-validation round-trip test in
+`crates/sweep/tests/schema_validation.rs` plus fixed its pre-existing
+`m4_shape_report_validates_under_1_2_0` literal (`"1.2.0"` → `"1.3.0"`, the direct, necessary
+consequence of this card's version bump — every other existing test re-ran green unedited). No
+caller wired (`with_data_provenance` has zero call sites, same "pure logic first" pattern as C4/C5 —
+C8.7 is the first real caller); `with_provenance`, `cost_scenarios`, `runner.rs`, `spec.rs`,
+`ParamPoint`/`ParamGrid` untouched. Gate: fmt clean; clippy clean; `cargo test --workspace
+--all-features` → **412 passed / 0 failed / 1 ignored** (baseline 406 + 6 new test fns: 5 in
+`report.rs`, 1 in `schema_validation.rs`); demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`
+**unchanged**; sweep shasum moved `85d06e5be4b1a2ac09713a30b56ba794624dc260` →
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8`, diffed byte-for-byte against the pre-change output and
+confirmed the **only** line that changed is `"schema_version": "1.2.0"` → `"1.3.0"` (the CLI path
+never calls `with_data_provenance`, so the field stays absent from `cargo run -p cli -- sweep`
+output, exactly as the card's gate requires); `sweep-verify: OK`. `git status --porcelain` shows
+exactly `crates/sweep/src/report.rs`, `crates/sweep/tests/schema_validation.rs`,
+`schemas/sweep-report.schema.json`, plus this worklog/queue flip. Next executor card is **C8.3**
+(`ParamPoint`/`ParamGrid` gain an `IntradayMeanRev` variant).
+
+## 2026-07-17 — M-HF-C8.3 DONE: `ParamPoint`/`ParamGrid` gain an `IntradayMeanRev` variant (mechanical enum extension)
+
+Step 0 baseline confirmed before editing (with staged C8.2 in the tree, per the operator's stated true
+baseline): fmt/clippy clean; `cargo test --workspace --all-features` → **412 passed / 0 failed / 1
+ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8`; `sweep-verify: OK`. Re-verified the card's quoted
+`param.rs` (`family()` :31-36, `param_id()` :44-65, `build_strategy()` :71-90, `ParamGrid` :95-107,
+`points()` :117-156) and `runner.rs` `in_grid_neighbors` (:234-249) blocks verbatim against HEAD —
+no drift. Re-grepped every `ParamPoint`/`ParamGrid` reference in `crates/` and confirmed the audit's
+claim: the only exhaustive matches are `param.rs`'s 4 (`family`, `param_id`, `build_strategy`,
+`ParamGrid::points`) and `runner.rs`'s `in_grid_neighbors`; `spec.rs` only conditionally *constructs*
+grids from TOML flags (no match to update); `cell.rs`/`sensitivity.rs`/`partition.rs`/`parallel.rs`
+hold `ParamPoint`/`ParamGrid` as opaque types only; the four `tests/*.rs` fixture files construct
+`TrendAlloc`/`ThresholdRebalance` literals only. Added `ParamPoint::IntradayMeanRev { anchor_period:
+usize, band: Decimal, weight_in: Decimal, weight_out: Decimal }` and `ParamGrid::IntradayMeanRev {
+anchor_periods: Vec<usize>, bands: Vec<Decimal>, weights_in: Vec<Decimal>, weights_out: Vec<Decimal>
+}` (4-axis Cartesian product, anchor_period→band→weight_in→weight_out nesting) with matching arms in
+all 4 `param.rs` exhaustive matches — `family()` → `"intraday_meanrev_v1"`; `param_id()` →
+`"anchor={};band={};in={};out={}"` scale-canonical via `.normalize()`; `build_strategy()` → `Box::new
+(IntradayMeanRevV1 { .. })`; `points()` → nested-loop Cartesian expansion — plus the `runner.rs`
+`in_grid_neighbors` `dims` arm (`vec![anchor_periods.len(), bands.len(), weights_in.len(),
+weights_out.len()]`). Added 3 new tests in `crates/sweep/src/param.rs`
+(`intraday_meanrev_grid_is_fixed_order_cartesian_product`,
+`intraday_meanrev_build_strategy_round_trips_family_and_behavior`,
+`intraday_meanrev_param_id_is_scale_canonical`) mirroring the existing `TrendAlloc`/
+`ThresholdRebalance` trio, and 1 new test in `crates/sweep/src/runner.rs`
+(`in_grid_neighbors_over_a_four_axis_intraday_grid`) proving neighbor computation over the new 4-axis
+grid directly, including that the singleton `weights_out` axis contributes zero neighbors. No
+`SweepSpecToml`/TOML config, CLI roster, or running sweep wired to the new variant (spec parsing is
+C8.5, execution wiring C8.6, the windowed sweep is C8.7) — `spec.rs`, config TOML, and `cli/src/
+main.rs` untouched. Gate: `cargo fmt --all` clean; clippy clean; `cargo test --workspace
+--all-features` → **416 passed / 0 failed / 1 ignored** (baseline 412 + 4 new test fns: 3 in
+`param.rs`, 1 in `runner.rs`); demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` **unchanged**;
+sweep shasum `94e90c3c6060a11feddd8d55a19accf07a86f7d8` **unchanged**; `sweep-verify: OK`. `git status
+--porcelain` shows exactly `crates/sweep/src/param.rs`, `crates/sweep/src/runner.rs` (unstaged, on top
+of the already-staged C8.2 set), plus this worklog/queue flip. Next executor card is **C8.4**
+(`sweep::intraday_partition` — the intraday-resolution holdout seal), which per the planner
+reconciliation note should get a re-verification pass against HEAD before executing.
+
+## 2026-07-17 — M-HF-C8.4 DONE: `sweep::intraday_partition`, the intraday-resolution holdout seal (S9-equivalent, deliberately duplicated)
+
+Step 0 baseline confirmed before editing (with staged C8.2+C8.3 in the tree, per the planner's
+re-verified true baseline): fmt/clippy clean; `cargo test --workspace --all-features` → **416 passed /
+0 failed / 1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8`; `sweep-verify: OK`. Re-verified the card's quoted
+`partition.rs` blocks (module doc :1-21, `PartitionError` :34-52, `Holdout` :88-107, `digest_bars`
+:115-121, `PartitionedBars` :126-278, `DevValidation` :301-347, `Sealed` :369-406,
+`evaluate_on_holdout` :448-458) and `market_data::validate_series_spacing` (`validation.rs` :116-129)
+verbatim against the working tree — no drift, modulo the three pre-ruled corrections (648 not 649
+lines; 10 not 11 existing `#[test]` fns; a faithful doctest mirror is 6 new doctests, not 3). Added
+`crates/sweep/src/intraday_partition.rs` (**NEW**) as a byte-level structural duplicate of
+`partition.rs`: `IntradayPartitionError`/`IntradayHoldout`/`IntradayPartitionedBars`/
+`IntradayDevValidation`/`IntradaySealed`/`evaluate_intraday_on_holdout`, same `split_off` physical
+move, same `Cell<u32>` read-counter gateway, same `digest_bars` within-process witness, same 3
+`compile_fail`/3 `no_run` doctest pairs (no-holdout-accessor-on-`IntradayDevValidation`, no seal
+forgery, call-once `evaluate_intraday_on_holdout`) — differing from `partition.rs` in exactly one
+place: `IntradayPartitionedBars::from_spec` validates with `market_data::validate_series_spacing(&bars,
+1)` instead of `validate_series`. Test module mirrors all 10 of `partition.rs`'s tests verbatim
+(adapted `series(n)` helper to 1-second-spaced bars, `ts: i as i64` instead of `i as i64 * 86_400`),
+plus 1 new test (`spacing_gap_series_rejected_here_but_accepted_by_the_daily_partition_module`)
+proving a series with a 2s gap (OHLC-valid/sorted/unique otherwise) is accepted by
+`crate::partition::PartitionedBars::from_spec` but rejected by `IntradayPartitionedBars::from_spec` —
+the one behavioral difference this duplicate module exists for. `crates/sweep/src/lib.rs`: added `pub
+mod intraday_partition;` and a `pub use intraday_partition::{evaluate_intraday_on_holdout,
+IntradayDevValidation, IntradayPartitionError, IntradayPartitionedBars, IntradaySealed};` block,
+additive only, mirroring the existing `partition` re-export line. `partition.rs` and `config.rs` are
+**untouched** (`git diff --stat` on both is empty) — the daily/LF seal was not reopened. Nothing else
+in the workspace constructs or calls this new module (C8.7's job). Gate: `cargo fmt --all` clean;
+clippy clean; `cargo test --workspace --all-features` → **433 passed / 0 failed / 1 ignored** (416 +
+11 new unit tests in `intraday_partition.rs` + 6 new doctests); demo shasum
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a` **unchanged**; sweep shasum
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8` **unchanged**; `sweep-verify: OK`. `git status --porcelain`
+shows exactly `crates/sweep/src/intraday_partition.rs` (new, untracked), `crates/sweep/src/lib.rs`
+(unstaged modification), on top of the already-staged C8.2+C8.3 set, plus this worklog/queue flip.
+Next up is **C8.5** (`HfSweepSpec`: HF-kind TOML parsing + spec-lint).
+
+## 2026-07-17 — Planner verification wrap: C8.2+C8.3+C8.4 slice verified; next is the C8.5 pre-verify
+
+Planner (§6) independently re-verified each executor report before staging was accepted:
+- C8.2: 412/0/1; sweep shasum moved by exactly the `schema_version` 1.2.0→1.3.0 line to
+  `94e90c3c6060a11feddd8d55a19accf07a86f7d8` (byte-diff argument: `with_data_provenance` has zero
+  production callers, field is skip-serialized `None`); demo unchanged; schema diff = one additive
+  optional enum property.
+- C8.3: 416/0/1; both shasums unchanged; all five exhaustive-match arms present incl.
+  `runner.rs in_grid_neighbors` (the C6-lesson site); zero `IntradayMeanRev` refs in spec.rs/CLI.
+- C8.4: 433/0/1 (416 + 11 unit + 6 doctests); both shasums unchanged; `partition.rs`/`config.rs`
+  byte-untouched (empty diff vs HEAD); 3 `compile_fail` + 3 `no_run` doctest pairs present (12
+  sweep doctests total); `Cell<u32>` counter + by-value seal mirrored; `evaluate_intraday_on_holdout`
+  not wired into any CLI path (C8.7's job). C8.4 ran under a same-day planner pre-verify (verdict
+  READY WITH PRE-RULED CORRECTIONS: 648 lines / 10 mirrored tests / 6 new doctests) — all three
+  corrections held exactly.
+Combined 9-file slice staged for the operator. Next: **C8.5 pre-verify** (fresh planner re-check of
+its card vs post-C8.4 HEAD, per the queue's own instruction), then a C8.5 executor; C8.6/C8.7 need
+their own reconciliation passes once C8.4/C8.5 are landed.

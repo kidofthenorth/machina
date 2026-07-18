@@ -3,6 +3,7 @@
 //! rejection criterion round-trips, `trial_count` is recorded, and two serializations are
 //! byte-identical. Plus the f64-comparison audit: the advancement/selection modules are Decimal-only.
 
+use research_core::intraday::Provenance;
 use research_core::Decimal;
 use rust_decimal_macros::dec;
 use serde_json::{json, Value};
@@ -127,7 +128,7 @@ fn m4_shape_report_validates_under_1_2_0() {
     let report = SweepReport::new(&thresholds(), 1, vec![], vec![]);
     assert_valid(&report.to_value());
     let value = report.to_value();
-    assert_eq!(value["schema_version"], json!("1.2.0"));
+    assert_eq!(value["schema_version"], json!("1.3.0"));
     assert!(value["thresholds"]["turnover_budget"].is_string());
     assert!(value["thresholds"].get("cost_drag_share_ceiling").is_none());
     assert!(value["thresholds"].get("per_trade_edge_floor").is_none());
@@ -148,6 +149,18 @@ fn hf_shape_report_validates_under_1_2_0() {
     assert!(value["thresholds"].get("turnover_budget").is_none());
     assert_eq!(value["thresholds"]["cost_drag_share_ceiling"], json!("0.5"));
     assert_eq!(value["thresholds"]["per_trade_edge_floor"], json!("0.001"));
+}
+
+#[test]
+fn report_with_data_provenance_validates_and_round_trips() {
+    let report = SweepReport::new(&thresholds(), 1, vec![], vec![]).with_data_provenance(&[
+        Provenance::Real {
+            source_id: "binance-snapshot-1".to_string(),
+        },
+    ]);
+    let value = report.to_value();
+    assert_valid(&value);
+    assert_eq!(value["data_provenance"], json!("real"));
 }
 
 #[test]

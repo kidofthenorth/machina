@@ -7,7 +7,7 @@
 //! only coupling between the sweep and the strategy implementations.
 
 use research_core::Decimal;
-use strategies::{Strategy, ThresholdRebalanceV1, TrendAllocV1};
+use strategies::{IntradayMeanRevV1, Strategy, ThresholdRebalanceV1, TrendAllocV1};
 
 /// One concrete parameterization of one strategy family.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,6 +23,13 @@ pub enum ParamPoint {
         target_sol_weight: Decimal,
         band: Decimal,
     },
+    /// `intraday_meanrev_v1` — SMA-deviation-band intraday mean reversion (M-HF).
+    IntradayMeanRev {
+        anchor_period: usize,
+        band: Decimal,
+        weight_in: Decimal,
+        weight_out: Decimal,
+    },
 }
 
 impl ParamPoint {
@@ -32,6 +39,7 @@ impl ParamPoint {
         match self {
             Self::TrendAlloc { .. } => "trend_alloc_v1",
             Self::ThresholdRebalance { .. } => "threshold_rebalance_v1",
+            Self::IntradayMeanRev { .. } => "intraday_meanrev_v1",
         }
     }
 
@@ -61,6 +69,18 @@ impl ParamPoint {
                 target_sol_weight.normalize(),
                 band.normalize()
             ),
+            Self::IntradayMeanRev {
+                anchor_period,
+                band,
+                weight_in,
+                weight_out,
+            } => format!(
+                "anchor={};band={};in={};out={}",
+                anchor_period,
+                band.normalize(),
+                weight_in.normalize(),
+                weight_out.normalize()
+            ),
         }
     }
 }
@@ -86,6 +106,17 @@ pub fn build_strategy(point: &ParamPoint) -> Box<dyn Strategy> {
             target_sol_weight,
             band,
         }),
+        ParamPoint::IntradayMeanRev {
+            anchor_period,
+            band,
+            weight_in,
+            weight_out,
+        } => Box::new(IntradayMeanRevV1 {
+            anchor_period,
+            band,
+            weight_in,
+            weight_out,
+        }),
     }
 }
 
@@ -103,6 +134,14 @@ pub enum ParamGrid {
     ThresholdRebalance {
         target_sol_weights: Vec<Decimal>,
         bands: Vec<Decimal>,
+    },
+    /// `intraday_meanrev_v1` axes, iterated `anchor_period` (outer) → `band` → `weight_in` →
+    /// `weight_out` (inner).
+    IntradayMeanRev {
+        anchor_periods: Vec<usize>,
+        bands: Vec<Decimal>,
+        weights_in: Vec<Decimal>,
+        weights_out: Vec<Decimal>,
     },
 }
 
@@ -148,6 +187,31 @@ impl ParamGrid {
                             target_sol_weight,
                             band,
                         });
+                    }
+                }
+                out
+            }
+            Self::IntradayMeanRev {
+                anchor_periods,
+                bands,
+                weights_in,
+                weights_out,
+            } => {
+                let mut out = Vec::with_capacity(
+                    anchor_periods.len() * bands.len() * weights_in.len() * weights_out.len(),
+                );
+                for &anchor_period in anchor_periods {
+                    for &band in bands {
+                        for &weight_in in weights_in {
+                            for &weight_out in weights_out {
+                                out.push(ParamPoint::IntradayMeanRev {
+                                    anchor_period,
+                                    band,
+                                    weight_in,
+                                    weight_out,
+                                });
+                            }
+                        }
                     }
                 }
                 out
@@ -293,5 +357,87 @@ mod tests {
         };
         assert_eq!(t1.param_id(), t2.param_id());
         assert_eq!(t1.param_id(), "target=0.5;band=0.1");
+    }
+
+    #[test]
+    fn intraday_meanrev_grid_is_fixed_order_cartesian_product() {
+        let grid = ParamGrid::IntradayMeanRev {
+            anchor_periods: vec![10, 20],
+            bands: vec![dec!(0.01), dec!(0.02)],
+            weights_in: vec![dec!(0.5)],
+            weights_out: vec![dec!(0)],
+        };
+        let expected = vec![
+            ParamPoint::IntradayMeanRev {
+                anchor_period: 10,
+                band: dec!(0.01),
+                weight_in: dec!(0.5),
+                weight_out: dec!(0),
+            },
+            ParamPoint::IntradayMeanRev {
+                anchor_period: 10,
+                band: dec!(0.02),
+                weight_in: dec!(0.5),
+                weight_out: dec!(0),
+            },
+            ParamPoint::IntradayMeanRev {
+                anchor_period: 20,
+                band: dec!(0.01),
+                weight_in: dec!(0.5),
+                weight_out: dec!(0),
+            },
+            ParamPoint::IntradayMeanRev {
+                anchor_period: 20,
+                band: dec!(0.02),
+                weight_in: dec!(0.5),
+                weight_out: dec!(0),
+            },
+        ];
+        assert_eq!(grid.points(), expected);
+        // Identical across two independent expansions.
+        assert_eq!(grid.points(), grid.points());
+    }
+
+    #[test]
+    fn intraday_meanrev_build_strategy_round_trips_family_and_behavior() {
+        let point = ParamPoint::IntradayMeanRev {
+            anchor_period: 3,
+            band: dec!(0.01),
+            weight_in: dec!(0.5),
+            weight_out: dec!(0),
+        };
+        let built = build_strategy(&point);
+        assert_eq!(built.name(), "intraday_meanrev_v1");
+        assert_eq!(point.family(), "intraday_meanrev_v1");
+        // Same parameters → same target as a directly-constructed strategy.
+        let direct = IntradayMeanRevV1 {
+            anchor_period: 3,
+            band: dec!(0.01),
+            weight_in: dec!(0.5),
+            weight_out: dec!(0),
+        };
+        let hist = series(&[10, 11, 15]);
+        assert_eq!(
+            built.target_weight(&hist, dec!(0)),
+            direct.target_weight(&hist, dec!(0))
+        );
+    }
+
+    #[test]
+    fn intraday_meanrev_param_id_is_scale_canonical() {
+        let a = ParamPoint::IntradayMeanRev {
+            anchor_period: 60,
+            band: dec!(0.01),
+            weight_in: dec!(0.50),
+            weight_out: dec!(0.00),
+        };
+        let b = ParamPoint::IntradayMeanRev {
+            anchor_period: 60,
+            band: dec!(0.010),
+            weight_in: dec!(0.5),
+            weight_out: dec!(0),
+        };
+        assert_eq!(a.param_id(), b.param_id());
+        assert_eq!(a.param_id(), "anchor=60;band=0.01;in=0.5;out=0");
     }
 }
