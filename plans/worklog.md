@@ -1538,3 +1538,74 @@ need their own reconciliation passes after C8.5 lands.
   `crates/sweep/tests/hf_spec_parsing.rs`. `spec.rs`/`strategy-lab.example.toml`/`m5-frozen.toml`
   untouched (git status verified). All 3 pre-ruled drifts held; no other mismatch. Next: C8.6
   planner reconciliation pass (never execute its scoped sketch directly).
+
+## 2026-07-18 — Planner: C8.5 executor report independently re-verified — ACCEPTED; next is the C8.6 planner reconciliation
+
+Full gate re-run by the planner at the staged tree: fmt/clippy clean; **441 passed / 0 failed /
+1 ignored** (433 + 8); demo `ae064f79…` and sweep stdout `94e90c3c…` both UNCHANGED; sweep-verify
+OK (18990 bytes); card gate `cargo test -p sweep hf_spec` 8/8. Staged scope checked against the
+card: exactly the 4 files + queue flip + executor worklog entry — no `spec.rs`, no existing TOMLs,
+no schemas, no Cargo.toml (zero new deps). Code review: `Decimal`/integer-only money fields;
+`deny_unknown_fields` on `HfAdvancementToml` only, mapped to `TurnoverBudgetNotAllowed`;
+`portfolio` fail-closed constructor errors surfaced, not re-checked; template secret-free and
+marked NOT tuned; nothing wired into `run_sweep`/`run_hf`/CLI. All 3 pre-ruled drifts held.
+Pointers refreshed (current-state.md, handoff.md incl. a C8.6-planner seed prompt). Next:
+**C8.6 planner reconciliation pass** (fresh session; plan files only) — recommend running the
+FOREMAN §3 adversarial review point (C8.4's second holdout seal) before C8.6 executes.
+
+## 2026-07-18 — Planner: M-HF-C8.6 reconciliation pass DONE — split into C8.6a + C8.6b, both EXECUTOR-READY
+
+Verified HEAD `3af2dbb` fresh (git status, `cargo test --workspace`): **441 passed / 0 failed /
+1 ignored**, matching the incoming pointer exactly — no drift to pre-rule. Read the real landed
+shapes grep-first: `run_hf`/`landing_draw`/`splitmix64`/`rebalance`/`record_round_trip` (all of
+`latency.rs`), `hf_cost.rs` (`HfCostModel`, `hf_trade_cost`, `CongestionRegime`), `adversarial.rs`
+(`AdversarialModel` — confirmed a single flat `p_adverse_num`/`p_adverse_den`, **no** regime or
+percentile axis), `simulator.rs` (`RunOutput`), `state.rs` (`apply_buy`/`apply_sell`, fully public
+`PortfolioState` fields), C8.5's `hf_spec.rs`, and `research_core::money::apply_bps`
+(`value * bps / 10_000`, confirmed exact/linear for these inputs — dividing by a power of ten never
+rounds within realistic scales). A dedicated Explore-agent pass grep-confirmed `run_hf` has exactly
+7 call sites workspace-wide (all test-only: `hf_cadence.rs`, `hf_regression.rs`, `latency.rs`'s own
+tests) and that `eval_cell`/`SweepCell` price every cell through plain `run`/`CostModel` only —
+`HfCostModel`/`AdversarialModel` are wired into ZERO execution paths today, confirming the original
+scoping's premise.
+
+**Split, not one card** (logged, reversible, internal fork — AGENTS.md, no operator escalation
+needed): the congestion-regime classifier and the priced execution entry are genuinely independent
+across the crate boundary — `run_hf_priced` only needs the already-`pub` `CongestionRegime` TYPE
+(C4), never the classifier function, exactly like `run_hf` takes a pre-built `&LatencyPipeline`
+without knowing how it was decided. Combined the diff would touch 6 files across 2 crates
+(AGENTS.md: >5 files → split). **C8.6a** (`sweep::congestion::classify_congestion_regimes`, 2
+files) pins a non-lookahead correctness property my first draft got wrong on paper before
+correcting it here: `regimes[i]` prices the trade landing at bar `i`'s OPEN, so it may never
+reference `bars[i].volume` (unknown until bar `i` closes) — it classifies `bars[i-1]` (the most
+recently CLOSED bar) against a reference window strictly before that. **C8.6b**
+(`portfolio::hf_priced::run_hf_priced`, 4 files) pins a reuse-maximizing design verified by hand:
+synthesize a per-trade `CostModel` (`slippage_bps` always `0`; `dex_fee_bps` folds venue fee +
+depth-curve impact + tip + any adverse-selection hit, all bps-of-notional-on-output like the
+existing `dex_fee_bps` mechanism) and call the EXISTING `apply_buy`/`apply_sell` completely
+unmodified — verified by hand (worked example: `quote_in=1000, price=100, slip=20bps, fee=5bps`)
+that this is mathematically exact against `hf_trade_cost`'s separate-terms sum via `apply_bps`'s
+linearity, and that plain `CostModel`'s price-shift mechanism is inherently MORE forgiving than a
+flat combined-bps deduction for equal nominal bps totals — so "priced costs never cheaper" holds by
+construction at equal-or-greater bps, not by fighting the arithmetic. Net: zero new code in
+`state.rs`/`cost.rs`; the card's only touch to `latency.rs` is marking 7 existing private
+helpers `pub(crate)` (visibility-only, zero logic change) plus one additive `HfError` variant.
+
+**One real scope narrowing, logged, not an oversight:** the original sketch's "(regime,
+percentile) → p" adverse-selection table doesn't fit what `AdversarialModel` actually landed with
+(C5) — no regime or percentile axis at all. Building one now would be new type design (plus new
+`hf_spec.rs`/TOML surface C8.5 never added), not "wiring `HfCostModel`+`AdversarialModel` as they
+exist" (C8.6's literal goal). Scoped out of C8.6b; flagged as a small additive follow-up if wanted
+later, not blocking C8.6b or C8.7.
+
+Deliverables: task-queue.md's C8.6 section rewritten as C8.6a + C8.6b (pinned signatures,
+`Current state` verbatim quotes, Files/Steps/Gate/Guardrails/Escalate-if each); a FOREMAN §3
+7-lens review proposal for C8.4's still-unaddressed holdout-seal review, placed ahead of both
+cards; current-state.md and handoff.md pointers refreshed (two fresh executor seed prompts —
+C8.6a recommended first, C8.6b independent); this worklog entry. No code written. `git status`
+at this point: only `plans/current-state.md`, `plans/handoff.md`, `plans/task-queue.md`,
+`plans/worklog.md` modified — matches a plan-files-only reconciliation pass.
+
+Next: **execute C8.6a**, then **C8.6b** (either order — C8.6a recommended first as the smaller,
+independent diff). Recommended before C8.6b lands: the FOREMAN §3 review above. C8.7 reconciles
+only after both land — not this session's task.

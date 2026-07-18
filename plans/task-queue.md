@@ -5897,72 +5897,409 @@ match the quoted shape at your HEAD; you find yourself needing to edit `spec.rs`
 
 ---
 
-### M-HF-C8.6 — Wire `HfCostModel` + adversarial pricing into a new execution entry (`run_hf_priced`) — `SCOPED, not signature-pinned; needs a planner reconciliation pass before an executor touches it`
+## M-HF-C8.6 planner reconciliation (2026-07-18, HEAD `3af2dbb`) — split into C8.6a + C8.6b by real crate-boundary dependency
 
-**Why this card is scoped rather than pinned.** Unlike C8.1–C8.5 (mechanical extensions of surface
-that already exists), this is genuinely new architecture: nothing in the tree today prices a trade
-through `HfCostModel`/`AdversarialModel` — both modules say so verbatim ("Nothing here is wired into
-`run`/`run_hf` yet", hf_cost.rs:8; "NOT wired into `run`/`run_hf` here", adversarial.rs:12). Pinning
-an exact function signature now, before C8.1–C8.5 land and before anyone has actually written the
-loop, would risk exactly the C6/C7 mistake (a sketch that drifts from what building it actually
-requires). This section records the goal, the real constraints, and a recommended direction — the
-executing session (or a dedicated planner pass immediately beforehand) must re-verify against
-whatever C8.1–C8.5 actually look like at that HEAD before writing code.
+**Why split, not one pinned card.** A grep-verified read at HEAD `3af2dbb` (`run_hf` call sites,
+`eval_cell`/`SweepCell`, `AdversarialModel`/`CongestionRegime`'s actual landed shape, `apply_buy`/
+`apply_sell`, `apply_bps`) found the scoped sketch's two hard-constraint pieces are genuinely
+independent: the congestion-regime classifier is pure `sweep`-side logic over `&[Bar]` that needs
+nothing from `portfolio` beyond the already-`pub`, already-exported `CongestionRegime` enum (C4); the
+priced execution entry needs only the classifier's OUTPUT TYPE (`&[CongestionRegime]`, an opaque
+per-bar slice), never the classifier function itself — exactly like `run_hf` already takes a
+pre-built `&LatencyPipeline` without knowing how landing outcomes were decided. Splitting means each
+half can be built, tested, and gated **standalone** (the execution entry's tests hand-build a
+`Vec<CongestionRegime>` fixture, same as existing tests hand-build `LandingOutcome` vectors) — no
+artificial ordering dependency, and each diff stays reviewable (AGENTS.md: "a task touching more than
+~5 files → split it"; combined this would touch 6 files across 2 crates).
 
-**Goal.** A new, additive execution entry that prices trades through the full HF cost stack (depth-
-walk slippage + congestion-regime priority fee + tip from `HfCostModel`, plus the base-rung expected
-sandwich/pickoff term from `AdversarialModel`) instead of `run_hf`'s flat `CostModel`, so an HF sweep
-can measure real (not fabricated-cheap) costs.
+**Recommended before either executes: a FOREMAN §3 adversarial review of C8.4's intraday holdout
+seal** (the task-queue's own preamble already flags this point, unaddressed since C8.4 landed).
+Proposed lens list for that review (operator to convene, not this planner's job to run):
+1. **Forgery lens** — can `IntradaySealed`'s holdout be reached without going through
+   `evaluate_intraday_on_holdout`'s call-once gateway? Read the accessor surface, don't just trust
+   the `compile_fail` doctest compiles-fail.
+2. **Call-once enforcement lens** — does the `Cell<u32>` read-counter actually BLOCK a second read
+   (a runtime error/panic path), not merely count it after the fact?
+3. **No-accessor-on-dev-view lens** — grep `IntradayDevValidation` for any path to the sealed data.
+4. **Spacing-hygiene correctness lens** — the one real behavioral difference from `partition.rs`
+   (`validate_series_spacing(&bars, 1)` vs `validate_series`): does the checked-in test fixture
+   actually distinguish the two validators, or would `validate_series` have also rejected it (the
+   card's own "Escalate-if" already flags this as the top risk)?
+5. **Boundary/off-by-one lens** — `ByIndex`/`ByDate` half-open boundary math at 1-SECOND resolution;
+   daily boundaries are forgiving of small errors, second-level boundaries are not.
+6. **Determinism/thread-independence lens** — `digest_bars` witness stability; no shared mutable
+   state leaks across parallel cell evaluation.
+7. **Forward-fit lens** — nothing calls this module yet; is its public surface
+   (`from_spec`/`.seal_holdout()`/`evaluate_intraday_on_holdout`) actually shaped for what C8.7 needs,
+   or will C8.7 need an awkward adapter?
 
-**Hard constraints (non-negotiable, regardless of final signature).**
-- `run_hf`/`simulator::run` stay **byte-identical to today** — the C3 regression
-  (`run_hf(fixed_latency(1)) == run`) and C7's `intraday_meanrev_v1` cadence test must not need a
-  single assertion changed. The new entry is **additive**, never a modification of `run_hf`.
-- Every priced cost is a cost to us, never a benefit (mirrors `HfCostModel`/`AdversarialModel`'s own
-  fail-closed construction guarantees, C4/C5.1) — this new entry must not be able to construct a
-  scenario where HF-priced execution is cheaper than the plain `CostModel` path for the same trade.
-- Deterministic by construction: no RNG, no clock. The `(cell_id, event_index)` splitmix64 primitive
-  (latency.rs:138-143, `landing_draw`) is the established pattern for "probability without RNG" —
-  reuse it for the base-rung adverse-selection draw, but **keyed distinguishably** from the landing
-  draw (e.g. XOR a distinguishing tag into the hash input before drawing) so "did this order land" and
-  "did this fill get sandwiched" are not accidentally perfectly correlated — this independence
-  property deserves an explicit dedicated test once built, not an assumption.
-- Congestion-regime classification (`CongestionRegime::{Calm,Busy,Hot}`) must be a pure, non-lookahead
-  function of trailing history (m-hf-track §3) — `hf_cost.rs`'s own doc says deriving it "is NOT
-  built here — that is C8's job." It belongs in `sweep` (it needs windowed bar/print history that
-  `portfolio` doesn't have access to), passed into the pricing entry point per-bar, not computed
-  inside `portfolio`.
-- The fail-closed `(regime, percentile) → p` adverse-selection probability table (m-hf-track §3) is a
-  **checked-in, illustrative** table (NOT tuned, frozen later at HF-Q3, same Q4/Q5-pattern default) —
-  it does not need operator input now, only at the HF-Q3 freeze before C10.
+---
 
-**Recommended direction (planner decision, logged, reversible — an internal engine fork per
-AGENTS.md, not an external/migration-sensitive one, so no operator escalation needed for this part).**
-Add a new sibling function (working name `run_hf_priced`, likely in a new `crates/portfolio/src/
-hf_priced.rs` rather than extending `latency.rs`) that duplicates `run_hf`'s loop structure with its
-internal pricing swapped for `hf_trade_cost`/`adverse_selection_cost_expected`, **rather than**
-threading a generic pricing trait through both `run_hf` and the new entry. This matches the
-codebase's own established convention: `latency.rs` already duplicates C2's `splitmix64` verbatim
-rather than sharing it with `market-data` ("a shared home would couple portfolio to market-data for
-seven lines of integer arithmetic", latency.rs:124-127), and m-hf-track §1 makes the identical call
-for `intraday_partition` vs. genericizing `partition.rs`. Pattern-level reuse, duplicated code, is
-this project's explicit, repeated choice over generic abstraction — follow it here too rather than
-inventing a shared `TradeCost` trait.
+### M-HF-C8.6a — `sweep::congestion`: non-lookahead `CongestionRegime` classifier — `EXECUTOR-READY`
 
-**What is explicitly NOT decided here (for the reconciliation pass to pin against real source):**
-- Exact function signature and module location.
-- Whether `n_trades`/`RunOutput`/`HfRunOutput`-shaped fields need new HF-only counters (e.g. total
-  adverse-selection cost paid) or reuse existing ones.
-- The exact regime-classifier function signature and where its output is threaded through (a
-  parallel `Vec<CongestionRegime>` alongside `bars`, most likely, mirroring `LatencyPipeline.landing`'s
-  shape).
-- Whether this needs its own dedicated fresh-session adversarial review before landing (recommended,
-  per the FOREMAN §3 risk-point note in this reconciliation's preamble) — first real HF cost/execution
-  wiring is exactly the kind of load-bearing seam this project reviews before trusting.
+**Why this half is safe to pin now.** `portfolio::hf_cost::CongestionRegime` (C4) already exists,
+is already `pub`, already re-exported (`crates/portfolio/src/lib.rs:36`). Nothing about deriving it
+from trailing history requires touching `portfolio` — `research_core::Bar` already carries a
+`volume: Decimal` field (`crates/research-core/src/bar.rs:10-21`), the only real per-bar signal
+available today (grep-confirmed: no rolling/windowed-statistics abstraction exists anywhere in
+`sweep` or `research_core::intraday` — `TradePrint`/`SlotSnapshot` density data is a separate stream
+never threaded into `run_hf`'s `&[Bar]` at all, so it is out of reach for this card). Keeping the
+classifier in `sweep` (never `portfolio`) is a deliberate, preserved hard constraint from the
+original scoping — it keeps `portfolio` a pure fill/accounting layer and lets the regime concept
+evolve independently (e.g. incorporating trade-print density later) without a new `portfolio`
+dependency.
 
-**Escalate-if (for whoever picks this up):** if pinning a real signature reveals `run_hf` itself needs
-to change (not just a new sibling) — STOP, that breaks the "byte-identical" constraint above, escalate
-to a fresh planner pass rather than loosening the C3/C7 regressions.
+**Pinned semantics.**
+- `pub fn classify_congestion_regimes(bars: &[Bar], lookback: usize) -> Vec<CongestionRegime>` —
+  pure, no RNG/clock/I/O. `regimes.len() == bars.len()` always.
+- **The one correctness property this card exists to prove — non-lookahead at EXECUTION time, not
+  signal time.** `run_hf_priced` (C8.6b) executes the trade landing at bar `i` at bar `i`'s OPEN —
+  bar `i`'s own volume is not known until bar `i` CLOSES, so `regimes[i]` must depend only on bars
+  with index `< i`, and specifically must classify the most recently CLOSED bar (`bars[i-1]`, safe —
+  fully known before bar `i` opens) against a trailing reference window STRICTLY BEFORE that
+  (`bars[i-1-lookback..i-1]`), never `bars[i]` itself. (Contrast with `target_fn`'s own
+  `bars[..=t]` visibility at signal time `t` — that's legitimate because landing always happens at
+  `t + offset_bars > t`, i.e. bar `t` is itself already closed relative to its OWN landing; regime
+  classification is anchored to the LANDING bar instead, one step further back.)
+- For `i < lookback + 1` (not enough trailing history for a full reference window plus the one
+  "current" bar), `regimes[i] = CongestionRegime::Hot` — the pessimistic, fail-closed default (a
+  cost to us, never a benefit — same instinct as C4/C5.1's non-negative constructors).
+- For `i >= lookback + 1`: `reference = &bars[i-1-lookback..i-1]` (exactly `lookback` bars, all
+  index `< i-1`), `current = bars[i-1].volume`. Rank `current` by counting reference-window volumes
+  **strictly less than** `current` (ties in the reference window count toward the HIGHER band —
+  keeps the classifier's tie behavior pessimistic, matching the `i < lookback+1` default). Split
+  `lookback` into three near-equal bands by integer division (`lo = lookback/3`,
+  `hi = lookback - lookback/3`): rank `< lo` → `Calm`; `lo..hi` → `Busy`; `>= hi` → `Hot`. Exact
+  `Decimal` comparisons throughout (`Decimal: Ord`) — no floats (AGENTS.md: fixed-point only).
+- This card does **not** call `run_hf_priced`, wire into `run_sweep`, or read TOML — a standalone,
+  independently testable function. C8.7 is its first real caller.
+
+**Files (2).**
+1. `crates/sweep/src/congestion.rs` (**NEW**) — `classify_congestion_regimes` +
+   `#[cfg(test)] mod tests`: determinism (repeat call, equal); **the discriminating non-lookahead
+   proof** (mutate `bars[i].volume` for some `i` — assert `regimes[i]` is UNCHANGED; mutate
+   `bars[i-1].volume` instead — assert `regimes[i]` DOES change, so the test can't pass vacuously);
+   pessimistic-default proof (every `i <= lookback` is `Hot`); tercile-boundary correctness (a
+   hand-built series with known volume ranks, asserting Calm/Busy/Hot land where expected, including
+   the tie-breaks-high case); `lookback = 0` and `bars = []` edge cases (no panic).
+2. `crates/sweep/src/lib.rs` — `pub mod congestion;` + `pub use congestion::classify_congestion_regimes;`
+   (additive only).
+
+**Construction-site audit.** New module; nothing in the workspace calls
+`classify_congestion_regimes` yet (confirm by grep at gate time — by construction, true today).
+`portfolio::CongestionRegime` needs no change (already `pub`, already exported).
+
+**Current state referenced (verbatim, verified 2026-07-18 at HEAD `3af2dbb`).**
+```rust
+// crates/portfolio/src/hf_cost.rs:64-71
+/// Congestion regime a trade lands in (m-hf-track §3). Deriving this from trailing
+/// volatility/print density is NOT built here — that is C8's job.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CongestionRegime {
+    Calm,
+    Busy,
+    Hot,
+}
+```
+```rust
+// crates/research-core/src/bar.rs:10-21
+pub struct Bar {
+    pub ts: Timestamp,
+    pub open: Decimal,
+    pub high: Decimal,
+    pub low: Decimal,
+    pub close: Decimal,
+    /// Base-asset volume; must be ≥ 0.
+    pub volume: Decimal,
+}
+```
+Baseline gate at Step 0: **441 passed / 0 failed / 1 ignored**; demo
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep `94e90c3c6060a11feddd8d55a19accf07a86f7d8`;
+sweep-verify OK.
+
+**Steps.**
+1. Step 0: full-workspace gate; confirm baseline. If different, STOP and report.
+2. Write `congestion.rs` per Pinned semantics, documenting the tie-break rule in a doc comment.
+3. `lib.rs`: wire the module in.
+4. `cargo fmt --all`; full gate; flip to `DONE` + worklog line.
+
+**Gate.**
+- `cargo test -p sweep congestion` green including the non-lookahead mutation proof.
+- Full workspace: fmt/clippy clean; 0 failed, 1 ignored; record exact N (baseline + new test fns).
+- Demo shasum + sweep shasum **unchanged** (nothing wired into execution or a report).
+- `git status` shows exactly `congestion.rs` (NEW), `lib.rs` + queue/worklog flip.
+
+**Guardrails.** Never reference `bars[i].volume` when computing `regimes[i]` — the one invariant
+this card exists to prove; the non-lookahead test must actually be discriminating in both
+directions (mutating `bars[i]` must NOT move `regimes[i]`; mutating `bars[i-1]` MUST). No RNG, no
+clock, no I/O. `Decimal`-only. No new dependency. Do NOT touch `portfolio`.
+
+**Escalate-if:** the quoted `CongestionRegime`/`Bar` blocks don't match source at your HEAD; you find
+yourself wanting `bars[i].volume` inside the `regimes[i]` computation — that's a lookahead bug, stop
+and re-derive from `bars[i-1]`; either shasum moves — STOP.
+
+---
+
+### M-HF-C8.6b — `portfolio::hf_priced::run_hf_priced`: wire `HfCostModel` + `AdversarialModel` into a new priced execution entry — `EXECUTOR-READY`
+
+**Why this half is now pinnable (a real narrowing from the original sketch, logged).**
+`AdversarialModel` as landed by C5 (`adversarial.rs:23-36`) carries one flat `p_adverse_num`/
+`p_adverse_den` — **no regime or percentile axis at all**. The original sketch's "fail-closed
+`(regime, percentile) → p` table" describes a richer shape that was never actually built; inventing
+one now would be new type design (plus new `hf_spec.rs`/TOML surface C8.5 didn't add), not "wiring
+HfCostModel + AdversarialModel as they exist" — this card's literal goal. **Scoped OUT, logged as a
+real narrowing, not an oversight:** a regime-conditioned adverse-selection table. The base-rung draw
+below uses `AdversarialModel`'s existing flat probability. If a regime-conditioned table is wanted
+later, it's a small additive follow-up once `AdversarialModel`'s shape is deliberately extended —
+does not block this card or C8.7.
+
+**Recommended direction (confirmed unchanged from the original scoping — an internal, reversible
+engine fork per AGENTS.md, logged, no operator escalation needed).** New sibling
+`crates/portfolio/src/hf_priced.rs`, `run_hf_priced`, duplicating `run_hf`'s loop with pricing
+swapped, rather than threading a generic pricing trait through both — matches the codebase's own
+repeated convention of pattern-level reuse over generic abstraction (`latency.rs:124-127`'s
+`splitmix64` duplication; m-hf-track §1's `intraday_partition` vs. genericizing `partition.rs`).
+`run_hf`/`simulator::run` are not edited, called, or depended on by the new function — a pure
+structural sibling.
+
+**The key design decision this reconciliation adds (grounded in `apply_bps`'s definition,
+`research_core/src/money.rs:37-39`: `value * bps / 10_000` — exact for these inputs, dividing by a
+power of ten never rounds within realistic scales): reuse `PortfolioState::apply_buy`/`apply_sell`
+and `CostModel::fill_buy`/`fill_sell` completely UNCHANGED, by synthesizing a per-trade `CostModel`
+inside the new loop.** The synthesized `CostModel` always has `slippage_bps: 0` (HF pricing never
+uses `CostModel`'s own price-shift mechanism) and folds `hf.base.dex_fee_bps +
+depth_curve.impact_bps_for(notional) + tip_bps + (sandwich_bps+pickoff_bps IF this fill draws an
+adverse-selection hit, else 0)` into one `dex_fee_bps` — all four terms are bps-of-notional taken
+from the fill's OUTPUT side, the exact mechanism `dex_fee_bps` already uses, and `apply_bps`'s
+linearity makes the combined single deduction exactly equal to summing each term separately (as
+`hf_trade_cost` already does, `hf_cost.rs:198-214`). `base_fee_lamports`/`priority_fee_lamports` map
+to `hf.base.base_fee_lamports` / `congestion_priority_table.priority_lamports_for(regime)` — exactly
+mirroring `hf_trade_cost`'s own gas computation (`hf_cost.rs:204-207`). **This is why
+`hf.base.slippage_bps` and `hf.base.priority_fee_lamports` go unused by this design — they are
+ALSO unused by `hf_trade_cost` itself; this card inherits that asymmetry, it doesn't invent it.**
+**Net effect: zero new code in `state.rs`/`cost.rs` — the entire new pricing surface lives in
+`hf_priced.rs`.**
+
+**Pinned semantics.**
+- Signature:
+  ```rust
+  pub fn run_hf_priced<F>(
+      bars: &[Bar],
+      initial_cash_usdc: Decimal,
+      hf: &HfCostModel,
+      adversarial: &AdversarialModel,
+      pipeline: &LatencyPipeline,
+      regimes: &[CongestionRegime],
+      cell_id: u64,
+      mut target_fn: F,
+  ) -> Result<HfPricedRunOutput, HfError>
+  where
+      F: FnMut(&[Bar], Decimal) -> Decimal,
+  ```
+  `regimes.len()` must equal `bars.len()` (new `HfError::RegimesLength { regimes: usize, bars: usize }`
+  variant, mirroring the existing `PipelineLength` check). `cell_id` is a required, separate
+  parameter — `LatencyPipeline` does not store it (its only fields are `min_latency`/`landing`,
+  confirmed at `latency.rs:29-32`) — the caller must pass the SAME `cell_id` it used to build the
+  pipeline via `build_landing_table`.
+- Landing/latency machinery (`land_at`, `unlanded_orders`, `LandingOutcome`) is reused with
+  unmodified logic — only the pricing inside the landed-order branch changes.
+- New module-private draw, duplicating `splitmix64`+`landing_draw`'s exact shape (own private
+  `splitmix64` copy, per the project's established duplicate-don't-share convention for this
+  primitive) but XORing a distinguishing tag into `event_index` before the second mix:
+  ```rust
+  const ADVERSE_SELECTION_TAG: u64 = 0xA0DE_5E1E_C7A6;
+  fn adverse_draw(cell_id: u64, event_index: u64) -> u64 {
+      let mut state = cell_id;
+      let mixed_cell = splitmix64(&mut state);
+      let mut keyed = mixed_cell ^ (event_index ^ ADVERSE_SELECTION_TAG);
+      splitmix64(&mut keyed)
+  }
+  fn adverse_selection_hit(cell_id: u64, event_index: u64, model: &AdversarialModel) -> bool {
+      (adverse_draw(cell_id, event_index) % model.p_adverse_den) < model.p_adverse_num
+  }
+  ```
+  `event_index` is the SIGNAL index `t` (the same stable, global, fixture-relative index
+  `landing_draw`/`build_landing_table` already key on) — **not** the landing bar index `l`, because
+  multiple signals can land at the same bar on ties, and `t` is the unique per-potential-trade key
+  that avoids collapsing distinct fills onto one draw. `adverse_selection_cost_worst`/
+  `adverse_selection_cost_expected` (the existing pure functions in `adversarial.rs`) are **not
+  called by the execution path** — the draw+τ-bps-fold mechanism above is the priced realization of
+  the base rung (its long-run average over many draws converges to `p·τ`, matching
+  `adverse_selection_cost_expected`'s value, without a continuous per-trade haircut); document this
+  explicitly so a future reader doesn't mistake the unused import for dead code.
+- New output type (derives `Debug, Clone, PartialEq, Eq` — needed for the determinism test's
+  `assert_eq!`):
+  ```rust
+  pub struct HfPricedRunOutput {
+      pub base: HfRunOutput,
+      pub adverse_selection_hits: u32,
+      pub adverse_selection_paid_quote: Decimal,
+  }
+  ```
+  `base.base.fees_paid_quote` already includes venue fee + depth-walk slippage + tip + any realized
+  adverse-selection cost (all folded into one combined `dex_fee_quote` per trade, per the design
+  above) — no separate breakout fields for those. `base.base.slippage_paid_quote` is **always
+  `Decimal::ZERO`** on this path — document this explicitly, it is not a bug (`CostModel.slippage_bps`
+  is deliberately never populated). `base.base.priority_fees_paid_sol` must be accumulated
+  **incrementally inside the loop** (`lamports_to_sol(priority_lamports_for(regime))` per trade) —
+  **do not** copy `run_hf`'s post-loop `cost.priority_sol() * n_trades` trailer (`latency.rs:405`):
+  that formula assumes one flat `CostModel` for the whole run and silently produces a wrong number
+  once priority lamports vary per trade by regime.
+- `rebalance_priced` (new, private) duplicates `rebalance`'s (`latency.rs:197-241`) structure: takes
+  `hf: &HfCostModel`, `regime: CongestionRegime`, `extra_bps: u32` (caller-computed:
+  `hf.tip_bps + if adverse_hit { adversarial.sandwich_bps + adversarial.pickoff_bps } else { 0 }`)
+  instead of `cost: &CostModel`. Computes a `gas_only` `CostModel`
+  (`dex_fee_bps: 0, slippage_bps: 0, base_fee_lamports: hf.base.base_fee_lamports,
+  priority_fee_lamports: congestion_priority_table.priority_lamports_for(regime)`) first, used for
+  the SELL branch's `sellable = state.base_balance - gas_only.gas_sol()` sizing step (mirrors
+  `rebalance`'s existing `cost.gas_sol()` use exactly, `latency.rs:227`). Once the final `quote_in`/
+  `base_in` (hence notional) is known, builds the FINAL synthesized `CostModel`
+  (`dex_fee_bps: hf.base.dex_fee_bps + hf.depth_curve.impact_bps_for(notional) + extra_bps,
+  slippage_bps: 0, base_fee_lamports: hf.base.base_fee_lamports, priority_fee_lamports: <same as
+  gas_only's>`) and calls the **existing, unmodified** `state.apply_buy`/`apply_sell`. Returns
+  `Result<Option<TradeOutcome>, SimError>` — same shape as `rebalance`.
+- `dust`/`min_trade_notional`/`clamp01`/`current_weight`/`traded_notional`/`OpenPosition`/
+  `record_round_trip` (`latency.rs:180-303`) are reused **directly**, not re-duplicated a third
+  time — this card's **one, minimal, additive, visibility-only** change to `latency.rs`: mark these
+  seven items `pub(crate)` instead of private (zero logic changes — confirm via
+  `git diff crates/portfolio/src/latency.rs` at gate time that every changed line is exactly
+  `fn` → `pub(crate) fn` / `struct` → `pub(crate) struct`, nothing else).
+- **The "never cheaper than plain `CostModel`" test — reference-config recipe (proof sketch, so the
+  executor isn't guessing).** For a matched plain
+  `CostModel { dex_fee_bps, slippage_bps, base_fee_lamports, priority_fee_lamports }`, build
+  `HfCostModel { base: CostModel { dex_fee_bps, slippage_bps: 0, base_fee_lamports,
+  priority_fee_lamports: 0 }, depth_curve: DepthCurve::new(vec![DepthBand { notional_upto:
+  dec!(1_000_000), impact_bps: slippage_bps }]).unwrap(), congestion_priority_table:
+  CongestionPriorityTable::new(priority_fee_lamports, priority_fee_lamports,
+  priority_fee_lamports).unwrap(), tip_bps: 0 }` (an exact-match boundary config, zero slack) and
+  `AdversarialModel { sandwich_bps: 0, pickoff_bps: 0, p_adverse_num: 0, p_adverse_den: 1 }`
+  (adverse-selection off, isolates the depth/priority mechanism). Assert `run_hf_priced`'s realized
+  per-trade cost is `>=` `run_hf`'s for an identical bar series/pipeline/target_fn — the
+  price-shift-vs-flat-bps compounding math means this is a non-strict inequality that trends toward
+  (never below) equality at this exact boundary. A second case with `tip_bps > 0` or a forced
+  adverse-selection hit (`p_adverse_num: p_adverse_den`, i.e. `p=1`, deterministic) must show a
+  **strictly** larger cost, proving the additive terms actually bite.
+
+**Files (4).**
+1. `crates/portfolio/src/hf_priced.rs` (**NEW**) — `run_hf_priced`, `HfPricedRunOutput`,
+   `rebalance_priced`, `adverse_draw`/`adverse_selection_hit`, `ADVERSE_SELECTION_TAG`, +
+   `#[cfg(test)] mod tests`: adverse-draw purity/keyed-by-cell (mirrors
+   `landing_table_is_pure_and_keyed_by_cell`); boundary probabilities `p=0`/`p=1` (mirrors
+   `probability_boundaries_are_legal_and_exact`); a hand-computed single-trade reference test
+   cross-checking the synthesized-`CostModel` realized total against `hf_trade_cost(...).total_quote`
+   for the SAME notional/price/regime (closes the "two implementations might drift" risk — must
+   match to exact `Decimal` equality; if it doesn't, see Escalate-if).
+2. `crates/portfolio/src/latency.rs` — visibility-only: the 7 items above become `pub(crate)`. Also
+   add `HfError::RegimesLength { regimes: usize, bars: usize }` + its `Display` arm (the one
+   exhaustive match over `HfError`, compiler-forced — confirmed no other exhaustive match over
+   `HfError` exists in the workspace).
+3. `crates/portfolio/src/lib.rs` — `pub mod hf_priced;` + `pub use hf_priced::{run_hf_priced,
+   HfPricedRunOutput};` (additive).
+4. `crates/portfolio/tests/hf_priced_regression.rs` (**NEW**) — determinism (repeat call, equal,
+   mirrors `repeated_runs_are_deterministic`); the two-case "never cheaper" reference-config test
+   above; a landing-vs-adverse-draw independence proof over a large event-index range (mirror
+   `landing_table_identical_across_thread_counts`'s scale, e.g. `0..100_000`: assert the two draw
+   sequences are neither identical nor perfectly anti-correlated — count how often
+   `landed == adverse_hit` and assert it's neither ~0% nor ~100%); `regimes.len() != bars.len()` is
+   rejected with `HfError::RegimesLength`.
+
+**Construction-site audit.** New module; `run_hf`/`simulator::run` have zero call-site changes
+(grep-confirm at gate time: `crates/sweep/tests/hf_cadence.rs`, `crates/portfolio/tests/
+hf_regression.rs`, and `latency.rs`'s own in-module tests are UNCHANGED byte-for-byte).
+`regimes: &[CongestionRegime]` accepts C8.6a's `classify_congestion_regimes` output OR a hand-built
+test fixture — this card does not depend on C8.6a landing first (it only needs the already-`pub`
+`CongestionRegime` type).
+
+**Current state referenced (verbatim, verified 2026-07-18 at HEAD `3af2dbb`).**
+```rust
+// crates/portfolio/src/latency.rs:320-329
+pub fn run_hf<F>(
+    bars: &[Bar],
+    initial_cash_usdc: Decimal,
+    cost: &CostModel,
+    pipeline: &LatencyPipeline,
+    mut target_fn: F,
+) -> Result<HfRunOutput, HfError>
+where
+    F: FnMut(&[Bar], Decimal) -> Decimal,
+```
+```rust
+// crates/portfolio/src/latency.rs:136-143
+fn landing_draw(cell_id: u64, event_index: u64) -> u64 {
+    let mut state = cell_id;
+    let mixed_cell = splitmix64(&mut state);
+    let mut keyed = mixed_cell ^ event_index;
+    splitmix64(&mut keyed)
+}
+```
+```rust
+// crates/portfolio/src/hf_cost.rs:192-217 (hf_trade_cost — the reference math this card mirrors)
+pub fn hf_trade_cost(
+    hf: &HfCostModel, notional_quote: Decimal, price: Decimal, regime: CongestionRegime,
+) -> HfTradeCost {
+    let venue_fee_quote = apply_bps(notional_quote, hf.base.dex_fee_bps);
+    let depth_slippage_quote = apply_bps(notional_quote, hf.depth_curve.impact_bps_for(notional_quote));
+    let tip_quote = apply_bps(notional_quote, hf.tip_bps);
+    let gas_lamports = hf.base.base_fee_lamports + hf.congestion_priority_table.priority_lamports_for(regime);
+    // .. total_quote = venue_fee_quote + depth_slippage_quote + tip_quote + gas_quote
+}
+```
+```rust
+// crates/portfolio/src/adversarial.rs:23-36
+pub struct AdversarialModel {
+    pub sandwich_bps: u32,
+    pub pickoff_bps: u32,
+    pub p_adverse_num: u64,
+    pub p_adverse_den: u64,
+}
+```
+```rust
+// crates/research-core/src/money.rs:37-39
+pub fn apply_bps(value: Decimal, bps: u32) -> Decimal {
+    value * Decimal::from(bps) / Decimal::from(10_000_u32)
+}
+```
+Baseline gate at Step 0: **441 passed / 0 failed / 1 ignored**; demo
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep `94e90c3c6060a11feddd8d55a19accf07a86f7d8`;
+sweep-verify OK.
+
+**Steps.**
+1. Step 0: full-workspace gate, confirm baseline. If C8.6a hasn't landed yet, note that — this card
+   doesn't need it (see construction-site audit), but its own test fixtures must hand-build
+   `Vec<CongestionRegime>` rather than calling `classify_congestion_regimes`.
+2. `latency.rs`: the 7-item visibility change + the new `HfError::RegimesLength` variant + Display
+   arm. Re-run `cargo test -p portfolio` — confirm zero behavior change (every existing test still
+   passes, none needed edits).
+3. Write `hf_priced.rs`: `adverse_draw`/`adverse_selection_hit`, `rebalance_priced`, `run_hf_priced`,
+   `HfPricedRunOutput`, in-module tests.
+4. `lib.rs`: wire the module in.
+5. `hf_priced_regression.rs`: the 4 cross-cutting tests above.
+6. `cargo fmt --all`; full gate; flip to `DONE` + worklog line.
+
+**Gate.**
+- `cargo test -p portfolio hf_priced` green (in-module + the new integration test file).
+- `cargo test -p portfolio` and the `hf_cadence`/`hf_regression` suites green with **UNCHANGED**
+  assertions (the direct exercise of "`run_hf` stays byte-identical," not just an argument for it).
+- Full workspace: fmt/clippy clean; 0 failed, 1 ignored; record exact N.
+- Demo shasum + sweep shasum **unchanged** (nothing wired into `run_sweep`/CLI yet — C8.7's job).
+- `git status` shows exactly `hf_priced.rs` (NEW), `latency.rs`, `lib.rs`,
+  `hf_priced_regression.rs` (NEW) + queue/worklog flip.
+
+**Guardrails.** Do NOT edit `run_hf`'s body, `simulator.rs`, `cost.rs`, or add new methods to
+`state.rs` (this card adds ZERO new methods there — pricing lives entirely in `hf_priced.rs`'s
+synthesized `CostModel`). Never populate `CostModel.slippage_bps` in the new code (always `0`). Do
+NOT call `adverse_selection_cost_worst`/`adverse_selection_cost_expected` from the execution path
+(pure reference functions; test-only here). Do NOT build a `(regime, percentile) → p` table or
+extend `AdversarialModel`'s shape (scoped out above). `Decimal`/integer only. No new dependency.
+
+**Escalate-if:** the quoted blocks don't match source at your HEAD; `apply_bps` is no longer
+`value * bps / 10_000` (the linearity the whole synthesized-`CostModel` design rests on) — STOP, the
+design needs to be redone, don't approximate; the hand-computed cross-check test (`hf_priced.rs`'s
+realized total vs `hf_trade_cost(...).total_quote`) does not match exactly — STOP and report rather
+than silently accepting a rounding drift; either the C3 (`hf_regression.rs`) or C7 (`hf_cadence.rs`)
+existing assertions need ANY edit to keep passing — STOP, that means `run_hf` itself needs to
+change, breaking the hard byte-identical constraint, escalate to a fresh planner pass; either
+shasum moves — STOP.
 
 ---
 

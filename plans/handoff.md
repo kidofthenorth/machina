@@ -9,21 +9,29 @@ point. **C7 is DONE (2026-07-16, committed at `f09761b`, independently re-verifi
 deterministic `run_hf` cadence proof. Workspace is now **402 passed / 0 failed / 1 ignored**;
 demo shasum `ae064f79…` and sweep shasum `85d06e5b…` both UNCHANGED (the C7 byte-identity guard
 held); sweep-verify OK. **C8 is C8.1-C8.7** (task-queue.md's "M-HF-C8 planner reconciliation"
-section) **and C8.1-C8.4 + CARD-HYG-1 are now DONE + planner-verified, committed at
-`3757d2a`+`ddd4512` (2026-07-17):** `ScenarioId` HF rungs; `data_provenance` rollup — sweep schema
-**1.3.0**, sweep shasum moved once to `94e90c3c6060a11feddd8d55a19accf07a86f7d8`;
+section) **and C8.1-C8.5 + CARD-HYG-1 are now ALL DONE + planner-verified.** C8.1-C8.4 committed
+at `3757d2a`+`ddd4512`: `ScenarioId` HF rungs; `data_provenance` rollup — sweep schema **1.3.0**,
+sweep shasum moved once to `94e90c3c6060a11feddd8d55a19accf07a86f7d8`;
 `ParamGrid::IntradayMeanRev`; `sweep::intraday_partition` (the S9-pattern intraday holdout seal);
-gnhf e2e-test port. Workspace is **433 passed / 0 failed / 1 ignored**; demo shasum `ae064f79…`
-unchanged; sweep-verify OK — gate freshly re-verified 2026-07-18 at `ddd4512`, clean tree.
-**The next command is executing C8.5** (`HfSweepSpec` HF-kind TOML parsing + spec-lint,
-parse-only). Its planner pre-verify ran 2026-07-18: all pinned shapes hold; three drifts pre-ruled
-(see current-state.md "Next recommended command"). **C8.6** (HF cost/adversarial execution wiring)
-and **C8.7** (the real row-C8 gate: windowed HF sweep) are scoped, not signature-pinned - each
-needs its own planner reconciliation pass once its prerequisites land. **`statarb_pairs_v1` stays
-scoped OUT of C8**, in the deferred mini-track `M-HF-C8-PAIR` (operator ruling HF-Q4; still
-blocked on the unsupplied USDT/jitoSOL allowlist fields). Never start M6+ (network) or M8/M9
-(signing/submit — separate explicit human approval). **Do not commit or push — the operator
-commits.**
+gnhf e2e-test port. **C8.5 DONE 2026-07-18** (`sweep::hf_spec` — HF-kind TOML parsing +
+fail-closed spec-lint, PARSE-ONLY, LF `spec.rs` byte-untouched; new
+`config/strategies/hf-strategy-lab.example.toml` template, illustrative NOT tuned; 8 new tests),
+planner re-verified same day at the staged tree: workspace **441 passed / 0 failed / 1 ignored**;
+demo `ae064f79…` and sweep `94e90c3c…` UNCHANGED; sweep-verify OK.
+**The M-HF-C8.6 PLANNER RECONCILIATION PASS is DONE (2026-07-18, plan files only, HEAD
+`3af2dbb`).** C8.6 split into two **EXECUTOR-READY** cards (task-queue.md): **C8.6a**
+(`sweep::congestion` — the non-lookahead `CongestionRegime` classifier, small/2 files) and
+**C8.6b** (`portfolio::hf_priced::run_hf_priced` — wires `HfCostModel`+`AdversarialModel` into a
+new priced execution entry, 4 files). They're order-independent (C8.6b only needs the already-`pub`
+`CongestionRegime` type, not C8.6a's classifier). **The next command is executing C8.6a** (see the
+seed prompt below; C8.6b's own seed prompt follows it). **Recommended before C8.6b lands:** the
+FOREMAN §3 adversarial review of C8.4's second holdout seal (7-lens list in task-queue.md) —
+still unaddressed. **C8.7** (the real row-C8 gate: windowed HF sweep) stays scoped, not
+signature-pinned — needs its own reconciliation pass once C8.1–C8.6b have actually landed.
+**`statarb_pairs_v1` stays scoped OUT of C8**, in the deferred mini-track `M-HF-C8-PAIR` (operator
+ruling HF-Q4; still blocked on the unsupplied USDT/jitoSOL allowlist fields). Never start M6+
+(network) or M8/M9 (signing/submit — separate explicit human approval). **Do not commit or push —
+the operator commits.**
 
 ---
 
@@ -175,11 +183,13 @@ deterministic `run_hf` run; demo+sweep shasums unchanged — 402/0/1). **The C8 
 (2026-07-16, plan files only): C8 is split into C8.1-C8.7 plus a deferred mini-track.** C8.1
 (`ScenarioId` ladder enum), C8.2 (`data_provenance` rollup), and C8.3 (`ParamPoint`/`ParamGrid` gain
 `IntradayMeanRev`) are **executor-ready now** - small, mechanical, additive, no operator input
-needed. C8.4 (intraday holdout seal, S9-pattern) and C8.5 (HF-kind spec parsing) are drafted but
-want a fresh re-verify right before executing. C8.6 (wire `HfCostModel`/`AdversarialModel` into a
-new execution entry) and C8.7 (the real row-C8 gate: windowed HF sweep wiring across thread counts)
-are scoped, not signature-pinned - each needs its own planner reconciliation pass once its
-prerequisites land, mirroring the C6→C8/C7→C8 pattern. **`statarb_pairs_v1` (survey §1.6, SOL/LST
+needed. C8.4 (intraday holdout seal, S9-pattern) and C8.5 (HF-kind spec parsing) are **DONE**
+(2026-07-17/07-18). **C8.6's own planner reconciliation pass is DONE (2026-07-18)**, split into
+**C8.6a** (`sweep::congestion` classifier) and **C8.6b** (`portfolio::hf_priced::run_hf_priced`) —
+both now executor-ready, task-queue.md. C8.7 (the real row-C8 gate: windowed HF sweep wiring
+across thread counts) is still scoped, not signature-pinned - it needs its own planner
+reconciliation pass once C8.1–C8.6b land, mirroring the C6→C8/C7→C8 pattern.
+**`statarb_pairs_v1` (survey §1.6, SOL/LST
 pair) is scoped OUT of C8 into a deferred mini-track, `M-HF-C8-PAIR`** (operator ruling HF-Q4,
 2026-07-16: build the real two-leg engine, not a precomputed-spread approximation, because the
 approximation risks the exact fabricated-edge failure mode the cost ladder exists to catch) - it
@@ -235,7 +245,7 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 
 ---
 
-## Seed prompt for the new chat — execute M-HF-C8.5
+## Seed prompt for the new chat — execute M-HF-C8.6a (recommended next; small, independent)
 
 > You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
 > crypto trading-**research** platform in Rust built toward **genuine autonomous passive income**
@@ -244,43 +254,99 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 > is a hypothesis to test — no card claims a known-profitable algorithm, and rejecting them all
 > cleanly is a successful outcome.
 >
-> **State (2026-07-18, HEAD `ddd4512`, clean tree):** M5 CLOSED (reject-all; holdout unread, seal
-> intact). M-HF C1–C7 and **C8.1–C8.4** DONE + planner-verified. Workspace green at **433 passed,
-> 0 failed, 1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum
-> `94e90c3c6060a11feddd8d55a19accf07a86f7d8` (schema 1.3.0 since C8.2); `sweep-verify: OK`.
+> **State (2026-07-18, HEAD `3af2dbb`, clean tree except staged plan-file pointers):** M5 CLOSED
+> (reject-all; holdout unread, seal intact). M-HF C1–C7 and **C8.1–C8.5** DONE + planner-verified.
+> Workspace green at **441 passed, 0 failed, 1 ignored**; demo shasum
+> `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum
+> `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; `sweep-verify: OK`. Verify HEAD/`git status`
+> yourself first — prior summaries are not evidence.
 >
-> **Your card is M-HF-C8.5** (`HfSweepSpec`: HF-kind TOML parsing + spec-lint — PARSE-ONLY, not
-> wired into `run_sweep`/`run_hf`/CLI; that is C8.7's job). Read the card in full in
-> task-queue.md's "M-HF-C8 planner reconciliation (2026-07-16)" section before touching anything.
-> Exactly 4 files + the queue/worklog flip: NEW `crates/sweep/src/hf_spec.rs`, additive `lib.rs`
-> re-export, NEW `config/strategies/hf-strategy-lab.example.toml` (illustrative, NOT tuned), NEW
-> `crates/sweep/tests/hf_spec_parsing.rs`. Do NOT touch `spec.rs`, `strategy-lab.example.toml`,
-> `m5-frozen.toml`, or any schema.
+> **Your card is M-HF-C8.6a** (`sweep::congestion::classify_congestion_regimes` — a pure,
+> non-lookahead `CongestionRegime` classifier over trailing bar volume; parse-only in the sense
+> that nothing calls it yet, C8.7 is its first real caller). Read the card in full in
+> task-queue.md's "M-HF-C8.6 planner reconciliation (2026-07-18)" section, under
+> "### M-HF-C8.6a", before touching anything. Exactly 2 files: NEW
+> `crates/sweep/src/congestion.rs`, additive `lib.rs` re-export. Do NOT touch `portfolio` at all —
+> `CongestionRegime` already exists there (C4) and needs no change.
 >
-> **The planner pre-verify already ran (2026-07-18) against `ddd4512` — all pinned shapes hold**
-> (`HfCostModel{base,depth_curve,congestion_priority_table,tip_bps}`, `DepthCurve::new` /
-> `CongestionPriorityTable::new` fail-closed constructors, `AdvancementThresholds`'s
-> `turnover_budget: Option` + `cost_drag_share_ceiling`/`per_trade_edge_floor` pair,
-> `ParamGrid::IntradayMeanRev`, `PartitionSpec` reuse; `toml`/`serde` are already sweep deps).
-> **Three drifts are PRE-RULED — do not escalate on them:** (1) the card's "grep `hf_spec` returns
-> nothing" is stale: `crates/sweep/tests/hf_reuse_proof.rs:36` has a LOCAL test helper
-> `fn hf_spec()` — no module/type collision, leave that file alone and proceed; (2) baseline gate
-> numbers are the 433/0/1 + `94e90c3c…` set above, not the card's older 402/`85d06e5b…`; (3) the
-> card's quoted line numbers may drift by a few lines — shapes govern, not line numbers. For the
-> template's `[hf_cost]` values, mirror `reference_depth_curve`/`reference_priority_table` in
-> `crates/portfolio/src/hf_cost.rs`'s test module (≈:266/:284). Any OTHER mismatch vs the card's
-> pinned shapes: STOP and report rather than adapt.
+> **The one property this card exists to prove, and the part most likely to go wrong:**
+> `regimes[i]` (used to price the trade landing at bar `i`'s OPEN) must depend only on bars with
+> index `< i` — specifically classify `bars[i-1]` (the most recently CLOSED bar) against a
+> reference window strictly before that (`bars[i-1-lookback..i-1]`), **never** `bars[i]` itself
+> (bar `i`'s own volume isn't known until it closes). The card's non-lookahead test must be
+> discriminating in both directions: mutating `bars[i]` must NOT move `regimes[i]`; mutating
+> `bars[i-1]` MUST. Below `i < lookback + 1` bars of history, default to `CongestionRegime::Hot`
+> (pessimistic, fail-closed — a cost to us, never a benefit).
 >
-> Gate (from the card): `cargo test -p sweep hf_spec` green; full workspace fmt/clippy clean;
-> 0 failed / 1 ignored, record exact N; demo AND sweep shasums **unchanged** (parse-only — if
-> either moves, STOP); `git status` shows exactly the 4 files + queue/worklog flip. When the gate
-> passes: flip the card, one worklog line, stop — the next card gets a fresh chat. C8.6/C8.7 need
-> their own planner reconciliation pass first — never execute their scoped sketches.
+> Gate (from the card): `cargo test -p sweep congestion` green including the non-lookahead
+> mutation proof; full workspace fmt/clippy clean; 0 failed / 1 ignored, record exact N; demo AND
+> sweep shasums **unchanged** (nothing wired into execution — if either moves, STOP);
+> `git status` shows exactly the 2 files + queue/worklog flip. When the gate passes: flip the
+> card, one worklog line, stop — C8.6b gets its own fresh chat (seed prompt below), and does NOT
+> depend on this card landing first.
 >
-> Non-negotiables (unchanged): `Decimal`/integer only for money — never f64; no new dependencies;
-> determinism (no RNG/clock in canonical runs); the M4/M5 holdout machinery and
-> `config/strategies/m5-frozen.toml` are immutable records; never stage anything under `data/`;
-> never edit `fixtures/` (existing files), `plans/master-plan.md`, or `solana-crypto-trader-plan.md`;
-> **do not edit any `schemas/*.json`** (C8.5 authorizes none); never `git commit`/`git push` (stage
-> explicit paths only, never `.claude/`, never `git add -A`); never start M6+ (network) or M8/M9
-> (signing/submit — separate explicit human approval).
+> Non-negotiables (unchanged): `Decimal`/integer only — never f64; no new dependencies;
+> determinism (no RNG/clock); never stage anything under `data/`; never edit `fixtures/`
+> (existing files), `plans/master-plan.md`, or `solana-crypto-trader-plan.md`; never `git commit`/
+> `git push` (stage explicit paths only, never `.claude/`, never `git add -A`); never start M6+
+> (network) or M8/M9 (signing/submit — separate explicit human approval).
+
+---
+
+## Seed prompt for the new chat — execute M-HF-C8.6b (the priced execution entry; larger, independent of C8.6a)
+
+> You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
+> crypto trading-**research** platform in Rust built toward **genuine autonomous passive income**
+> (truly autonomous, so truly passive), earned through milestone gates. The current phase is HF
+> research on SYNTHETIC data only: no keys/signing/RPC/network anywhere; every HF strategy family
+> is a hypothesis to test — no card claims a known-profitable algorithm, and rejecting them all
+> cleanly is a successful outcome.
+>
+> **State (2026-07-18, HEAD `3af2dbb`, clean tree except staged plan-file pointers):** M5 CLOSED
+> (reject-all; holdout unread, seal intact). M-HF C1–C7 and **C8.1–C8.5** DONE + planner-verified
+> (C8.6a may or may not have landed yet — this card does not depend on it, see below). Workspace
+> green at **441 passed, 0 failed, 1 ignored**; demo shasum
+> `ae064f79242f823ffd8f55bf9104e3e1b45d425a`; sweep shasum
+> `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; `sweep-verify: OK`. Verify HEAD/`git status`
+> yourself first — prior summaries are not evidence.
+>
+> **Your card is M-HF-C8.6b** (`portfolio::hf_priced::run_hf_priced` — wires `HfCostModel` +
+> `AdversarialModel` into a new, additive execution entry). Read the card in full in
+> task-queue.md's "M-HF-C8.6 planner reconciliation (2026-07-18)" section, under
+> "### M-HF-C8.6b", before touching anything — it pins the exact signature, the synthesized-
+> `CostModel` pricing mechanism (reuse `apply_buy`/`apply_sell` UNCHANGED — do not add new
+> accounting methods to `state.rs`), the adverse-selection draw, and a proof sketch for the
+> "never cheaper than plain `CostModel`" test. Exactly 4 files: NEW `crates/portfolio/src/
+> hf_priced.rs`, a **visibility-only** change to `latency.rs` (7 items become `pub(crate)`, plus
+> one new `HfError::RegimesLength` variant + its compiler-forced `Display` arm — confirm via
+> `git diff` that no logic line changed), additive `lib.rs` re-exports, NEW `crates/portfolio/
+> tests/hf_priced_regression.rs`. `regimes: &[CongestionRegime]` only needs the already-`pub`
+> `CongestionRegime` type (C4) — hand-build a `Vec<CongestionRegime>` test fixture if C8.6a hasn't
+> landed yet; do not block on it.
+>
+> **Do NOT edit** `run_hf`'s body, `simulator.rs`, `cost.rs`, or `apply_buy`/`apply_sell`'s
+> existing logic — the entire new pricing surface lives in `hf_priced.rs`. Never populate
+> `CostModel.slippage_bps` in the new code (always `0`). Do not call `adverse_selection_cost_worst`/
+> `adverse_selection_cost_expected` from the execution path (test-only). Do not build a
+> `(regime, percentile) → p` table or extend `AdversarialModel` — explicitly scoped out in the
+> card (a real, logged narrowing: `AdversarialModel` as landed has no such axis).
+>
+> Gate (from the card): `cargo test -p portfolio hf_priced` green; the `hf_cadence`/`hf_regression`
+> suites green with assertions **UNCHANGED** (the direct proof `run_hf` stays byte-identical);
+> full workspace fmt/clippy clean; 0 failed / 1 ignored, record exact N; demo AND sweep shasums
+> **unchanged** (nothing wired into `run_sweep`/CLI yet — if either moves, STOP); `git status`
+> shows exactly the 4 files + queue/worklog flip. When the gate passes: flip the card, one worklog
+> line, stop — C8.7 gets its own planner reconciliation pass after both C8.6a and C8.6b land.
+>
+> Escalate-if (from the card, do not improvise past these): `apply_bps` is no longer
+> `value * bps / 10_000` — the design's linearity proof breaks, STOP; the hand-computed cross-check
+> test (`hf_priced.rs`'s realized total vs `hf_trade_cost(...).total_quote`) doesn't match exactly
+> — STOP, report the discrepancy, don't accept a rounding drift; the C3 or C7 regressions need ANY
+> edit to keep passing — STOP, that means `run_hf` itself needs to change, escalate to a fresh
+> planner pass; either shasum moves — STOP.
+>
+> Non-negotiables (unchanged): `Decimal`/integer only — never f64; no new dependencies;
+> determinism (no RNG/clock in canonical runs); never stage anything under `data/`; never edit
+> `fixtures/` (existing files), `plans/master-plan.md`, or `solana-crypto-trader-plan.md`; never
+> `git commit`/`git push` (stage explicit paths only, never `.claude/`, never `git add -A`); never
+> start M6+ (network) or M8/M9 (signing/submit — separate explicit human approval).

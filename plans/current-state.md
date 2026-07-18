@@ -1,15 +1,25 @@
 # Current state
 
 Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-18 (M-HF
-wave 2: C1–C7 DONE + verified; **C8.1–C8.4 + CARD-HYG-1 DONE + planner-verified, committed at
-`ddd4512`/`3757d2a`**: `ScenarioId` HF rungs, `data_provenance` rollup (sweep schema **1.3.0**,
-sweep shasum moved to `94e90c3c…`), `ParamGrid::IntradayMeanRev`, `sweep::intraday_partition`
-holdout seal, gnhf e2e-test port. Gate re-verified 2026-07-18 at `ddd4512`, clean tree:
-**433 passed / 0 failed / 1 ignored**; demo `ae064f79…`; sweep `94e90c3c…`; sweep-verify OK.
-**C8.5 pre-verify DONE 2026-07-18** (fresh card-vs-HEAD re-check; one drift pre-ruled: the
-`hf_spec` grep hits `hf_reuse_proof.rs`'s local test helper — benign, no collision); next up is
-executing **C8.5** (`HfSweepSpec` parse-only). C8.6/C8.7 each still need their own planner
-reconciliation pass before any executor. `M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
+wave 2: C1–C7 and **C8.1–C8.5 + CARD-HYG-1 all DONE + planner-verified**. C8.1–C8.4 committed at
+`3757d2a`/`ddd4512` (ScenarioId HF rungs; `data_provenance` — sweep schema **1.3.0**, sweep shasum
+`94e90c3c…`; `ParamGrid::IntradayMeanRev`; `sweep::intraday_partition` holdout seal; gnhf e2e
+port). C8.5 DONE 2026-07-18 + planner re-verified same day (`sweep::hf_spec` — HF-kind TOML
+parse + fail-closed spec-lint, parse-only; new `hf-strategy-lab.example.toml` template, NOT
+tuned; staged for operator commit). **C8.6 planner reconciliation pass DONE 2026-07-18** (plan
+files only, no code, HEAD `3af2dbb`): C8.6 split by real crate-boundary dependency into
+**C8.6a** (`sweep::congestion` — non-lookahead `CongestionRegime` classifier, small, 2 files) and
+**C8.6b** (`portfolio::hf_priced::run_hf_priced` — wires `HfCostModel`+`AdversarialModel` into a
+new priced execution entry via a per-trade synthesized `CostModel`, reusing `apply_buy`/
+`apply_sell` unchanged, 4 files) — both are now **EXECUTOR-READY** and order-independent (C8.6b
+only needs the already-`pub` `CongestionRegime` type, not C8.6a's classifier function). A real
+narrowing was logged: the original sketch's regime-conditioned "(regime, percentile) → p" table is
+scoped OUT (`AdversarialModel` as landed by C5 has no such axis — building one now would be new
+type design, not wiring). Gate re-run at HEAD `3af2dbb`: **441 passed / 0 failed / 1 ignored**;
+demo `ae064f79…` and sweep `94e90c3c…` UNCHANGED; sweep-verify OK. Next up: execute **C8.6a** and
+**C8.6b** (either order, each its own fresh session). Recommended before C8.6b lands: the FOREMAN
+§3 adversarial review of C8.4's intraday holdout seal (7-lens list in task-queue.md). C8.7
+reconciles only after both C8.6a and C8.6b land. `M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).
@@ -160,23 +170,39 @@ verification wrap"). Gate freshly re-verified 2026-07-18 at HEAD `ddd4512` (clea
 fmt/clippy clean; **433/0/1**; demo `ae064f79…` unchanged; sweep `94e90c3c…` (moved once, at
 C8.2's schema 1.2.0→1.3.0 bump, byte-diff-explained); sweep-verify OK.
 
-**The next command is executing M-HF-C8.5** (`HfSweepSpec`: HF-kind TOML parsing + spec-lint,
-parse-only — task-queue.md). Its planner pre-verify ran 2026-07-18 against `ddd4512`: all pinned
-shapes hold (`HfCostModel`/`DepthCurve::new`/`CongestionPriorityTable::new`,
-`AdvancementThresholds` Option-pair, `ParamGrid::IntradayMeanRev`, `PartitionSpec` reuse,
-`spec.rs` untouched-mirror target, `toml`/`serde` already deps, `reference_depth_curve`/
-`reference_priority_table` at hf_cost.rs:266/:284 for the template). **Pre-ruled drifts** (card
-says escalate on mismatch — these are cleared in advance): (1) the card's "grep `hf_spec` returns
-nothing" is stale — `crates/sweep/tests/hf_reuse_proof.rs:36` has a *local test helper*
-`fn hf_spec()`; no module/type collision, proceed; (2) baseline numbers are now 433/0/1 and sweep
-`94e90c3c…` (the card predates C8.2's shasum move); (3) quoted line numbers may be ±5 (cosmetic).
-- **C8.6** and **C8.7** remain as below: scoped, NOT executor-ready.
-- **C8.6** (wire `HfCostModel`+`AdversarialModel` pricing into a new `run_hf_priced` execution entry)
-  and **C8.7** (the actual row-C8 gate: `hf_cost_scenarios` ladder assembly + `IntradaySource`
-  windowed cells + a full deterministic HF sweep across thread counts) are **scoped, not
-  signature-pinned** — genuinely new architecture; each needs its own planner reconciliation pass
-  once its prerequisites land for real, mirroring the C6→C8/C7→C8 deferral pattern. New FOREMAN §3
-  review points recommended: after C8.4, after C8.6.
+**M-HF-C8.5 is DONE (2026-07-18) + planner re-verified the same day.** `sweep::hf_spec`
+(`HfSweepSpecToml`/`HfSweepSpec`/`HfSpecError`, parse-only, LF `spec.rs` byte-untouched);
+spec-lint fail-closed at parse time (`turnover_budget` → `deny_unknown_fields` rejection;
+cost-drag/per-trade pair required → always `Some`; depth curve required, `portfolio`'s
+constructors surfaced not re-checked; `max_lookback_bars > 0`); new
+`config/strategies/hf-strategy-lab.example.toml` (illustrative, NOT tuned) + 8 tests. Planner
+gate re-run at the staged tree: **441/0/1**; demo `ae064f79…` + sweep `94e90c3c…` unchanged;
+sweep-verify OK; staged scope exactly the 4 card files + queue/worklog flip. All 3 pre-ruled
+drifts held; no escalations.
+
+**M-HF-C8.6 planner reconciliation pass is DONE (2026-07-18, plan files only, HEAD `3af2dbb`).**
+C8.6 split into two executor-ready cards, task-queue.md: **C8.6a** (`sweep::congestion::
+classify_congestion_regimes` — non-lookahead trailing-volume tercile classifier over `&[Bar]`,
+pessimistic `Hot` default below `lookback+1` bars; 2 files) and **C8.6b**
+(`portfolio::hf_priced::run_hf_priced` — a new sibling to `run_hf` that synthesizes a per-trade
+`CostModel` from `HfCostModel`+`AdversarialModel`+the per-bar regime+a distinguishably-keyed
+adverse-selection draw, and calls the EXISTING `apply_buy`/`apply_sell` unmodified — zero new
+accounting code in `state.rs`/`cost.rs`; 4 files, including one visibility-only touch to
+`latency.rs`). Both preserve every hard constraint from the original scoping (`run_hf`/
+`simulator::run` byte-identical; priced costs never cheaper than plain `CostModel`, proven by a
+pinned reference-config test; deterministic, no RNG/clock; the adverse-selection draw reuses the
+`(cell_id, event_index)` splitmix64 pattern keyed distinguishably from `landing_draw`). One design
+was narrowed and logged: the "(regime, percentile) → p" adverse-selection table is scoped OUT
+(`AdversarialModel` has no such axis as landed by C5) — C8.6b uses `AdversarialModel`'s existing
+flat probability instead.
+- **The next command is executing C8.6a, then C8.6b** (order-independent, but C8.6a is the smaller
+  diff — recommended first). Each is its own fresh executor session. **Recommended before C8.6b
+  lands:** the FOREMAN §3 adversarial review of C8.4's intraday holdout seal (7-lens list in
+  task-queue.md's C8.6 preamble) — unaddressed since C8.4 landed.
+- **C8.7** (the actual row-C8 gate: `hf_cost_scenarios` ladder assembly + `IntradaySource` windowed
+  cells + a full deterministic HF sweep across thread counts) stays **scoped, not signature-pinned**
+  — it needs its own planner reconciliation pass once C8.1–C8.6b have actually landed, mirroring the
+  C6→C8/C7→C8 deferral pattern.
 - **Operator ruling HF-Q4 (this session):** `statarb_pairs_v1` gets a real two-leg engine (the
   precomputed-spread-series shortcut was rejected as a fabricated-edge risk). Because that is roughly
   as large as C1–C7 combined, it is scoped OUT of C8's gate into a deferred mini-track,
