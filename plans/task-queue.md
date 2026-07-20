@@ -6477,6 +6477,21 @@ research-core/portfolio/market-data + rustdoc) stays parked as **CARD-HYG-2 (sco
 must first measure the doc-gap on current `main`)**. Branch `gnhf/unit-test-coverage-i-b8ff70` + its
 worktree are deleted only after HYG-2 is executed or descoped on the record.
 
+### CARD-HYG-3 — revert the unneeded `latency::rebalance` visibility widening — `TODO` (1-line; ride with the next latency.rs-adjacent card or the C8.7 pass)
+
+**Provenance.** C8.6b's planner verification (2026-07-20, at `bb88831`): the card pinned exactly
+**seven** items to go `pub(crate)` (`dust`/`min_trade_notional`/`clamp01`/`current_weight`/
+`traded_notional`/`OpenPosition`/`record_round_trip`, task-queue.md's C8.6b file-2 bullet), but
+the landed diff also flipped `rebalance` (`latency.rs:202` `pub(crate) fn rebalance`) — and
+grep confirms `hf_priced.rs` never calls it (it has its own `rebalance_priced` duplicate, by
+design). Zero behavior change; confirmed-minor scope drift, recorded per FOREMAN §7 rule 3
+(minor + not test code → record, don't hot-fix).
+
+**Fix.** `crates/portfolio/src/latency.rs:202`: `pub(crate) fn rebalance(` → `fn rebalance(`.
+One line. Gate: full workspace green (457 baseline), both shasums unchanged.
+**Escalate-if:** removing `pub(crate)` breaks any compile — that means a caller appeared since
+this card was written; STOP and report, the card is stale, not the code.
+
 ---
 
 ## Deferred / blocked (unchanged)

@@ -25,9 +25,16 @@ classify_congestion_regimes` — pure non-lookahead classifier, two-direction mu
 pessimistic Hot default; planner re-verified: gate **450 / 0 / 1** (444 + 6), demo + sweep
 shasums unchanged, re-export is the only caller; staged, awaiting operator commit — note the
 operator's first C8.6a commit was mislabeled with the C8.5.1-pointer message and was soft-reset
-on request 2026-07-19, work preserved staged). Next up: **C8.6b** (fresh session; seed prompt in
-handoff.md). Standing recommendation before C8.6b lands: the FOREMAN §3 7-lens review of C8.4's
-intraday holdout seal — operator go-ahead required. Recommended before C8.6b lands: the FOREMAN §3 adversarial review of C8.4's
+on request 2026-07-19, work preserved staged). **C8.6b DONE 2026-07-20** (landed `bb88831`;
+planner re-verified: gate **457 / 0 / 1** (450 + 7), demo + sweep shasums unchanged, C3/C7
+regression suites byte-untouched — `run_hf` provably unmoved; `hf_priced.rs` clean on the
+forbidden-pattern scan: `slippage_bps` always 0, adverse-selection reference fns doc-only, f64
+only in a non-money test fraction. One confirmed-minor finding: an unneeded 8th
+`latency::rebalance` `pub(crate)` widening beyond the card's pinned 7, zero callers, recorded
+as **CARD-HYG-3** per FOREMAN §7 — 1-line revert, rides with the C8.7 pass). Next up: the
+**C8.7 planner reconciliation pass** (planner session, not an executor card; seed prompt in
+handoff.md). The FOREMAN §3 7-lens review of C8.4's intraday holdout seal did NOT run before
+C8.6b landed — last cheap moment is before C8.7 wires the seal in; operator go-ahead required. Recommended before C8.6b lands: the FOREMAN §3 adversarial review of C8.4's
 intraday holdout seal (7-lens list in task-queue.md). C8.7 reconciles only after both C8.6a and
 C8.6b land. `M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
 **2026-07-19 — FOREMAN kit ACTIVATED (planner reconcile pass, no code):** GATE is now

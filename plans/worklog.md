@@ -1779,3 +1779,35 @@ Gate: **457 passed / 0 failed / 1 ignored**; demo shasum
 (new), `latency.rs`, `lib.rs`, `hf_priced_regression.rs` (new), `plans/task-queue.md`,
 `plans/worklog.md`. Next: C8.7 (windowed HF sweep wiring — needs a planner reconciliation pass
 first, per its own card).
+
+## 2026-07-20 — Planner: C8.6b verified (gate 457/0/1, shasums unchanged, run_hf byte-untouched); one minor → CARD-HYG-3; next is the C8.7 planner pass
+
+FOREMAN §6 verification of C8.6b at `bb88831` (operator had already committed; tree clean).
+Re-run + re-checked, not relayed: commit stat is exactly the card's 4 code files +
+queue/worklog flip; `simulator.rs`/`cost.rs`/`state.rs` untouched; `hf_regression.rs`/
+`hf_cadence.rs` byte-untouched (the direct proof `run_hf` didn't move); latency.rs diff is
+visibility-only + the pinned `HfError::RegimesLength` variant/Display arm — no logic line
+changed. Forbidden-pattern scan of `hf_priced.rs`: `slippage_bps` always `0` (all 4
+construction sites); `adverse_selection_cost_worst`/`_expected` appear in doc comments only,
+never called from execution; no RNG/clock (the adverse draw is the same splitmix64-keyed pure
+scheme as C3's landing table, distinctly tagged); the single `f64` is a `#[cfg(test)]`
+agreement fraction over deterministic draws (non-money, wide band) — consistent with
+f64-display-only. Gate re-run by the planner: `457 passed; 0 failed; 1 ignored` (450 + 7) ·
+demo `ae064f79…` (×2 identical) · sweep `94e90c3c…` · sweep-verify OK · no-exec-deps OK ·
+**GATE: PASS**.
+
+**One confirmed-minor finding (recorded, not hot-fixed, per §7 rule 3):** the card pinned
+exactly SEVEN latency.rs items to `pub(crate)`; the landed diff also widened `rebalance`
+(latency.rs:202) — grep confirms zero callers (`hf_priced.rs` uses its own `rebalance_priced`
+duplicate by design). Zero behavior change. Carded as **CARD-HYG-3** (1-line revert +
+escalate-if, hygiene section) to ride with the C8.7 pass. The executor's report also said
+"8 pinned" — the pin was 7; recorded so the drift pattern stays visible.
+
+Row C8 status: **C8.1–C8.6b ALL landed.** Pointers refreshed: handoff.md (C8.6b seed prompt
+retired; top block + verified-state → 457/`bb88831`; NEW seed prompt for the **C8.7 planner
+reconciliation pass** — planner role, plan-files-only, folds CARD-HYG-3, pins the
+sweep-shasum-may-move expectation if the report schema extends additively), current-state.md.
+The §3 7-lens review of C8.4's intraday holdout seal did NOT run before C8.6b landed; last
+cheap moment is before C8.7's wiring card first calls the seal — operator go-ahead required.
+Staged: `plans/current-state.md`, `plans/handoff.md`, `plans/task-queue.md` (CARD-HYG-3),
+`plans/worklog.md`. Next: paste the C8.7 planner-pass seed prompt into a fresh session.
