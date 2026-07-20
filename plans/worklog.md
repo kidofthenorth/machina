@@ -1811,3 +1811,40 @@ The §3 7-lens review of C8.4's intraday holdout seal did NOT run before C8.6b l
 cheap moment is before C8.7's wiring card first calls the seal — operator go-ahead required.
 Staged: `plans/current-state.md`, `plans/handoff.md`, `plans/task-queue.md` (CARD-HYG-3),
 `plans/worklog.md`. Next: paste the C8.7 planner-pass seed prompt into a fresh session.
+
+## 2026-07-20 — M-HF-C8.7 planner reconciliation pass (plan files only, no code)
+
+Step 0 re-verified at `44d483c` (clean tree; the C8.6b plan-pointer commit had already landed):
+gate re-run by this planner — `457 passed; 0 failed; 1 ignored` · demo `ae064f79…` (×2
+identical) · sweep `94e90c3c…` · sweep-verify OK · no-exec-deps OK · **GATE: PASS**.
+
+**C8.7 reconciled from SCOPED into seven signature-pinned executor cards C8.7a–C8.7g**
+(task-queue.md, new section "M-HF-C8.7 planner reconciliation (2026-07-20)"), every signature
+copied from source this session with file:line, construction sites grep-verified
+(`CandidateMetricsDto` has no struct-literal sites; `rebalance` has no callers; ladder/spec/
+seal/report surfaces read in full). Six drift corrections recorded in the preamble: (1)
+`HfSweepSpec` carries NO latency/adversarial/congestion params — closed by C8.7b; (2)
+`Vec<Bar>` does NOT implement `IntradaySource` (only `ColumnarFile`) — the scoped claim was
+false; (3) the C8.4 seal is materialized-Vec-shaped, so the "n_threads × window" peak-memory
+sketch is corrected to one-materialization-at-entry + per-cell borrows; (4) `hf_cost_scenarios`
+existed nowhere; (5) `ColumnarFile` carries no `Provenance` — it becomes a `run_hf_sweep`
+argument; (6) the §3 `(regime, percentile) → (offset, p_land)` table is DEFERRED to C9+ (flat
+wave-1 `[latency]` block instead) — descoped on the record, nothing in row C8's gate text
+requires it. Eight planner decisions pinned (D-a…D-h), headline: **the report EXTENDS
+`SweepReport`** (fork rejected — C6/C8.2 already made the report layer the additive convergence
+point), schema **1.3.0→1.4.0 at C8.7d, where the sweep shasum MOVES exactly once**
+(version-only diff, rides D-0001, executor told not to STOP on it); HF aggregation is a new
+sibling (LF `aggregate_evidence`/`aggregate_fee_sensitivity` byte-untouched); landing tables
+keyed by global dev-val event indices with window-EXCLUDED cell ids (§3 must-address honored;
+the window-local adverse stream in landed `run_hf_priced` recorded as a rider on §3's named
+limitation, no code change); baselines re-scored through the same priced path (S10 principle).
+CARD-HYG-3 **folded into C8.7a** as its sanctioned 3rd file (hygiene card flipped to
+FOLDED-INTO). The standing **7-lens REVIEW-C8.4-SEAL is now ORDERED IN THE QUEUE** between
+C8.7e and C8.7f (first real seal caller — last cheap moment); operator go-ahead required
+(multi-agent spend, Sonnet low effort only); C8.7f's escalate-if blocks execution before the
+review is ruled. C8.7g additionally sanctions the gate's ignored-count moving 1→2 (the
+wall-clock scale proof). Pointers refreshed: handoff.md (planner seed retired; NEW C8.7a
+executor seed prompt; verified-state → `44d483c`), current-state.md (top block + next-command
+section). Staged: `plans/task-queue.md`, `plans/handoff.md`, `plans/current-state.md`,
+`plans/worklog.md` — plan files ONLY, no code touched. Next: paste the C8.7a executor seed
+prompt into a fresh session.

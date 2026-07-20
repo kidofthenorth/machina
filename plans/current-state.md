@@ -31,12 +31,19 @@ regression suites byte-untouched — `run_hf` provably unmoved; `hf_priced.rs` c
 forbidden-pattern scan: `slippage_bps` always 0, adverse-selection reference fns doc-only, f64
 only in a non-money test fraction. One confirmed-minor finding: an unneeded 8th
 `latency::rebalance` `pub(crate)` widening beyond the card's pinned 7, zero callers, recorded
-as **CARD-HYG-3** per FOREMAN §7 — 1-line revert, rides with the C8.7 pass). Next up: the
-**C8.7 planner reconciliation pass** (planner session, not an executor card; seed prompt in
-handoff.md). The FOREMAN §3 7-lens review of C8.4's intraday holdout seal did NOT run before
-C8.6b landed — last cheap moment is before C8.7 wires the seal in; operator go-ahead required. Recommended before C8.6b lands: the FOREMAN §3 adversarial review of C8.4's
-intraday holdout seal (7-lens list in task-queue.md). C8.7 reconciles only after both C8.6a and
-C8.6b land. `M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
+as **CARD-HYG-3** per FOREMAN §7 — now FOLDED INTO C8.7a). **C8.7 planner reconciliation pass
+DONE 2026-07-20** (plan files only, HEAD `44d483c`, gate re-run this pass: **457/0/1**, demo
+`ae064f79…` ×2, sweep `94e90c3c…`, sweep-verify OK): C8.7 split into seven signature-pinned
+executor cards **C8.7a–C8.7g** (task-queue.md) with pinned decisions D-a…D-h and six drift
+corrections on the record — headline pins: the report EXTENDS `SweepReport` (schema 1.3.0→1.4.0
+at C8.7d, where the sweep shasum MOVES once, version-only diff, expected); `HfSweepSpec` gains
+`[latency]`/`[adversarial]`/`[congestion]` blocks (C8.7b — the spec can't feed `run_hf_priced`
+today); the §3 (regime,percentile) landing table is DEFERRED to C9+ (flat wave-1 params);
+landing tables use global dev-val event indices with window-excluded cell ids. Next up: a fresh
+**executor session on C8.7a** (seed prompt in handoff.md). The FOREMAN §3 7-lens review of
+C8.4's intraday holdout seal is now ORDERED IN THE QUEUE as ⛔ REVIEW-C8.4-SEAL, between C8.7e
+and C8.7f — operator go-ahead required; C8.7f's escalate-if enforces it.
+`M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
 **2026-07-19 — FOREMAN kit ACTIVATED (planner reconcile pass, no code):** GATE is now
 **`bash scripts/gate.sh`** (fresh run at `fcd75e4`: **441 / 0 / 1**; demo `ae064f79…` ×2
 identical; sweep `94e90c3c…`; sweep-verify OK; no-exec-deps OK — zero drift vs the 07-18
@@ -220,14 +227,22 @@ pinned reference-config test; deterministic, no RNG/clock; the adverse-selection
 was narrowed and logged: the "(regime, percentile) → p" adverse-selection table is scoped OUT
 (`AdversarialModel` has no such axis as landed by C5) — C8.6b uses `AdversarialModel`'s existing
 flat probability instead.
-- **The next command is executing C8.6a, then C8.6b** (order-independent, but C8.6a is the smaller
-  diff — recommended first). Each is its own fresh executor session. **Recommended before C8.6b
-  lands:** the FOREMAN §3 adversarial review of C8.4's intraday holdout seal (7-lens list in
-  task-queue.md's C8.6 preamble) — unaddressed since C8.4 landed.
-- **C8.7** (the actual row-C8 gate: `hf_cost_scenarios` ladder assembly + `IntradaySource` windowed
-  cells + a full deterministic HF sweep across thread counts) stays **scoped, not signature-pinned**
-  — it needs its own planner reconciliation pass once C8.1–C8.6b have actually landed, mirroring the
-  C6→C8/C7→C8 deferral pattern.
+- **C8.6a and C8.6b are DONE** (2026-07-19 / 2026-07-20, planner-verified; see the top block).
+- **M-HF-C8.7 planner reconciliation pass is DONE (2026-07-20, plan files only, HEAD `44d483c`).**
+  The row-C8 gate is now seven executor-ready cards in task-queue.md: **C8.7a** (`sweep::
+  hf_scenarios` 6-rung ladder + the CARD-HYG-3 fold), **C8.7b** (`HfSweepSpec` gains `[latency]`/
+  `[adversarial]`/`[congestion]`, parse-only), **C8.7c** (`sweep::hf_cell` priced eval core),
+  **C8.7d** (`SweepReport` additive HF fields, schema **1.3.0→1.4.0** — the sweep shasum MOVES
+  once here, version-only diff, pinned expected), **C8.7e** (`sweep::hf_aggregate` — evidence
+  with `cost_drag_share`/`per_trade_edge` finally `Some`, redeeming C6), **⛔ REVIEW-C8.4-SEAL**
+  (the standing 7-lens seal review, operator-gated, MUST precede C8.7f), **C8.7f**
+  (`run_hf_sweep` capstone over `IntradaySource` + the C8.4 seal), **C8.7g** (the gate battery:
+  determinism ×{1,2,3,7,8}, holdout counter 0, schema-valid, wall-clock recorded via a second
+  `#[ignore]` test — gate ignored-count goes 1→2 there, sanctioned). Six drift corrections
+  recorded in the section preamble (no latency/adversarial params in the spec; `Vec<Bar>` does
+  NOT implement `IntradaySource`; the seal is materialized-Vec-shaped; `hf_cost_scenarios`
+  didn't exist; `ColumnarFile` carries no provenance; the §3 percentile table is deferred to
+  C9+, on the record). **The next command is a fresh executor session on C8.7a.**
 - **Operator ruling HF-Q4 (this session):** `statarb_pairs_v1` gets a real two-leg engine (the
   precomputed-spread-series shortcut was rejected as a fabricated-edge risk). Because that is roughly
   as large as C1–C7 combined, it is scoped OUT of C8's gate into a deferred mini-track,

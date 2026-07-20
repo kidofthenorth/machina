@@ -6353,42 +6353,751 @@ shasum moves — STOP.
 
 ---
 
-### M-HF-C8.7 — Windowed HF sweep wiring (the row-C8 gate): `hf_cost_scenarios` + `IntradaySource` cells + a full deterministic HF `SweepReport` — `SCOPED, not signature-pinned; needs a planner reconciliation pass before an executor touches it, once C8.1–C8.6 have actually landed`
+## M-HF-C8.7 planner reconciliation (2026-07-20, HEAD `44d483c`) — split into C8.7a–C8.7g by real dependency boundaries
 
-**Why this is last and why it's scoped, not pinned.** This is the actual gate m-hf-track's row C8
-names: "full synthetic HF sweep deterministic across {1,2,3,7,8}; schema-valid; holdout counter 0;
-wall-clock re-measured and recorded." It depends on every prior card's REAL landed shape (the ladder
-enum from C8.1, the provenance builder from C8.2, the grid variant from C8.3, the holdout seal from
-C8.4, the spec parser from C8.5, and the pricing entry from C8.6) — pinning its exact plumbing now,
-before any of those exist as code, would be pure speculation. This section is a goal + assembly list,
-not an executor-ready card.
+**Verified baseline for this pass.** `bash scripts/gate.sh` re-run this session: **457 passed / 0
+failed / 1 ignored**; demo `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2); sweep
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8`; sweep-verify OK; no-exec-deps OK; tree clean at
+`44d483c`. Every signature below was copied from source THIS session with file:line — if an
+executor finds a mismatch, the card is wrong, not the code: STOP.
 
-**Goal.** Produce one deterministic `SweepReport` (via a new `run_hf_sweep`, mirroring `run_sweep`'s
-shape) that: reads an `HfSweepSpec` (C8.5); slices bars through an `IntradaySource` (C2.6's
-`ColumnarFile`/in-memory `Vec<Bar>` both already implement it) in windows only, never materializing
-the whole series per cell (peak memory ≈ `n_threads × max_window_bars`, per C2.6/D-0013); seals an
-intraday holdout (C8.4) before any cell runs; assembles `hf_cost_scenarios` — now buildable, since
-C8.6 defines what an HF rung actually varies — over `intraday_meanrev_v1` (C8.3's grid); prices every
-cell through `run_hf_priced` (C8.6); rolls up `data_provenance` (C8.2) from the input series'
-`Provenance`; computes real `cost_drag_share`/`per_trade_edge` evidence (the `CandidateEvidence`
-fields C6 already added as `Option`, still `None` in every path today) from the fee-sensitivity sums
-— the one piece of C6's original promise ("C8 computes these") this card actually redeems; and proves
-the whole pipeline is byte-identical across thread counts {1,2,3,7,8}, matching the S7/C2.5 pattern.
+**What the grep-verified read found (drift corrected on the record):**
+1. **`HfSweepSpec` carries NO latency, adversarial, or congestion-lookback parameters**
+   (`hf_spec.rs:36-45` `HfSweepSpecToml` fields: allowlist_version, partitions, walk_forward,
+   advancement, resolution_secs, max_lookback_bars, intraday_meanrev_v1, hf_cost). `run_hf_priced`
+   needs an `AdversarialModel`, a `LatencyPipeline`, and a regime series — none derivable from the
+   spec today. Closing this gap is its own card (C8.7b).
+2. **`Vec<Bar>` does NOT implement `IntradaySource`** — the scoped sketch's claim "`ColumnarFile`/
+   in-memory `Vec<Bar>` both already implement it" is FALSE at HEAD: the only impl is
+   `impl IntradaySource for ColumnarFile` (`columnar.rs:240`). The entry point takes
+   `&dyn IntradaySource`; the gate test drives it through a real `ColumnarFile`.
+3. **The C8.4 seal API is materialized-Vec-shaped**: `IntradayPartitionedBars::from_spec(bars:
+   Vec<Bar>, …)` (`intraday_partition.rs:172`) validates spacing over, then physically splits, a
+   full in-memory series. The scoped sketch's "peak memory ≈ n_threads × max_window_bars, never
+   materializing the whole series per cell" is therefore corrected on the record: wave-1 memory
+   profile = ONE full materialization at entry (`source.slice(0..len)`) to feed the seal, then
+   per-cell borrows of `&dev_val[test]` (no per-cell materialization). Flagged for the
+   REVIEW-C8.4-SEAL forward-fit lens (lens 7).
+4. **`hf_cost_scenarios` does not exist anywhere** (grep: zero hits outside plans/) — C8.7a builds
+   it. `ScenarioId::{HotCongestion, AdversarialWorst, Latency2x}` are reserved names only
+   (`sensitivity.rs:46-56`).
+5. **`ColumnarFile` does not carry `Provenance`** (header = magic/version/scale/rows,
+   `columnar.rs:209-238`), so the `data_provenance` rollup (C8.2) cannot be computed from the
+   source alone: `run_hf_sweep` takes a `provenance: &[Provenance]` argument the caller supplies.
+   Forward-fit note for C9 real-data ingestion (the container format may want an embedded
+   provenance field then; not invented now).
+6. **The m-hf-track §3 `(regime, fee_percentile) → (offset_bars, p_land)` percentile TABLE is NOT
+   built in C8.7** (deferred, on the record): wave 1 uses a flat `[latency]` block (single
+   `offset_bars` + one exact `p_land` rational — the same shape `build_landing_table` already
+   takes) plus the flat base-rung `p_adverse` C5 landed (`adversarial.rs:30-35` documents the full
+   table as future work). The regime-keyed table upgrade lands with the C9/C10 real-data cards,
+   which already own the archived priority-fee percentile distribution. Nothing in row C8's gate
+   text requires the table.
 
-**What is explicitly NOT decided here:** the exact `run_hf_sweep` signature; whether
-`aggregate_evidence`/`aggregate_fee_sensitivity`'s wildcard-protected `ScenarioId` matches
-(flagged in C8.1's audit) get real arms or a wholly new HF-specific aggregation path is written
-alongside them (recommended, to avoid destabilizing the LF `aggregate_evidence`/`aggregate_fee_
-sensitivity` that M4/M5 already depend on byte-for-byte); whether `FeeSensitivity`/`ScenarioMetricsDto`
-(hard-locked to 3 named slots) grow new optional fields or a wholly new `HfFeeSensitivity` DTO ships
-alongside them (an additive-schema fork with real tradeoffs, itself worth a short planner note when
-this card is actually drafted); the wall-clock/memory measurement protocol (mirror C2.6's `#[ignore]`
-convention if the full sweep is slow).
+**Planner decisions pinned for this sequence** (reversible internal forks, ruled and logged here
+per FOREMAN §8; the schema evolution rides D-0001 — no new decision number):
+- **D-a (report artifact): EXTEND `SweepReport`, do not fork it.** The report layer is the track's
+  chosen convergence point — C6 already added the HF-only optional threshold fields to
+  `ThresholdsDto` and C8.2 added optional `data_provenance`; forking an `HfSweepReport` now would
+  orphan that landed design. C8.7d adds optional, `skip_serializing_if`-absent fields (per-candidate
+  `hf_rungs` block + `cost_drag_share`/`per_trade_edge` strings) and bumps `SWEEP_SCHEMA_VERSION`
+  `"1.3.0"` → `"1.4.0"`. **Pinned consequence: the LF `cargo run -p cli -- sweep` output changes by
+  EXACTLY the `schema_version` line, so the sweep shasum MOVES exactly once, at card C8.7d** (C6
+  precedent: "version-only sweep diff"). The executor records the new shasum; a STOP on that hash
+  move is wrong; any OTHER changed line in the sweep-output diff is a real STOP. Demo shasum never
+  moves. All other cards: BOTH shasums unchanged.
+- **D-b (aggregation): a new sibling `sweep::hf_aggregate`, never edits to LF
+  `aggregate_evidence`/`aggregate_fee_sensitivity`** (`runner.rs:72/154`) — their wildcard arms
+  (`_ => {}` / `_ => continue`) remain the protection that HF rungs can never perturb M4/M5
+  byte-identity. The scoped section already recommended this; now pinned.
+- **D-c (ladder semantics):** 6 rungs in canonical order
+  `[BeforeCosts, Base, Doubled, HotCongestion, AdversarialWorst, Latency2x]`; exact bundle
+  semantics pinned in C8.7a's steps. `DoubledSlippage`/`DoubledPriority` are LF-only and never
+  appear in the HF ladder.
+- **D-d (cell identity + event indices):** landing tables are built over GLOBAL dev-val-relative
+  bar indices (`build_landing_table(cell_id, test.start..test.end as u64, …)`) with
+  `cell_id = (scenario_index as u64) << 32 | point_index as u64` — window index EXCLUDED — so the
+  same physical slot gets the same landing outcome under any windowing (m-hf-track §3's
+  adjudication must-address, honored). Baselines use the disjoint tag
+  `0x8000_0000_0000_0000 | (scenario_index << 32) | baseline_index`. The adverse-selection draw
+  stream inside `run_hf_priced` is window-local by C8.6b's landed contract (`hf_priced.rs:218`
+  uses the local signal index) — with S8's non-overlapping test windows no physical slot is drawn
+  twice, so this is a modeling-consistency rider on §3's already-named targeting limitation, not a
+  defect; recorded here, no code change.
+- **D-e (regimes):** `classify_congestion_regimes(dev_val, lookback)` is computed ONCE over the
+  full dev-val slice and windows borrow `&regimes[test]` — later windows see real trailing history
+  instead of re-warming to the `Hot` default per window; forced-regime rungs override with a
+  constant vector. Non-lookahead is preserved (the classifier only ever looks at indices `< i`).
+- **D-f (baselines):** the four `BaselineId` baselines (`baseline.rs:39-73`) are re-scored
+  cost-matched THROUGH THE PRICED PATH (`eval_hf_strategy`, C8.7c) under the Base and Doubled
+  rungs — same engine as candidates, no drift (the S10 principle, applied to HF).
+- **D-g (evidence formulas, from `advance.rs`'s own field docs):**
+  `cost_drag_share = fee.return_drag_costs / fee.before_costs.total_return`, `None` when
+  `before_costs.total_return <= 0` (advance.rs:71-74 "guarded for non-positive gross");
+  `per_trade_edge = Σ_w (base-rung final_equity − initial_cash) / Σ_w base-rung n_trades` in exact
+  quote-Decimal, `None` when the trade count is 0 (advance.rs:76-79; the adverse-selection sink is
+  already inside `final_equity` via `run_hf_priced`, which is what "folding in C5's sink" means).
+- **D-h (report counters):** the `hf_rungs` block reports the three HF-only rungs'
+  `ScenarioMetricsDto` plus BASE-rung sums of `adverse_selection_hits`,
+  `adverse_selection_paid_quote`, and `unlanded_orders` across windows (everyday economics, per
+  m-hf-track §3's "priced at the BASE rung" requirement; the worst-case rung's totals are visible
+  in its own metrics).
 
-**Recommended sequencing note for the reconciliation pass:** draft this card, and only this card,
-AFTER C8.1–C8.6 are DONE and independently re-verified — grep every real signature they landed with,
-exactly as this whole document did for C6/C7. Recommend a dedicated adversarial review after this
-card lands, before it's trusted (FOREMAN §3 risk point, alongside C8.6).
+**Execution order (one card per fresh session; queue rules apply):**
+C8.7a → C8.7b → C8.7c → C8.7d → C8.7e → **[REVIEW-C8.4-SEAL — the 7-lens FOREMAN §3 review, lens
+list in the C8.6 reconciliation section above; operator go-ahead REQUIRED (multi-agent spend,
+Sonnet low effort only); it must run BEFORE C8.7f, the first real caller of the seal]** → C8.7f →
+C8.7g. After C8.7g: the post-C8.7 FOREMAN §3 adversarial review (also operator-gated) before row
+C8 is declared or trusted. CARD-HYG-3 is FOLDED INTO C8.7a (sanctioned 3rd file).
+
+---
+
+### M-HF-C8.7a — `sweep::hf_scenarios`: the HF cost-scenario ladder (+ CARD-HYG-3 fold) — `TODO`
+
+**Goal.** Build `hf_cost_scenarios` — the 6-rung HF ladder assembly m-hf-track §4 moved here —
+as a standalone, independently testable module (no execution wiring; C8.7f is its first real
+caller), and land the 1-line CARD-HYG-3 visibility revert.
+
+**Files (3).**
+1. `crates/sweep/src/hf_scenarios.rs` (**NEW**) — types + `hf_cost_scenarios` + `#[cfg(test)]`.
+2. `crates/sweep/src/lib.rs` — `pub mod hf_scenarios;` +
+   `pub use hf_scenarios::{hf_cost_scenarios, HfCostScenario, HfLatencyParams};` (additive only).
+3. `crates/portfolio/src/latency.rs` — **CARD-HYG-3, sanctioned fold** (1 line): line 202
+   `pub(crate) fn rebalance(` → `fn rebalance(`. Zero behavior change.
+Plus the queue/worklog flip (doesn't count against the budget).
+
+**Current state (verbatim, verified 2026-07-20 at `44d483c`).**
+```rust
+// crates/sweep/src/sensitivity.rs:76-81
+pub struct CostScenario {
+    pub id: ScenarioId,
+    pub cost: CostModel,
+}
+// crates/sweep/src/sensitivity.rs:30-57 — ScenarioId variants (serde renames):
+// BeforeCosts, Base, Doubled, DoubledSlippage, DoubledPriority, HotCongestion ("reserved name
+// only"), AdversarialWorst, Latency2x.
+// crates/portfolio/src/hf_cost.rs:165-170
+pub struct HfCostModel {
+    pub base: CostModel,
+    pub depth_curve: DepthCurve,
+    pub congestion_priority_table: CongestionPriorityTable,
+    pub tip_bps: u32,
+}
+// crates/portfolio/src/hf_cost.rs:224 — scales depth impacts, priority lamports, tip_bps;
+// hf.base is deliberately NOT scaled ("CostModel's own fields are scaled by the existing
+// function, untouched"):
+pub fn scale_hf_cost_model(hf: &HfCostModel, num: u32, den: u32) -> HfCostModel {
+// crates/sweep/src/sensitivity.rs:103
+pub fn scale_cost_model(base: &CostModel, num: u32, den: u32) -> CostModel {
+// crates/portfolio/src/adversarial.rs:25-36
+pub struct AdversarialModel {
+    pub sandwich_bps: u32,
+    pub pickoff_bps: u32,
+    pub p_adverse_num: u64,
+    pub p_adverse_den: u64,
+}
+// crates/portfolio/src/hf_cost.rs:67-71 — CongestionRegime { Calm, Busy, Hot } (pub, exported)
+// crates/portfolio/src/latency.rs:202 (CARD-HYG-3 target; hf_priced.rs does NOT import it)
+pub(crate) fn rebalance(
+```
+
+**Steps.**
+1. In `hf_scenarios.rs`, define (all `#[derive(Debug, Clone, PartialEq, Eq)]`, all fields `pub`):
+   ```rust
+   /// Flat wave-1 latency/landing parameters (the (regime, percentile) table is C9+ work —
+   /// see the C8.7 reconciliation, drift item 6).
+   pub struct HfLatencyParams {
+       pub offset_bars: usize,
+       pub p_land_num: u64,
+       pub p_land_den: u64,
+   }
+   /// One rung of the HF ladder: everything run_hf_priced needs, minus the per-cell pipeline.
+   pub struct HfCostScenario {
+       pub id: ScenarioId,
+       pub hf: HfCostModel,
+       pub adversarial: AdversarialModel,
+       pub latency: HfLatencyParams,
+       /// Some(r) = classification is overridden with a constant regime (the HotCongestion rung).
+       pub force_regime: Option<CongestionRegime>,
+   }
+   ```
+2. `pub fn hf_cost_scenarios(base_hf: &HfCostModel, base_adversarial: &AdversarialModel,
+   base_latency: &HfLatencyParams) -> Vec<HfCostScenario>` returning EXACTLY, in this order:
+   - `BeforeCosts`: `hf = { let mut z = scale_hf_cost_model(base_hf, 0, 1); z.base =
+     CostModel::zero(); z }` (zero impacts/priority/tip, zero base costs — band boundaries kept);
+     `adversarial = AdversarialModel { sandwich_bps: 0, pickoff_bps: 0, p_adverse_num: 0,
+     p_adverse_den: 1 }`; `latency = base_latency.clone()` (frictionless COSTS, unchanged
+     PHYSICS — latency/landing stay); `force_regime = None`.
+   - `Base`: clones of all three inputs; `force_regime = None`.
+   - `Doubled`: `hf = { let mut z = scale_hf_cost_model(base_hf, 2, 1); z.base =
+     scale_cost_model(&base_hf.base, 2, 1); z }`; `adversarial = AdversarialModel { sandwich_bps:
+     base.sandwich_bps.saturating_mul(2), pickoff_bps: base.pickoff_bps.saturating_mul(2),
+     ..probabilities unchanged }`; latency unchanged; `force_regime = None`. (Cost FIELDS double;
+     event probabilities are not costs and do not.)
+   - `HotCongestion`: Base bundle + `force_regime = Some(CongestionRegime::Hot)`.
+   - `AdversarialWorst`: Base bundle but `adversarial = AdversarialModel { p_adverse_num: 1,
+     p_adverse_den: 1, ..base bps unchanged }` — the τ-loss-on-EVERY-fill bound (m-hf-track §3).
+   - `Latency2x`: Base bundle but `latency.offset_bars = base.offset_bars.saturating_mul(2)`;
+     `p_land` unchanged.
+3. Module doc: note `hf.base.slippage_bps` is dead weight on the priced path (`run_hf_priced`
+   always synthesizes `slippage_bps: 0`, `hf_priced.rs:11-12`) — scaled but unread, harmless.
+4. lib.rs exports (file 2). `cargo fmt`.
+5. CARD-HYG-3 (file 3): `crates/portfolio/src/latency.rs:202` `pub(crate) fn rebalance(` →
+   `fn rebalance(`. Nothing else in the file.
+6. Tests (in-file): (a) ladder length 6 + exact `ScenarioId` order pinned; (b) BeforeCosts has
+   `CostModel::zero()` base, all-zero impacts/tip/priority, `p_adverse_num == 0`; (c) Doubled
+   doubles `dex_fee_bps`/impacts/tip/priority AND leaves both probability rationals untouched;
+   (d) AdversarialWorst is `p = 1/1` with base bps; (e) Latency2x doubles `offset_bars` only;
+   (f) HotCongestion differs from Base ONLY in `force_regime`; (g) determinism: two calls,
+   `assert_eq!`.
+
+**Gate.** `cargo test -p sweep hf_scenarios` green; `cargo test -p portfolio` green (the HYG-3
+revert must compile clean — `rebalance` has no callers outside `latency.rs`); full
+`bash scripts/gate.sh`: 0 failed / 1 ignored, record exact N (baseline 457 + new tests); demo
+`ae064f79…` AND sweep `94e90c3c…` **both unchanged**; `git status` = exactly the 3 files + flip.
+
+**Guardrails.** No new deps; nothing wired into `run_sweep`/`run_hf`/`run_hf_priced`/CLI; LF
+`cost_scenarios` (`sensitivity.rs:115`) byte-untouched; exact integer/Decimal scaling only (no
+f64); never `git commit`/`push`; never stage `.claude/` or `data/`.
+
+**Escalate-if.** Any quoted signature above mismatches HEAD; removing `pub(crate)` from
+`rebalance` breaks ANY compile (a caller appeared — the card is stale, not the code); either
+shasum moves; an unlisted file seems needed.
+
+---
+
+### M-HF-C8.7b — `HfSweepSpec` gains `[latency]` / `[adversarial]` / `[congestion]` (parse-only) — `TODO`
+
+**Goal.** Close drift item 1: the HF spec must carry every parameter `run_hf_sweep` will need, so
+C8.7f reads ONE spec — parse-only, fail-closed lints, `spec.rs` and all LF fixtures byte-untouched
+(the C8.5 discipline).
+
+**Files (2).** 1. `crates/sweep/src/hf_spec.rs`. 2.
+`config/strategies/hf-strategy-lab.example.toml` (append the three blocks AFTER the `[hf_cost]`
+tables, end of file). Plus queue/worklog flip.
+
+**Current state (verbatim, verified 2026-07-20 at `44d483c`).**
+```rust
+// crates/sweep/src/hf_spec.rs:36-45
+struct HfSweepSpecToml {
+    allowlist_version: String,
+    partitions: PartitionsToml,
+    walk_forward: WalkForwardToml,
+    advancement: HfAdvancementToml,
+    resolution_secs: i64,
+    max_lookback_bars: usize,
+    intraday_meanrev_v1: IntradayMeanRevToml,
+    hf_cost: HfSweepCostToml,
+}
+// crates/sweep/src/hf_spec.rs:117-131 — pub struct HfSweepSpec { pub allowlist_version, pub
+// partition, pub walk_forward, pub thresholds, pub grids, pub resolution_secs,
+// pub max_lookback_bars, pub hf_cost } (all pub)
+// crates/sweep/src/hf_spec.rs:135-156 — pub enum HfSpecError { Toml, Date, Window,
+// UnknownWalkForwardKind, TurnoverBudgetNotAllowed, MissingDepthCurve, InvalidPriorityTable,
+// ZeroMaxLookback, UnsupportedResolutionSecs(i64) }
+// crates/sweep/src/hf_spec.rs:208
+pub fn from_toml_str(s: &str) -> Result<Self, HfSpecError> {
+```
+
+**Steps.**
+1. New TOML mirror structs (private, `Deserialize`): `LatencyToml { offset_bars: usize,
+   p_land_num: u64, p_land_den: u64 }`, `AdversarialToml { sandwich_bps: u32, pickoff_bps: u32,
+   p_adverse_num: u64, p_adverse_den: u64 }`, `CongestionToml { lookback: usize }`; add fields
+   `latency: LatencyToml`, `adversarial: AdversarialToml`, `congestion: CongestionToml` to
+   `HfSweepSpecToml` (missing block = TOML parse error = fail-closed).
+2. `HfSweepSpec` gains `pub latency: crate::hf_scenarios::HfLatencyParams`,
+   `pub adversarial: portfolio::AdversarialModel`, `pub congestion_lookback: usize`.
+3. New `HfSpecError` variants + Display arms (informative, value-carrying):
+   `ZeroLatencyOffset` (offset_bars == 0 — `LatencyPipeline::new` requires ≥ 1),
+   `InvalidLandingProbability(u64, u64)` (den == 0 || num > den),
+   `InvalidAdversarialProbability(u64, u64)` (same rule),
+   `ZeroCongestionLookback` (lookback == 0 — degenerate all-`Hot` classification is never
+   configured silently).
+4. Lint order: after the existing `ZeroMaxLookback` check, in the order listed above.
+5. Template: append (values illustrative, NOT tuned, same disclaimer style as the file header):
+   ```toml
+   # ── latency + landing (flat wave-1 params; the (regime, percentile) table is C9+) ──
+   [latency]
+   offset_bars = 1
+   p_land_num = 9
+   p_land_den = 10
+
+   # ── adversarial base rung (C5's flat base-rung probability; worst-case is a ladder rung) ──
+   [adversarial]
+   sandwich_bps = 5
+   pickoff_bps = 5
+   p_adverse_num = 1
+   p_adverse_den = 20
+
+   # ── congestion classifier (C8.6a) trailing-volume lookback, in bars ──
+   [congestion]
+   lookback = 300
+   ```
+6. Tests (in-file, `template_with` pattern): template parses and resolves the three new fields to
+   the exact values above; each lint fires on a 1-line substitution (`offset_bars = 0`,
+   `p_land_den = 0`, `p_land_num = 11` vs den 10, `p_adverse_num = 21` vs den 20,
+   `lookback = 0`); Display strings informative (extend `error_display_is_informative`).
+
+**Gate.** `cargo test -p sweep hf_spec` + `cargo test -p sweep --test hf_spec_parsing` green;
+full `bash scripts/gate.sh`: 0 failed / 1 ignored, record exact N; demo AND sweep shasums **both
+unchanged** (parse-only — if either moves, STOP); `git status` = exactly the 2 files + flip.
+
+**Guardrails.** C8.5's all restated: `spec.rs` byte-untouched, no existing TOML fixtures edited,
+no schemas, no new deps, nothing wired into execution; LF `SweepSpec` untouched; never
+`git commit`/`push`.
+
+**Escalate-if.** `HfSweepSpecToml`'s current field list differs from the verbatim block; C8.7a
+has not landed (`hf_scenarios::HfLatencyParams` missing — order violated); any existing
+`hf_spec` test needs a behavioral (not additive) change; either shasum moves.
+
+---
+
+### M-HF-C8.7c — `sweep::hf_cell`: the priced HF cell-evaluation core — `TODO`
+
+**Goal.** The HF sibling of `cell.rs`: evaluate one `(ParamPoint | baseline, bars-slice, rung
+bundle)` into an `HfCellResult` through `run_hf_priced` — the shared core candidates AND
+baselines both score through (the S10 no-drift principle). Standalone; C8.7f is the first caller.
+
+**Files (2).** 1. `crates/sweep/src/hf_cell.rs` (**NEW**). 2. `crates/sweep/src/lib.rs`
+(`pub mod hf_cell;` + `pub use hf_cell::{eval_hf_cell, HfCellResult};`). Plus queue/worklog flip.
+
+**Current state (verbatim, verified 2026-07-20 at `44d483c`).**
+```rust
+// crates/portfolio/src/hf_priced.rs:152-164
+pub fn run_hf_priced<F>(
+    bars: &[Bar],
+    initial_cash_usdc: Decimal,
+    hf: &HfCostModel,
+    adversarial: &AdversarialModel,
+    pipeline: &LatencyPipeline,
+    regimes: &[CongestionRegime],
+    cell_id: u64,
+    mut target_fn: F,
+) -> Result<HfPricedRunOutput, HfError>
+where
+    F: FnMut(&[Bar], Decimal) -> Decimal,
+// crates/portfolio/src/hf_priced.rs:65-71
+pub struct HfPricedRunOutput {
+    pub base: crate::latency::HfRunOutput,
+    pub adverse_selection_hits: u32,
+    pub adverse_selection_paid_quote: Decimal,
+}
+// crates/portfolio/src/latency.rs:314-319 — HfRunOutput { pub base: RunOutput,
+// pub unlanded_orders: u32 }
+// crates/sweep/src/cell.rs:71-77 (the LF pattern to mirror; baselines call it too)
+pub(crate) fn eval_strategy(
+    strat: &dyn Strategy,
+    bars: &[Bar],
+    cost: &CostModel,
+    initial_cash_usdc: Decimal,
+    periods_per_year: f64,
+) -> Result<CellResult, SimError> {
+// crates/sweep/src/cell.rs:25-43 — CellResult fields (all pub): total_return, max_drawdown,
+// turnover, n_trades, final_equity, traded_notional_quote, fees_paid_quote,
+// slippage_paid_quote, priority_fees_paid_sol, time_in_market, cagr, volatility, sharpe,
+// sortino, calmar
+// crates/sweep/src/param.rs:91
+pub fn build_strategy(point: &ParamPoint) -> Box<dyn Strategy> {
+```
+
+**Steps.**
+1. `pub struct HfCellResult { pub cell: CellResult, pub unlanded_orders: u32,
+   pub adverse_selection_hits: u32, pub adverse_selection_paid_quote: Decimal }`
+   (`#[derive(Debug, Clone, PartialEq, serde::Serialize)]` — no `Eq`, `cell` holds f64s).
+2. `pub(crate) fn eval_hf_strategy(strat: &dyn Strategy, bars: &[Bar], hf: &HfCostModel,
+   adversarial: &AdversarialModel, pipeline: &LatencyPipeline, regimes: &[CongestionRegime],
+   cell_id: u64, initial_cash_usdc: Decimal, periods_per_year: f64)
+   -> Result<HfCellResult, HfError>` — body mirrors `cell.rs:71-104` line-for-line with
+   `run_hf_priced` in place of `run`: equity curve → `Metrics::from_equity` →
+   `turnover_ratio(out.base.base.traded_notional_quote, &equity)` → build `CellResult` from
+   `out.base.base` (note `slippage_paid_quote` comes through as exact `Decimal::ZERO` on this
+   path) + `finite()` normalization copied verbatim; then wrap with the three HF counters.
+3. `pub fn eval_hf_cell(point: &ParamPoint, …same args…) -> Result<HfCellResult, HfError>`
+   delegating via `build_strategy(point)` (mirror `cell.rs:49-63`).
+4. Tests: (a) `eval_hf_cell` equals a directly-wired `run_hf_priced` + `Metrics` +
+   `turnover_ratio` computation (mirror `eval_cell_matches_a_directly_wired_run`); (b) repeat
+   call byte-equal; (c) `slippage_paid_quote == 0` always; (d) empty bars →
+   `HfError::Sim(SimError::NoBars)`; (e) regimes-length mismatch surfaces
+   `HfError::RegimesLength`. Hand-build `LatencyPipeline`/regime fixtures exactly as
+   `hf_priced.rs:394-409`'s test does.
+
+**Gate.** `cargo test -p sweep hf_cell` green; full `bash scripts/gate.sh`: 0 failed / 1
+ignored, record exact N; demo AND sweep shasums **both unchanged**; `git status` = exactly the
+2 files + flip.
+
+**Guardrails.** No edits to `cell.rs`/`portfolio` (this card is sweep-side only); no new deps;
+fixed-point money; `finite()` logic duplicated, not exported from `cell.rs` (keep the LF file
+byte-untouched); never `git commit`/`push`.
+
+**Escalate-if.** `run_hf_priced`'s signature mismatches the verbatim block; the mirror requires
+ANY change to `cell.rs` or `portfolio`; either shasum moves.
+
+---
+
+### M-HF-C8.7d — `SweepReport` additive HF extension + schema 1.4.0 — `TODO` ⚠️ the sweep shasum MOVES here, by design
+
+**Goal.** Give the report layer the HF fields C8.7f will populate: an optional per-candidate
+`hf_rungs` block and optional `cost_drag_share`/`per_trade_edge` evidence strings. Additive per
+D-0001; LF output changes by EXACTLY the `schema_version` line.
+
+**Files (3).** 1. `crates/sweep/src/report.rs`. 2. `schemas/sweep-report.schema.json`
+(additive). 3. `crates/sweep/tests/schema_validation.rs`. Plus queue/worklog flip (and lib.rs
+would be file 4 ONLY if `HfRungsDto` is exported there — it is: add
+`pub use report::HfRungsDto;` — sanctioned 4th file, one line).
+
+**Current state (verbatim, verified 2026-07-20 at `44d483c`).**
+```rust
+// crates/sweep/src/report.rs:19
+pub const SWEEP_SCHEMA_VERSION: &str = "1.3.0";
+// crates/sweep/src/report.rs:111-117
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct CandidateMetricsDto {
+    pub candidate_label: String,
+    pub max_drawdown: String,
+    pub turnover: String,
+    pub fee_sensitivity: FeeSensitivityDto,
+}
+// crates/sweep/src/report.rs:60-67 — ScenarioMetricsDto (derives incl. Ord); its
+// from_metrics(m: &ScenarioMetrics) is PRIVATE to report.rs (report.rs:72)
+// crates/sweep/tests/schema_validation.rs:131
+assert_eq!(value["schema_version"], json!("1.3.0"));
+// schemas/sweep-report.schema.json: $defs.CandidateMetrics.properties =
+// {candidate_label, max_drawdown, turnover, fee_sensitivity}, additionalProperties: false,
+// required: all four; schema_version is a pattern (^\d+\.\d+\.\d+$), not a const.
+// Construction sites of CandidateMetricsDto (grep, this session): runner.rs:386 (::new),
+// schema_validation.rs:76-88 (::new) — no struct literals anywhere, so added Option fields
+// defaulting None in ::new break no caller.
+```
+
+**Steps.**
+1. `pub struct HfRungsDto` (`#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]`):
+   `pub hot_congestion: ScenarioMetricsDto, pub adversarial_worst: ScenarioMetricsDto,
+   pub latency_2x: ScenarioMetricsDto, pub adverse_selection_hits: u32,
+   pub adverse_selection_paid_quote: String, pub unlanded_orders: u32`, with a `pub fn new(hot:
+   &ScenarioMetrics, adversarial_worst: &ScenarioMetrics, latency_2x: &ScenarioMetrics,
+   adverse_selection_hits: u32, adverse_selection_paid_quote: Decimal, unlanded_orders: u32) ->
+   Self` calling the private `ScenarioMetricsDto::from_metrics` + `.normalize().to_string()`
+   (docs: counters are BASE-rung sums, decision D-h).
+2. `CandidateMetricsDto` gains three fields, each `#[serde(skip_serializing_if =
+   "Option::is_none")]`: `pub cost_drag_share: Option<String>, pub per_trade_edge:
+   Option<String>, pub hf_rungs: Option<HfRungsDto>`; `::new` sets all three `None`; add
+   `#[must_use] pub fn with_hf(mut self, hf_rungs: HfRungsDto, cost_drag_share: Option<Decimal>,
+   per_trade_edge: Option<Decimal>) -> Self` (normalize-stringify the Decimals). Field ORDER:
+   append after `fee_sensitivity` so existing serialized prefixes are byte-stable.
+3. `SWEEP_SCHEMA_VERSION` → `"1.4.0"`.
+4. Schema: in `$defs.CandidateMetrics.properties` add `cost_drag_share` / `per_trade_edge`
+   (`$ref` decimalString) + `hf_rungs` (`$ref` new `$defs.HfRungs`); `required` UNCHANGED; new
+   `$defs.HfRungs` with the six properties (three `$ref` ScenarioMetrics, integer ≥ 0 counters,
+   decimalString paid), `additionalProperties: false`, all six required.
+5. `schema_validation.rs`: flip the version assert to `"1.4.0"`; add: a report whose candidate
+   carries a full `with_hf` block validates; `hf_rungs` with an unknown extra property is
+   rejected; a candidate WITHOUT the new fields still validates (absent, not null); the
+   f64-audit source scan still passes (new fields are strings).
+6. Run `cargo run -q -p cli -- sweep > /tmp/sweep-after.json` and diff against a pre-change
+   capture: the ONLY changed line must be `"schema_version": "1.3.0"` → `"1.4.0"`. Record the
+   new sweep shasum from `bash scripts/gate.sh` output.
+
+**Gate.** Full `bash scripts/gate.sh`: 0 failed / 1 ignored, record exact N; demo
+`ae064f79…` **unchanged**; sweep shasum **MOVES from `94e90c3c…` — expected, record the new
+value in the flip + worklog**; sweep-verify still OK (byte-identical across threads at the NEW
+content); the version-only diff of step 6 pasted as evidence; `git status` = exactly the 4
+files + flip.
+
+**Guardrails.** Additive-only schema evolution (D-0001): never touch existing properties,
+`required` lists, or `run-result.schema.json`; `Ord` stays derived (new fields sort AFTER
+`fee_sensitivity`, keeping `candidate_label` the primary key); no new deps; never
+`git commit`/`push`.
+
+**Escalate-if.** The step-6 diff shows ANY line beyond `schema_version` (your change leaked into
+LF serialization — STOP); the demo shasum moves; `CandidateMetricsDto` has a struct-literal
+construction site the grep note above missed (compile error will surface it — STOP and report,
+don't patch call sites beyond the two listed files).
+
+---
+
+### M-HF-C8.7e — `sweep::hf_aggregate`: HF evidence + fee-sensitivity + rung rollups — `TODO`
+
+**Goal.** The HF sibling of `runner.rs`'s aggregation (decision D-b): one pass from
+`(keys, HfCellResults, floors)` to `CandidateEvidence` (with `cost_drag_share`/`per_trade_edge`
+now `Some` — redeeming C6's promise), `FeeSensitivity`, and the per-candidate HF-rung rollups.
+Pure; no execution wiring.
+
+**Files (3).** 1. `crates/sweep/src/hf_aggregate.rs` (**NEW**). 2. `crates/sweep/src/lib.rs`
+(`pub mod hf_aggregate;` + `pub use hf_aggregate::{aggregate_hf, HfAggregate, HfRungRollup};`).
+3. `crates/sweep/src/runner.rs` — ONE token: line 218 `fn neighbor_indices(` →
+   `pub(crate) fn neighbor_indices(` (a REAL new caller, unlike the HYG-3 case; nothing else).
+Plus queue/worklog flip.
+
+**Current state (verbatim, verified 2026-07-20 at `44d483c`).**
+```rust
+// crates/sweep/src/runner.rs:23-27
+pub struct CellKey {
+    pub window_index: usize,
+    pub scenario: ScenarioId,
+    pub point_index: usize,
+}
+// crates/sweep/src/runner.rs:218
+fn neighbor_indices(grids: &[ParamGrid], pi: usize) -> Vec<usize> {
+// crates/sweep/src/runner.rs:72-79 — the LF aggregation this card mirrors (means over Base,
+// worst-window drawdown/turnover, spread dispersion, neighbor degradation, valid_windows);
+// its `_ => {}` wildcard arm stays UNTOUCHED (decision D-b).
+// crates/sweep/src/advance.rs:48-80 — CandidateEvidence (cost_drag_share/per_trade_edge are
+// Option<Decimal>, None in every LF path)
+// crates/sweep/src/sensitivity.rs:159-173 — ScenarioMetrics::from_cell(scenario, cell) (pub)
+// crates/sweep/src/sensitivity.rs:203-221 — FeeSensitivity::from_scenarios(before, base,
+// doubled, survives_floor) (pub)
+```
+
+**Steps.**
+1. `pub struct HfRungRollup { pub hot_congestion: ScenarioMetrics, pub adversarial_worst:
+   ScenarioMetrics, pub latency_2x: ScenarioMetrics, pub adverse_selection_hits: u32,
+   pub adverse_selection_paid_quote: Decimal, pub unlanded_orders: u32 }` and
+   `pub struct HfAggregate { pub evidence: Vec<CandidateEvidence>, pub fee:
+   Vec<FeeSensitivity>, pub rungs: Vec<HfRungRollup> }`.
+2. `pub fn aggregate_hf(grids: &[ParamGrid], keys: &[CellKey], results: &[HfCellResult],
+   n_windows: usize, base_floors: &[Decimal], doubled_floors: &[Decimal],
+   initial_cash_usdc: Decimal) -> HfAggregate`:
+   - accumulate per point into 6 slots via an EXHAUSTIVE `match k.scenario` (BeforeCosts 0,
+     Base 1, Doubled 2, HotCongestion 3, AdversarialWorst 4, Latency2x 5;
+     `DoubledSlippage | DoubledPriority => unreachable!("LF-only rung in HF aggregation")` —
+     an internal-contract assertion, C8.7f enumerates only the 6-rung ladder);
+   - shared-field definitions copied from `aggregate_evidence`/`aggregate_fee_sensitivity`
+     EXACTLY (returns mean over windows; drawdown/turnover worst = max; dispersion = max−min;
+     `baseline_margin = mean(Base) − mean(base_floors)`; `doubled_baseline_floor =
+     mean(doubled_floors)`; neighbor degradation via `neighbor_indices`, floored at 0;
+     `valid_windows = n_windows`; fee slots: return mean / turnover max / trades+fees+priority
+     sums, `survives_floor = mean(doubled_floors)`);
+   - NEW (decision D-g, formulas pinned): `cost_drag_share = fee.return_drag_costs /
+     fee.before_costs.total_return` (`None` if `before_costs.total_return <= 0`);
+     `per_trade_edge = (Σ base-rung (cell.final_equity − initial_cash_usdc)) /
+     Decimal::from(Σ base-rung n_trades)` (`None` if that trade sum is 0);
+   - rollup (decision D-h): the three HF rungs' `ScenarioMetrics` (same mean/max/sum recipe);
+     counters = BASE-rung sums of `adverse_selection_hits` / `adverse_selection_paid_quote` /
+     `unlanded_orders` across windows.
+3. Tests: hand-build keys/results for 2 windows × 6 rungs × 2 points (the `runner.rs` test
+   pattern, `cell_result_full`-style helpers): exact-Decimal asserts for every evidence field
+   incl. both new `Some` values; the `None` guards (gross ≤ 0; zero trades); rollup sums; the
+   `unreachable!` arm is NOT tested (internal contract).
+
+**Gate.** `cargo test -p sweep hf_aggregate` green; full `bash scripts/gate.sh`: 0 failed / 1
+ignored, record exact N; demo AND sweep shasums **both unchanged** (the runner.rs visibility
+token cannot change behavior); `git status` = exactly the 3 files + flip.
+
+**Guardrails.** `aggregate_evidence`/`aggregate_fee_sensitivity` bodies byte-untouched; all
+decision math `Decimal` (f64 only inside the copied `CellResult` display fields, never read
+here); no new deps; never `git commit`/`push`.
+
+**Escalate-if.** C8.7c has not landed (`HfCellResult` missing); `neighbor_indices` has grown a
+signature since the verbatim quote; mirroring reveals the LF aggregation reads a field this
+card's inputs cannot supply; either shasum moves.
+
+---
+
+### ⛔ REVIEW-C8.4-SEAL — the standing 7-lens FOREMAN §3 review runs HERE, before C8.7f
+
+**This is the last cheap moment**: C8.7f is the first code that actually calls
+`IntradayPartitionedBars::from_spec` → `seal_holdout()` → (never) `evaluate_intraday_on_holdout`.
+The lens list is pinned in the C8.6 reconciliation section above (forgery, call-once,
+no-accessor, spacing-hygiene, boundary/off-by-one, determinism, forward-fit). **Operator
+go-ahead REQUIRED** (multi-agent spend; `review-lens` agents, `model: 'sonnet'`, low effort,
+report-only; skeptic pass + the §7 pre-committed decision rule). Feed lens 7 (forward-fit) the
+C8.7 reconciliation's drift item 3 (the materialized-Vec seal surface) and decision D-e/D-d.
+Confirmed blocker/major → STOP, the finding becomes a card BEFORE C8.7f runs.
+
+---
+
+### M-HF-C8.7f — `run_hf_sweep`: the windowed HF sweep capstone — `TODO` *(sanctioned ~200 lines: single coherent orchestration; splitting leaves non-compiling intermediates)*
+
+**Goal.** Wire C8.1–C8.7e into one deterministic entry: spec + source + provenance in, sealed
+holdout + schema-valid `SweepReport` out. Mirrors `run_sweep`'s shape (`runner.rs:329-398`).
+
+**Files (2).** 1. `crates/sweep/src/hf_runner.rs` (**NEW**). 2. `crates/sweep/src/lib.rs`
+(`pub mod hf_runner;` + `pub use hf_runner::{run_hf_sweep, HfSweepError, HfSweepOutcome};`).
+Plus queue/worklog flip.
+
+**Current state (verbatim, verified 2026-07-20 at `44d483c`).**
+```rust
+// crates/market-data/src/columnar.rs:181-192
+pub trait IntradaySource {
+    fn len(&self) -> usize;
+    fn is_empty(&self) -> bool { … }
+    fn slice(&self, range: Range<usize>) -> Result<Vec<Bar>, ColumnarError>;
+}
+// crates/sweep/src/intraday_partition.rs:172, 280, 336, 357, 401
+pub fn from_spec(bars: Vec<Bar>, spec: &PartitionSpec) -> Result<Self, IntradayPartitionError> {
+pub fn seal_holdout(self) -> (IntradayDevValidation, IntradaySealed) {
+pub fn dev_validation(&self) -> &[Bar] {
+pub fn walk_forward_windows(&self, wf: &WalkForward) -> Vec<Window> {
+pub fn holdout_read_count(&self) -> u32 {
+// crates/portfolio/src/latency.rs:157-163
+pub fn build_landing_table(
+    cell_id: u64,
+    event_indices: std::ops::Range<u64>,
+    offset_bars: usize,
+    p_land_num: u64,
+    p_land_den: u64,
+) -> Result<Vec<LandingOutcome>, HfError> {
+// crates/portfolio/src/latency.rs:37 — LatencyPipeline::new(min_latency, landing) (min ≥ 1)
+// crates/sweep/src/congestion.rs:25
+pub fn classify_congestion_regimes(bars: &[Bar], lookback: usize) -> Vec<CongestionRegime> {
+// crates/sweep/src/parallel.rs:70 — run_in_parallel(items, parallelism, f) (pub; pure closure)
+// crates/sweep/src/baseline.rs:39/61/116 — BaselineId::all(), BaselineId::build(),
+// best_baseline_return(&[(BaselineId, CellResult)])
+// crates/sweep/src/advance.rs:174 — evaluate_candidate(ev, th) -> CandidateVerdict
+// crates/sweep/src/report.rs:160/206 — SweepReport::new(…), .with_data_provenance(&[Provenance])
+// crates/sweep/src/runner.rs:393 — trial_count = u32::try_from(cells.len()).unwrap_or(u32::MAX)
+```
+
+**Steps** (each numbered step is a small commit-able unit of typing; no judgment calls).
+1. Types: `pub struct HfSweepOutcome { pub report: SweepReport, pub sealed: IntradaySealed }`
+   (doc: the seal is returned UNCONSUMED so callers can PROVE `holdout_read_count() == 0` —
+   mirror `SweepOutcome`'s doc, `runner.rs:286-292`); `pub enum HfSweepError {
+   Columnar(ColumnarError), Partition(IntradayPartitionError), Hf(HfError) }` + Display/Error +
+   `From` impls (note `HfError::Sim` already wraps `SimError`).
+2. Cell identity (decision D-d, formulas verbatim):
+   `fn hf_cell_id(scenario_index: usize, point_index: usize) -> u64 { ((scenario_index as u64)
+   << 32) | point_index as u64 }`;
+   `fn hf_baseline_cell_id(scenario_index: usize, baseline_index: usize) -> u64 {
+   0x8000_0000_0000_0000 | ((scenario_index as u64) << 32) | baseline_index as u64 }`.
+3. `struct HfSweepCell { index: usize, scenario_index: usize, point_index: usize,
+   test: Range<usize> }` + `fn enumerate_hf_cells(n_points, ladder, windows) ->
+   (Vec<HfSweepCell>, Vec<CellKey>)` in canonical window → scenario → point order
+   (`cells[i].index == i`, mirror `enumerate_cells`, `runner.rs:32-58`).
+4. `pub fn run_hf_sweep(spec: &HfSweepSpec, source: &dyn IntradaySource,
+   provenance: &[research_core::intraday::Provenance], initial_cash_usdc: Decimal,
+   periods_per_year: f64, parallelism: Parallelism) -> Result<HfSweepOutcome, HfSweepError>`:
+   a. `let bars = source.slice(0..source.len())?;` (the ONE materialization — drift item 3);
+   b. `let (dev, sealed) = IntradayPartitionedBars::from_spec(bars, &spec.partition)?
+      .seal_holdout();` — **before any cell runs**;
+   c. `let windows = dev.walk_forward_windows(&spec.walk_forward);`
+   d. `let ladder = hf_cost_scenarios(&spec.hf_cost, &spec.adversarial, &spec.latency);`
+   e. `let regimes_all = classify_congestion_regimes(dev.dev_validation(),
+      spec.congestion_lookback);` (ONCE, decision D-e);
+   f. `let points: Vec<ParamPoint> = spec.grids.iter().flat_map(|g| g.points()).collect();`
+   g. enumerate (step 3); evaluate with `run_in_parallel(&cells, parallelism, |c| { … })`
+      where the pure closure: looks up `s = &ladder[c.scenario_index]`,
+      `slice = &dev.dev_validation()[c.test.clone()]`,
+      `cell_id = hf_cell_id(c.scenario_index, c.point_index)`,
+      `landing = build_landing_table(cell_id, c.test.start as u64..c.test.end as u64,
+      s.latency.offset_bars, s.latency.p_land_num, s.latency.p_land_den)?`,
+      `pipeline = LatencyPipeline::new(s.latency.offset_bars, landing)?`,
+      regimes = `match s.force_regime { Some(r) => vec![r; slice.len()] (owned),
+      None => regimes_all[c.test.clone()].to_vec() }` (pin: `.to_vec()` both arms — a `Cow`
+      adds nothing here), then `eval_hf_cell(&points[c.point_index], slice, &s.hf,
+      &s.adversarial, &pipeline, &regimes, cell_id, initial_cash_usdc, periods_per_year)`;
+      collect `Vec<Result<…>> → Result<Vec<…>>` (first error by lowest index, the `run_cells`
+      convention, `parallel.rs:121-133`);
+   h. floors: for each window, for the ladder's Base (index 1) and Doubled (index 2) rungs,
+      score `BaselineId::all()` via `eval_hf_strategy` with
+      `hf_baseline_cell_id(scenario_index, baseline_index)` + the same landing/pipeline/regime
+      recipe over that window's global range; `base_floors.push(best_baseline_return(…))`,
+      `doubled_floors` likewise (labels via `(id, result.cell)` pairs);
+   i. `let agg = aggregate_hf(&spec.grids, &keys, &results, windows.len(), &base_floors,
+      &doubled_floors, initial_cash_usdc);`
+   j. candidates: zip evidence/fee/rungs →
+      `CandidateMetricsDto::new(label, ev.max_drawdown, ev.turnover, fs)
+      .with_hf(HfRungsDto::new(&r.hot_congestion, &r.adversarial_worst, &r.latency_2x,
+      r.adverse_selection_hits, r.adverse_selection_paid_quote, r.unlanded_orders),
+      ev.cost_drag_share, ev.per_trade_edge)`;
+   k. verdicts: `evaluate_candidate(ev, &spec.thresholds)`;
+   l. `trial_count` = candidate cells only (baselines uncounted — the LF convention);
+   m. `SweepReport::new(&spec.thresholds, trial_count, verdicts, candidates)
+      .with_data_provenance(provenance)`; return `HfSweepOutcome { report, sealed }`.
+5. In-file tests (small; the row-C8 battery is C8.7g's): (a) `enumerate_hf_cells` canonical
+   order + `index == i` + `trial_count == windows × 6 × points`; (b) cell-id formulas disjoint
+   (candidate vs baseline tag bit); (c) a 2-window end-to-end smoke on a tiny hand-built
+   `HfSweepSpec` (all fields pub; use `PartitionSpec::by_index`) over a ~200-bar synthetic
+   series: sequential == `Threads(2)` byte-equal reports, `sealed.holdout_read_count() == 0`.
+
+**Gate.** `cargo test -p sweep hf_runner` green; full `bash scripts/gate.sh`: 0 failed / 1
+ignored, record exact N; demo shasum unchanged; sweep shasum unchanged **from C8.7d's new
+value** (this card adds a parallel path; it must not touch the LF sweep); `git status` =
+exactly the 2 files + flip.
+
+**Guardrails.** `evaluate_intraday_on_holdout` is NEVER called (the M5-analog stays sealed;
+grep yourself before flipping); `runner.rs`/`spec.rs`/`cell.rs` byte-untouched; no new deps;
+no CLI wiring (no new subcommand — the library entry + C8.7g's test are row C8's proof); never
+`git commit`/`push`.
+
+**Escalate-if.** REVIEW-C8.4-SEAL has not been convened/ruled (check the worklog — this card
+must not run first); any verbatim block mismatches; the closure cannot stay pure (any shared
+mutable state would break invariant 3 — STOP, do not add locks); either shasum moves.
+
+---
+
+### M-HF-C8.7g — the row-C8 gate battery: determinism ×{1,2,3,7,8}, sealed holdout, schema, wall-clock — `TODO`
+
+**Goal.** The actual m-hf-track row-C8 gate, as ONE integration-test file: "full synthetic HF
+sweep deterministic across {1,2,3,7,8}; schema-valid; holdout counter 0; wall-clock re-measured
+and recorded."
+
+**Files (1).** `crates/sweep/tests/hf_sweep_determinism.rs` (**NEW**). Plus queue/worklog flip.
+
+**Current state (verbatim, verified 2026-07-20 at `44d483c`).**
+```rust
+// crates/market-data/src/synthetic.rs:191 — generate(&SyntheticSpec) -> SyntheticIntraday
+// (fields incl. provenance: Provenance, bars_1s: Vec<Bar>); the SyntheticSpec literal pattern
+// to copy is crates/sweep/tests/hf_cadence.rs:13-27 (seed 7, start_unix 1_609_459_200 =
+// 2021-01-01T00:00Z).
+// crates/market-data/src/columnar.rs:106/128/167/209 — ColumnarWriter::create(path, scale),
+// append_bars(&[Bar]), finish() -> row_count; ColumnarFile::open(path); temp-file naming
+// pattern: columnar.rs:297 (std::env::temp_dir().join(format!(…unique…))).
+// crates/sweep/tests/schema_validation.rs — the jsonschema validation pattern to copy
+// (jsonschema is already a sweep dev-dep).
+// crates/sweep/src/hf_spec.rs:350-356 — the template_with substitution helper pattern
+// (cfg(test)-private there; copy it locally).
+// crates/market-data/src/columnar.rs:428 — the #[ignore] convention:
+#[ignore = "scale proof: ~31.5M rows, run explicitly"]
+```
+
+**Steps.**
+1. Fixture: `generate` with the `hf_cadence.rs` SyntheticSpec literal EXCEPT
+   `steps: 260_000` (~3.01 days of 1s bars: dev = 2021-01-01, validation = 2021-01-02, holdout
+   = 2021-01-03 onward). Write `bars_1s` through `ColumnarWriter` to a unique temp file; open
+   as `ColumnarFile`; keep `synthetic.provenance` for the provenance argument. Delete the temp
+   file at test end.
+2. Spec: `include_str!` the real template + a local `template_with` applying EXACTLY:
+   `("validation = { start = \"2024-01-01\" }", "validation = { start = \"2021-01-02\" }")`,
+   `("holdout    = { start = \"2025-01-01\" }", "holdout    = { start = \"2021-01-03\" }")`,
+   and — always-run test only — `("step = 900", "step = 14400")` (≈12 windows × 6 rungs ×
+   4 grid points = 288 cells of 900 bars: seconds, not minutes).
+3. Always-run test `hf_sweep_deterministic_across_thread_counts`: run `run_hf_sweep` with
+   `periods_per_year = 31_536_000.0`, `initial_cash_usdc = dec!(10_000)` under
+   `Parallelism::Sequential` and `Threads(k)` for k ∈ {1, 2, 3, 7, 8}, plus one repeat —
+   assert every `report.to_json()` byte-identical; `sealed.holdout_read_count() == 0` and
+   `holdout_digest()` equal across runs; `report.to_value()` validates against
+   `schemas/sweep-report.schema.json` (copy the schema_validation.rs harness);
+   `schema_version == "1.4.0"`; `data_provenance == Some("synthetic")`;
+   `trial_count == windows × 6 × 4`; anti-vacuous: ≥ 1 candidate has base-rung `n_trades > 0`
+   and every candidate carries `Some` `hf_rungs`/`cost_drag_share`-or-`None`-by-the-guard
+   (assert the FIELD is present in the JSON for at least one candidate).
+4. `#[ignore = "row-C8 scale + wall-clock proof: run explicitly, record the number"]` test
+   `hf_sweep_wall_clock_scale_proof`: the same spec WITHOUT the `step` substitution (~190
+   windows, ~4,560 cells), `Threads(8)`; wrap in `std::time::Instant`, `println!` elapsed
+   seconds + cell count; assert the run completes green + holdout counter 0. The executor runs
+   it once via `cargo test -p sweep --test hf_sweep_determinism -- --ignored --nocapture` and
+   pastes the printed wall-clock into the card flip AND the worklog line (row C8's "wall-clock
+   re-measured and recorded" evidence).
+5. No source edits anywhere. If an assert can only pass by changing `src/`, that is a real
+   finding: STOP.
+
+**Gate.** `cargo test -p sweep --test hf_sweep_determinism` green (always-run); the `--ignored`
+run executed once, wall-clock recorded; full `bash scripts/gate.sh`: 0 failed / **2 ignored**
+(the baseline's 1 + this card's scale proof — the ONLY sanctioned ignored-count change in this
+sequence), record exact N; demo unchanged; sweep unchanged from C8.7d's value; `git status` =
+exactly the 1 file + flip.
+
+**Guardrails.** Test-only card: zero `src/` edits; no new deps (`jsonschema`/`serde_json`
+already dev-deps); temp files cleaned up; never `git commit`/`push`.
+
+**Escalate-if.** Thread-count outputs differ (a REAL determinism defect — the whole track
+stops); the holdout counter is nonzero (invariant 11 breach — STOP immediately); schema
+validation fails; wall-clock exceeds ~15 minutes on the scale run (record + STOP for a planner
+decision on fixture size); any needed change outside the 1 file.
+
+**After C8.7g:** convene the post-C8.7 FOREMAN §3 review (operator-gated), then the row-C8 gate
+declaration card (fresh evidence battery against m-hf-track's own row wording — never this
+session's claims).
 
 ---
 
@@ -6477,7 +7186,7 @@ research-core/portfolio/market-data + rustdoc) stays parked as **CARD-HYG-2 (sco
 must first measure the doc-gap on current `main`)**. Branch `gnhf/unit-test-coverage-i-b8ff70` + its
 worktree are deleted only after HYG-2 is executed or descoped on the record.
 
-### CARD-HYG-3 — revert the unneeded `latency::rebalance` visibility widening — `TODO` (1-line; ride with the next latency.rs-adjacent card or the C8.7 pass)
+### CARD-HYG-3 — revert the unneeded `latency::rebalance` visibility widening — `FOLDED INTO M-HF-C8.7a` *(2026-07-20 C8.7 planner pass: rides as C8.7a's sanctioned 3rd file; the verbatim quote, gate, and escalate-if below are restated on that card — flip THIS card to DONE when C8.7a lands)*
 
 **Provenance.** C8.6b's planner verification (2026-07-20, at `bb88831`): the card pinned exactly
 **seven** items to go `pub(crate)` (`dust`/`min_trade_notional`/`clamp01`/`current_weight`/

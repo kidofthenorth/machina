@@ -29,12 +29,19 @@ carded as **C8.5.1**, parse-time lint + 3 tests). **C8.5.1, C8.6a, and C8.6b are
 `bb88831` 2026-07-20, planner-verified: gate **457 / 0 / 1**, both shasums unchanged, C3/C7
 regression suites byte-untouched; one confirmed-minor finding — an unneeded 8th
 `latency::rebalance` visibility widening beyond the card's pinned 7 — recorded as
-**CARD-HYG-3**, 1-line revert, rides with the C8.7 pass). **The next command is the C8.7
-PLANNER RECONCILIATION PASS** (a planner/foreman session, NOT an executor card — C8.7 is
-scoped, not signature-pinned; seed prompt below). **The FOREMAN §3 7-lens review of C8.4's
-intraday holdout seal did NOT run before C8.6b landed** (the original recommendation lapsed);
-it can still run before C8.7 wires the seal into a real sweep, which is the last cheap moment —
-operator go-ahead required (multi-agent spend). **The FOREMAN kit is fully activated as of 2026-07-19:** the gate is
+**CARD-HYG-3**, 1-line revert, now FOLDED INTO C8.7a). **The C8.7 PLANNER RECONCILIATION PASS
+is DONE (2026-07-20, plan files only, at `44d483c`):** C8.7 is split into SEVEN executor-ready,
+signature-pinned cards **C8.7a–C8.7g** (task-queue.md's "M-HF-C8.7 planner reconciliation
+(2026-07-20)" section — ladder assembly, spec extension, priced cell core, report/schema 1.4.0,
+HF aggregation, `run_hf_sweep` capstone, row-C8 gate battery), with 8 pinned planner decisions
+(D-a…D-h) and 6 grep-verified drift corrections on the record. Two pinned expectations an
+executor must NOT stop on: **the sweep shasum MOVES exactly once, at C8.7d** (schema-version-only
+diff, D-0001 precedent), and **C8.7g's scale proof adds one `#[ignore]` (gate goes to 2
+ignored)**. **The next command is a fresh EXECUTOR session on C8.7a** (seed prompt below).
+**The FOREMAN §3 7-lens review of C8.4's intraday holdout seal STILL has not run** — it is now
+ORDERED IN THE QUEUE as the ⛔ REVIEW-C8.4-SEAL checkpoint between C8.7e and C8.7f (the first
+real seal caller; the last cheap moment) — operator go-ahead required (multi-agent spend,
+Sonnet low effort only); C8.7f's escalate-if blocks it from running before the review is ruled. **The FOREMAN kit is fully activated as of 2026-07-19:** the gate is
 `bash scripts/gate.sh` (run unprompted; paste its counts), handoff baselines come from
 `bash scripts/handoff-baselines.sh` (never hand-typed), the cadence is declared in AGENTS.md
 §Cadence, and `.claude/agents/` has `card-executor` + `review-lens` roles (model: sonnet —
@@ -159,7 +166,7 @@ Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronolo
 
 **One command — `bash scripts/gate.sh`** (fmt + clippy + full tests + demo×2 determinism +
 sweep shasum + sweep-verify + no-exec-deps scan; exit 0 = green). Last run 2026-07-20 at
-`bb88831` (clean tree, C8.6b landed), printed:
+`44d483c` (C8.7 planner pass; only plan files modified), printed:
 
 ```
 total: 457 passed; 0 failed; 1 ignored
@@ -199,9 +206,10 @@ deterministic `run_hf` run; demo+sweep shasums unchanged — 402/0/1). **The C8 
 needed. C8.4 (intraday holdout seal, S9-pattern) and C8.5 (HF-kind spec parsing) are **DONE**
 (2026-07-17/07-18). **C8.6's own planner reconciliation pass is DONE (2026-07-18)**, split into
 **C8.6a** (`sweep::congestion` classifier) and **C8.6b** (`portfolio::hf_priced::run_hf_priced`) —
-both now executor-ready, task-queue.md. C8.7 (the real row-C8 gate: windowed HF sweep wiring
-across thread counts) is still scoped, not signature-pinned - it needs its own planner
-reconciliation pass once C8.1–C8.6b land, mirroring the C6→C8/C7→C8 pattern.
+both DONE. **C8.7's own planner reconciliation pass is DONE (2026-07-20)**: the row-C8 gate is
+now seven signature-pinned executor cards **C8.7a–C8.7g** in task-queue.md, executed in order
+with the ⛔ REVIEW-C8.4-SEAL checkpoint (operator-gated 7-lens review) between C8.7e and C8.7f.
+Next up: a fresh executor session on **C8.7a**.
 **`statarb_pairs_v1` (survey §1.6, SOL/LST
 pair) is scoped OUT of C8 into a deferred mini-track, `M-HF-C8-PAIR`** (operator ruling HF-Q4,
 2026-07-16: build the real two-leg engine, not a precomputed-spread approximation, because the
@@ -258,44 +266,36 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 
 ---
 
-## Seed prompt for the new chat — the M-HF-C8.7 PLANNER RECONCILIATION PASS (the next command; planner role, NOT an executor card)
+## Seed prompt for the new chat — EXECUTOR on card M-HF-C8.7a (the next command)
 
-> Read `docs/repo-kit/FOREMAN.md` — you are the **Planner** for **machina**
-> (`solana-crypto-trader`), a paper-first trading-research platform in Rust built toward
-> **genuine autonomous passive income**, earned strictly through milestone gates. HF research on
-> SYNTHETIC data only: no keys/signing/RPC/network anywhere. Your job this session is a
-> **plan-files-only reconciliation pass** — you write cards, you do NOT write code.
+> You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
+> trading-research platform in Rust built toward **genuine autonomous passive income**, earned
+> strictly through milestone gates. Current phase: the M-HF research track on SYNTHETIC data
+> only — no keys, no signing, no RPC, no network anywhere.
 >
-> **State (2026-07-20, C8.6b landed at `bb88831`):** M-HF C1–C7 and C8.1–C8.6b ALL DONE +
-> planner-verified. Gate `bash scripts/gate.sh` last printed **457 passed / 0 failed /
-> 1 ignored**; demo `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2); sweep
-> `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; sweep-verify OK. Step 0: re-run the gate and
-> `git log -3`/`git status --porcelain` yourself — prior summaries are not evidence.
+> **State (2026-07-20, HEAD `44d483c`):** M-HF C1–C7 and C8.1–C8.6b DONE + planner-verified;
+> workspace green at **457 passed / 0 failed / 1 ignored**; demo shasum
+> `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2); sweep shasum
+> `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; sweep-verify OK. Your first act: run
+> `bash scripts/gate.sh` and confirm the world matches these numbers.
 >
-> **Your task: reconcile task-queue.md's "### M-HF-C8.7" (currently SCOPED, not
-> signature-pinned) into executor-ready card(s)**, mirroring the C6→C7 and C8.6→C8.6a/b
-> precedent: read the REAL landed code (grep every construction site of every struct a card
-> would touch — `run_hf_priced`'s actual signature in `crates/portfolio/src/hf_priced.rs`,
-> `classify_congestion_regimes` in `crates/sweep/src/congestion.rs`, `HfSweepSpec` in
-> `crates/sweep/src/hf_spec.rs`, `intraday_partition`'s seal surface, `hf_cost_scenarios` /
-> `ScenarioId`'s HF rungs, `eval_cell`/`SweepCell`/`run_cells` in `crates/sweep`), copy
-> signatures verbatim with file:line, split by real dependency boundaries, ≤3 files / ~150
-> lines per card, every ambiguity an escalate-if. Fold **CARD-HYG-3** (1-line
-> `latency::rebalance` visibility revert, task-queue.md hygiene section) into the sequence.
-> Decide and pin whether C8.7's sweep output is a NEW report artifact or extends
-> `SweepReport` — if it changes `schemas/sweep-report.schema.json`, that's additive-only
-> (D-0001) and the sweep shasum WILL move: pin the expectation explicitly so the executor
-> doesn't STOP on a legitimate hash move.
+> **Your task is card M-HF-C8.7a in `plans/task-queue.md`** (section "M-HF-C8.7 planner
+> reconciliation (2026-07-20)"). Read the queue's common rules, the section preamble's pinned
+> decisions D-a…D-h, then the card. It is self-contained — do not open files it doesn't name;
+> do not do more than it says.
 >
-> Deliverables: rewritten C8.7 section (executor-ready cards with Current-state-verbatim
-> quotes, Files/Steps/Gate/Guardrails/Escalate-if); refreshed handoff.md (next executor seed
-> prompt) + current-state.md pointers; one dated worklog entry; stage explicit plan-file paths
-> only; draft the commit message. Plan files only — `git status` at the end must show ONLY plan
-> files modified.
+> The 3 ways THIS card most likely goes wrong: (1) a verbatim-quoted signature doesn't match
+> HEAD — the card is wrong, not the code: STOP, don't adapt; (2) the CARD-HYG-3 fold — removing
+> `pub(crate)` from `latency.rs:202`'s `rebalance` — breaks any compile, meaning a caller
+> appeared since the card was written: STOP, the card is stale; (3) scope creep into execution
+> wiring — `hf_cost_scenarios` must end this card with ZERO callers outside its own tests and
+> lib.rs re-export, and BOTH shasums must be unchanged (if either moves, your change leaked
+> into a real path: STOP).
 >
-> Standing items to carry, not decide: the FOREMAN §3 7-lens review of C8.4's intraday holdout
-> seal (list in task-queue.md's C8.6 reconciliation section) has still not run — it should run
-> BEFORE the C8.7 wiring card that first calls the seal; put it in the card order and flag it
-> for the operator's go-ahead (multi-agent spend, Sonnet low effort only). Never
-> `git commit`/`push`; never stage `.claude/` or `data/`; never edit `plans/master-plan.md` /
-> `solana-crypto-trader-plan.md`; never start M6+ or M8/M9.
+> When the gate passes: flip C8.7a (and CARD-HYG-3 → DONE, it rides here), one dated worklog
+> line with the gate counts, stage exactly the card's files + the two plan files, stop — C8.7b
+> gets a fresh chat. If any escalate-if triggers: STOP, record the mismatch in the worklog,
+> report. Never `git commit`/`push`; never add co-author trailers; never stage `.claude/` or
+> `data/`; never create keys/signing/submission paths; never edit schemas or
+> `plans/master-plan.md`/`solana-crypto-trader-plan.md`; determinism and fixed-point money are
+> non-negotiable.
