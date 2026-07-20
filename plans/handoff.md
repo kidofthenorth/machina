@@ -26,16 +26,18 @@ new priced execution entry, 4 files). They're order-independent (C8.6b only need
 `CongestionRegime` type, not C8.6a's classifier). **The 2026-07-18 fresh-session review of C8.5
 came back accept-with-one-fix** (MEDIUM: `resolution_secs` accepted unvalidated — a card gap, now
 carded as **C8.5.1**, parse-time lint + 3 tests). **C8.5.1 is DONE
-(2026-07-19, landed in `7beef71`, planner re-verified at HEAD `4a0848c`: gate **444 / 0 / 1**,
-both shasums unchanged). The next command is executing C8.6a** (seed prompt below; C8.6b's
-follows it). **The FOREMAN kit is fully activated as of 2026-07-19:** the gate is
+(landed `7beef71`) and C8.6a is DONE (2026-07-19, planner re-verified: gate **450 / 0 / 1**,
+both shasums unchanged, re-export is the only caller — staged, awaiting the operator's commit).
+The next command is executing C8.6b** (seed prompt below). **Before C8.6b lands, the FOREMAN §3
+7-lens adversarial review of C8.4's intraday holdout seal (lens list in task-queue.md's C8.6
+reconciliation section) is the standing recommendation — operator go-ahead required (it's a
+multi-agent spend).** **The FOREMAN kit is fully activated as of 2026-07-19:** the gate is
 `bash scripts/gate.sh` (run unprompted; paste its counts), handoff baselines come from
 `bash scripts/handoff-baselines.sh` (never hand-typed), the cadence is declared in AGENTS.md
 §Cadence, and `.claude/agents/` has `card-executor` + `review-lens` roles (model: sonnet —
 committed by the operator at `4a0848c`, an explicit operator exception to the
-never-stage-`.claude/` rule; agents themselves still never stage `.claude/`). **Recommended before C8.6b lands:** the
-FOREMAN §3 adversarial review of C8.4's second holdout seal (7-lens list in task-queue.md) —
-still unaddressed. **C8.7** (the real row-C8 gate: windowed HF sweep) stays scoped, not
+never-stage-`.claude/` rule; agents themselves still never stage `.claude/`).
+**C8.7** (the real row-C8 gate: windowed HF sweep) stays scoped, not
 signature-pinned — needs its own reconciliation pass once C8.1–C8.6b have actually landed.
 **`statarb_pairs_v1` stays scoped OUT of C8**, in the deferred mini-track `M-HF-C8-PAIR` (operator
 ruling HF-Q4; still blocked on the unsupplied USDT/jitoSOL allowlist fields). Never start M6+
@@ -155,11 +157,11 @@ Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronolo
 ## Verified state (re-confirm on a fresh checkout)
 
 **One command — `bash scripts/gate.sh`** (fmt + clippy + full tests + demo×2 determinism +
-sweep shasum + sweep-verify + no-exec-deps scan; exit 0 = green). Last run 2026-07-19 at
-`4a0848c` (clean tree, C8.5.1 landed), printed:
+sweep shasum + sweep-verify + no-exec-deps scan; exit 0 = green). Last run 2026-07-19 with
+C8.6a in the index (HEAD `0b58f65`; the C8.6a slice staged, awaiting operator commit), printed:
 
 ```
-total: 444 passed; 0 failed; 1 ignored
+total: 450 passed; 0 failed; 1 ignored
 demo shasum: ae064f79242f823ffd8f55bf9104e3e1b45d425a (x2 identical)
 sweep shasum: 94e90c3c6060a11feddd8d55a19accf07a86f7d8
 sweep-verify: OK — byte-identical across sequential, 2 and 8 threads, and repeat (18990 bytes)
@@ -255,54 +257,6 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 
 ---
 
-## Seed prompt for the new chat — execute M-HF-C8.6a (THE NEXT COMMAND; small, independent)
-
-> You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
-> crypto trading-**research** platform in Rust built toward **genuine autonomous passive income**
-> (truly autonomous, so truly passive), earned through milestone gates. The current phase is HF
-> research on SYNTHETIC data only: no keys/signing/RPC/network anywhere; every HF strategy family
-> is a hypothesis to test — no card claims a known-profitable algorithm, and rejecting them all
-> cleanly is a successful outcome.
->
-> **State (2026-07-19, HEAD `4a0848c`, clean tree):** M5 CLOSED (reject-all; holdout unread,
-> seal intact). M-HF C1–C7 and **C8.1–C8.5 + C8.5.1** DONE + planner-verified. The gate is
-> **`bash scripts/gate.sh`** — last run printed **444 passed / 0 failed / 1 ignored**; demo shasum
-> `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2 identical); sweep shasum
-> `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; `sweep-verify: OK`; `no-exec-deps: OK`. Verify
-> HEAD/`git status` and re-run the gate yourself first — prior summaries are not evidence.
->
-> **Your card is M-HF-C8.6a** (`sweep::congestion::classify_congestion_regimes` — a pure,
-> non-lookahead `CongestionRegime` classifier over trailing bar volume; parse-only in the sense
-> that nothing calls it yet, C8.7 is its first real caller). Read the card in full in
-> task-queue.md's "M-HF-C8.6 planner reconciliation (2026-07-18)" section, under
-> "### M-HF-C8.6a", before touching anything. Exactly 2 files: NEW
-> `crates/sweep/src/congestion.rs`, additive `lib.rs` re-export. Do NOT touch `portfolio` at all —
-> `CongestionRegime` already exists there (C4) and needs no change.
->
-> **The one property this card exists to prove, and the part most likely to go wrong:**
-> `regimes[i]` (used to price the trade landing at bar `i`'s OPEN) must depend only on bars with
-> index `< i` — specifically classify `bars[i-1]` (the most recently CLOSED bar) against a
-> reference window strictly before that (`bars[i-1-lookback..i-1]`), **never** `bars[i]` itself
-> (bar `i`'s own volume isn't known until it closes). The card's non-lookahead test must be
-> discriminating in both directions: mutating `bars[i]` must NOT move `regimes[i]`; mutating
-> `bars[i-1]` MUST. Below `i < lookback + 1` bars of history, default to `CongestionRegime::Hot`
-> (pessimistic, fail-closed — a cost to us, never a benefit).
->
-> Gate (from the card): `cargo test -p sweep congestion` green including the non-lookahead
-> mutation proof; full workspace fmt/clippy clean; 0 failed / 1 ignored, record exact N; demo AND
-> sweep shasums **unchanged** (nothing wired into execution — if either moves, STOP);
-> `git status` shows exactly the 2 files + queue/worklog flip. When the gate passes: flip the
-> card, one worklog line, stop — C8.6b gets its own fresh chat (seed prompt below), and does NOT
-> depend on this card landing first.
->
-> Non-negotiables (unchanged): `Decimal`/integer only — never f64; no new dependencies;
-> determinism (no RNG/clock); never stage anything under `data/`; never edit `fixtures/`
-> (existing files), `plans/master-plan.md`, or `solana-crypto-trader-plan.md`; never `git commit`/
-> `git push` (stage explicit paths only, never `.claude/`, never `git add -A`); never start M6+
-> (network) or M8/M9 (signing/submit — separate explicit human approval).
-
----
-
 ## Seed prompt for the new chat — execute M-HF-C8.6b (the priced execution entry; larger, independent of C8.6a)
 
 > You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
@@ -312,10 +266,11 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 > is a hypothesis to test — no card claims a known-profitable algorithm, and rejecting them all
 > cleanly is a successful outcome.
 >
-> **State (2026-07-19, HEAD `4a0848c`, clean tree):** M5 CLOSED (reject-all; holdout unread,
-> seal intact). M-HF C1–C7 and **C8.1–C8.5 + C8.5.1** DONE + planner-verified (C8.6a may or may
-> not have landed yet — this card does not depend on it, see below). The gate is
-> **`bash scripts/gate.sh`** — last run printed **444 passed / 0 failed / 1 ignored** (baseline;
+> **State (2026-07-19):** M5 CLOSED (reject-all; holdout unread, seal intact). M-HF C1–C7 and
+> **C8.1–C8.5 + C8.5.1 + C8.6a** DONE + planner-verified (C8.6a landed 2026-07-19 — this card
+> still does not depend on its classifier: hand-build the `Vec<CongestionRegime>` test fixture
+> per the card; C8.7, not this card, wires the classifier in). The gate is
+> **`bash scripts/gate.sh`** — last run printed **450 passed / 0 failed / 1 ignored** (baseline;
 > re-run it and record the exact N you see); demo shasum
 > `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2 identical); sweep shasum
 > `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; `sweep-verify: OK`; `no-exec-deps: OK`. Verify

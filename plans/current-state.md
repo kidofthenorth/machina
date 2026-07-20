@@ -19,9 +19,15 @@ type design, not wiring). Gate re-run at HEAD `3af2dbb`: **441 passed / 0 failed
 demo `ae064f79…` and sweep `94e90c3c…` UNCHANGED; sweep-verify OK. **Fresh-session review of C8.5
 (sol5.6, 2026-07-18): accept-with-one-fix** — one MEDIUM (`resolution_secs` parsed unvalidated;
 a card gap, not executor drift), carded as **C8.5.1** (parse-time lint + 3 tests, task-queue.md).
-**C8.5.1 DONE 2026-07-19** (landed `7beef71`; planner re-verified at `4a0848c`: gate **444 / 0 /
-1**, demo + sweep shasums unchanged — parse-only held). Next up: **C8.6a** then **C8.6b** (either
-order, each its own fresh session). Recommended before C8.6b lands: the FOREMAN §3 adversarial review of C8.4's
+**C8.5.1 DONE 2026-07-19** (landed `7beef71`; planner re-verified: gate 444/0/1, shasums
+unchanged — parse-only held). **C8.6a DONE 2026-07-19** (`sweep::congestion::
+classify_congestion_regimes` — pure non-lookahead classifier, two-direction mutation proof,
+pessimistic Hot default; planner re-verified: gate **450 / 0 / 1** (444 + 6), demo + sweep
+shasums unchanged, re-export is the only caller; staged, awaiting operator commit — note the
+operator's first C8.6a commit was mislabeled with the C8.5.1-pointer message and was soft-reset
+on request 2026-07-19, work preserved staged). Next up: **C8.6b** (fresh session; seed prompt in
+handoff.md). Standing recommendation before C8.6b lands: the FOREMAN §3 7-lens review of C8.4's
+intraday holdout seal — operator go-ahead required. Recommended before C8.6b lands: the FOREMAN §3 adversarial review of C8.4's
 intraday holdout seal (7-lens list in task-queue.md). C8.7 reconciles only after both C8.6a and
 C8.6b land. `M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
 **2026-07-19 — FOREMAN kit ACTIVATED (planner reconcile pass, no code):** GATE is now

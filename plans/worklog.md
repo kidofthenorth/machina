@@ -1730,3 +1730,30 @@ demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` unchanged; sweep shasum
 confirms `classify_congestion_regimes` has no caller besides its own re-export. `git status`:
 exactly `crates/sweep/src/congestion.rs` (NEW) + `crates/sweep/src/lib.rs` + queue/worklog flip.
 Next: C8.6b (`portfolio::hf_priced::run_hf_priced`), fresh chat — does not depend on this card.
+
+## 2026-07-19 — Planner: mislabeled commit soft-reset on operator request; C8.6a verified (gate 450/0/1, shasums unchanged)
+
+Operator reported "committed the same message twice." Diagnosis: NOT twin duplicates —
+`0b58f65` was the correct C8.5.1-pointer commit, but `ebb006e` was the **C8.6a executor slice**
+(congestion.rs + lib.rs + queue/worklog flip) committed under the reused C8.5.1-pointer
+message. Ruling: `git reset --soft HEAD~1` (explicitly requested; `ebb006e` was never pushed —
+local was 23 ahead of origin/main; work preserved, left staged). HEAD is back at `0b58f65`;
+the index holds exactly the C8.6a card's 4 paths.
+
+FOREMAN §6 verification of C8.6a (all claims re-run): `classify_congestion_regimes` matches
+every pinned semantic (regimes[i] from bars[i-1] vs bars[i-1-lookback..i-1], never bars[i];
+Hot default for i < lookback+1; strictly-less rank with ties pushed to the higher band;
+lo = lookback/3, hi = lookback - lookback/3; pure Decimal, no RNG/clock/deps); the
+non-lookahead test discriminates both directions; lib.rs diff is additive-only; grep confirms
+the re-export is the sole caller. Gate re-run by the planner:
+`450 passed; 0 failed; 1 ignored` (444 + 6 new) · demo `ae064f79…` (×2 identical) · sweep
+`94e90c3c…` · sweep-verify OK (18990 bytes) · no-exec-deps OK · **GATE: PASS**.
+
+Pointer refresh (working tree only, NOT staged — so the C8.6a slice commits separately this
+time): handoff.md (C8.6a seed prompt retired; C8.6b promoted to next command, state line →
+450 baseline; duplicate §3-review sentence removed), current-state.md (C8.6a DONE + reset
+note), this worklog entry. Operator sequence: (1) commit the staged C8.6a slice; (2)
+`git add plans/current-state.md plans/handoff.md plans/worklog.md`, commit the pointer slice.
+Next: **execute C8.6b** (fresh executor; seed prompt in handoff.md). Standing recommendation
+before C8.6b lands: the FOREMAN §3 7-lens review of C8.4's intraday holdout seal — operator
+go-ahead required (multi-agent spend).
