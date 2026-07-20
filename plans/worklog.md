@@ -1609,3 +1609,32 @@ at this point: only `plans/current-state.md`, `plans/handoff.md`, `plans/task-qu
 Next: **execute C8.6a**, then **C8.6b** (either order — C8.6a recommended first as the smaller,
 independent diff). Recommended before C8.6b lands: the FOREMAN §3 review above. C8.7 reconciles
 only after both land — not this session's task.
+
+## 2026-07-18 — Planner: C8.5 review adjudicated (accept-with-one-fix → carded C8.5.1); C8.6 split verified
+
+The sol5.6 fresh-session review of C8.5 reported one MEDIUM: `resolution_secs` is parsed and
+carried with zero validation (hf_spec.rs:275) — `0`, `-1`, or `60` with `intraday_meanrev_v1`
+enabled all parse, against the card's "must be 1 for the families that exist." Planner verified
+the finding at HEAD `ca7a5d4` (grep: no check, no rejecting test) and adjudicated: **valid, but a
+CARD GAP, not executor drift** — the C8.5 card's own spec-lint list omitted the check and the
+executor documented the deferral (module doc). Carded as **M-HF-C8.5.1** (hotfix pattern, mirrors
+C5→C5.1): one `UnsupportedResolutionSecs(i64)` variant; reject `< 1` always and `!= 1` when any
+family is enabled; disabled-family coarser path still parses + documented by test; 2 files.
+Ordered BEFORE C8.6a/C8.6b. Also verified the C8.6 reconciliation landed as reported: HEAD
+`ca7a5d4` clean, C8.6a/C8.6b sections present + EXECUTOR-READY, plan-files-only diff. Pointers
+refreshed (current-state.md, handoff.md). Next: C8.5.1 executor (fresh session), then C8.6a/C8.6b.
+
+## 2026-07-19 — repo-kit refreshed from master (workspace hygiene, home session)
+
+`docs/repo-kit/` was empty; populated from the updated master kit (~/Downloads/repo-kit):
+FOREMAN.md gains queue-as-inbox, gate-script artifact (`scripts/gate.sh` = machine definition
+of done), generated handoff baselines (§5), Sonnet-5-low-effort model economics (§10);
+AGENTS.md template + START_HERE.md updated (v1.4, cadence choice, gate step); NEW
+scripts/gate.sh + handoff-baselines.sh templates. Kit files left untracked — owner decides
+tracking. No code touched; no gate run needed (docs-only).
+
+## 2026-07-19 — kit convention pass: docs/repo-kit gitignored (+ INIT_PROMPT.md in kit)
+
+Workspace-wide ruling: repo-kit copies are deployments from the master (~/Downloads/repo-kit),
+never tracked. `.gitignore` gains `docs/repo-kit/` (staged). Kit also gained INIT_PROMPT.md
+(paste-in FOREMAN activation prompt). Docs-only; no gate needed.

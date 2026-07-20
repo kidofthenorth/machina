@@ -16,10 +16,13 @@ only needs the already-`pub` `CongestionRegime` type, not C8.6a's classifier fun
 narrowing was logged: the original sketch's regime-conditioned "(regime, percentile) → p" table is
 scoped OUT (`AdversarialModel` as landed by C5 has no such axis — building one now would be new
 type design, not wiring). Gate re-run at HEAD `3af2dbb`: **441 passed / 0 failed / 1 ignored**;
-demo `ae064f79…` and sweep `94e90c3c…` UNCHANGED; sweep-verify OK. Next up: execute **C8.6a** and
-**C8.6b** (either order, each its own fresh session). Recommended before C8.6b lands: the FOREMAN
-§3 adversarial review of C8.4's intraday holdout seal (7-lens list in task-queue.md). C8.7
-reconciles only after both C8.6a and C8.6b land. `M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
+demo `ae064f79…` and sweep `94e90c3c…` UNCHANGED; sweep-verify OK. **Fresh-session review of C8.5
+(sol5.6, 2026-07-18): accept-with-one-fix** — one MEDIUM (`resolution_secs` parsed unvalidated;
+a card gap, not executor drift), carded as **C8.5.1** (parse-time lint + 3 tests, task-queue.md).
+Next up: execute **C8.5.1** first (tiny), then **C8.6a** and **C8.6b** (either order, each its own
+fresh session). Recommended before C8.6b lands: the FOREMAN §3 adversarial review of C8.4's
+intraday holdout seal (7-lens list in task-queue.md). C8.7 reconciles only after both C8.6a and
+C8.6b land. `M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
 **New chat? Start at [plans/handoff.md](handoff.md).**
 Goal: **genuine autonomous passive income** — truly autonomous, so truly passive — earned strictly
 through the milestone gates (money-moving capability stays gated by explicit human approval).

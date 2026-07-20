@@ -23,8 +23,11 @@ demo `ae064f79…` and sweep `94e90c3c…` UNCHANGED; sweep-verify OK.
 (`sweep::congestion` — the non-lookahead `CongestionRegime` classifier, small/2 files) and
 **C8.6b** (`portfolio::hf_priced::run_hf_priced` — wires `HfCostModel`+`AdversarialModel` into a
 new priced execution entry, 4 files). They're order-independent (C8.6b only needs the already-`pub`
-`CongestionRegime` type, not C8.6a's classifier). **The next command is executing C8.6a** (see the
-seed prompt below; C8.6b's own seed prompt follows it). **Recommended before C8.6b lands:** the
+`CongestionRegime` type, not C8.6a's classifier). **The 2026-07-18 fresh-session review of C8.5
+came back accept-with-one-fix** (MEDIUM: `resolution_secs` accepted unvalidated — a card gap, now
+carded as **C8.5.1**, parse-time lint + 3 tests). **The next command is executing C8.5.1** (tiny;
+its seed prompt is in the planner's handover message and reconstructible from the card), then
+C8.6a (seed prompt below; C8.6b's follows it). **Recommended before C8.6b lands:** the
 FOREMAN §3 adversarial review of C8.4's second holdout seal (7-lens list in task-queue.md) —
 still unaddressed. **C8.7** (the real row-C8 gate: windowed HF sweep) stays scoped, not
 signature-pinned — needs its own reconciliation pass once C8.1–C8.6b have actually landed.

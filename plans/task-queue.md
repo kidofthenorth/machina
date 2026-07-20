@@ -5897,6 +5897,49 @@ match the quoted shape at your HEAD; you find yourself needing to edit `spec.rs`
 
 ---
 
+### M-HF-C8.5.1 — spec-lint gap: validate `resolution_secs` at parse time — `TODO` (review fix, run before C8.6a/C8.6b)
+
+**Provenance.** The 2026-07-18 fresh-session review of C8.5 (sol5.6, accept-with-one-fix) found a
+MEDIUM contract miss: the C8.5 card's field description says `resolution_secs` "must be `1` for the
+families that exist," but its spec-lint list never included a check, so the parser accepts `0`,
+`-1`, or `60` with `intraday_meanrev_v1` enabled (hf_spec.rs:275 carries it unvalidated; the module
+doc defers enforcement to C8.7). Planner adjudication: the executor was card-compliant — this was a
+**card gap**, owned by the planner — but the fix belongs in the fail-closed parse-time lint layer
+(`hf_spec.rs`), not deferred to C8.7 where it could be forgotten. Fixed here as a hotfix card,
+mirroring the C5→C5.1 precedent.
+
+**Pinned semantics (planner decisions — do not re-decide).**
+- ONE new error variant, `HfSpecError::UnsupportedResolutionSecs(i64)` (carries the offending
+  value), + its `Display` arm (message must name the field, the value, and the rule).
+- The check runs in `from_toml_str` AFTER `grids` is assembled (it needs to know whether any family
+  is enabled), immediately before the final `Ok(Self { … })`:
+  `if t.resolution_secs < 1 || (t.resolution_secs != 1 && !grids.is_empty()) { return Err(…) }`.
+  Effect: non-positive resolution is **always** rejected (nonsense in any future); a resolution
+  `!= 1` is rejected whenever **any** HF family is enabled (every family that exists is 1s); a
+  coarser resolution with all families disabled still parses — the "carried as a field, not
+  hardcoded" future-proofing stays real, and a test documents it.
+- No template change: `hf-strategy-lab.example.toml` already says `resolution_secs = 1`.
+
+**Files (2 + queue/worklog flip).**
+1. `crates/sweep/src/hf_spec.rs` — the variant, `Display` arm (+ extend the in-module
+   `error_display_is_informative` test), the check.
+2. `crates/sweep/tests/hf_spec_parsing.rs` — 3 new tests: (a) `resolution_secs = 0` rejected AND
+   `resolution_secs = -1` rejected (both asserting `UnsupportedResolutionSecs`); (b)
+   `resolution_secs = 60` with `intraday_meanrev_v1` enabled rejected; (c) `resolution_secs = 60`
+   with `enabled = false` **parses** (the documented future-coarser path).
+
+**Gate.** `cargo test -p sweep hf_spec` green; full workspace fmt/clippy clean, 0 failed /
+1 ignored, record exact N (baseline 441 + new tests); demo `ae064f79…` AND sweep `94e90c3c…`
+shasums **unchanged** (parse-only — if either moves, STOP); `git status` shows exactly the 2 files
++ queue/worklog flip.
+
+**Guardrails.** Everything from the C8.5 card still applies: no `spec.rs`, no existing TOMLs, no
+schemas, no new deps, nothing wired into `run_sweep`/`run_hf`/CLI. Also update hf_spec.rs's module
+doc line 21-22 (the "enforcement … is the execution wiring's job (C8.7)" sentence) to reflect that
+the resolution↔family rule is now enforced here.
+
+---
+
 ## M-HF-C8.6 planner reconciliation (2026-07-18, HEAD `3af2dbb`) — split into C8.6a + C8.6b by real crate-boundary dependency
 
 **Why split, not one pinned card.** A grep-verified read at HEAD `3af2dbb` (`run_hf` call sites,
