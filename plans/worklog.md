@@ -1718,3 +1718,15 @@ both remaining seed-prompt state lines → HEAD `4a0848c` / 444 baseline; verifi
 `plans/handoff.md`, `plans/worklog.md`. Next: **execute C8.6a** (fresh executor session; seed
 prompt in handoff.md), then C8.6b; the FOREMAN §3 7-lens review of C8.4's intraday holdout seal
 stays recommended before C8.6b lands — operator go-ahead required.
+
+## 2026-07-19 — M-HF-C8.6a DONE (sweep::congestion classifier)
+Added `crates/sweep/src/congestion.rs`: pure `classify_congestion_regimes(bars, lookback)`,
+non-lookahead by construction (regimes[i] derived only from bars[i-1] + a reference window
+strictly before it, never bars[i] itself); pessimistic `Hot` default below history threshold;
+tercile bands with tie-break-high. `lib.rs`: additive `pub mod congestion` + re-export. Gate:
+450/0/1 (444 baseline + 6 new tests, including the two-direction non-lookahead mutation proof);
+demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` unchanged; sweep shasum
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8` unchanged; sweep-verify OK; no-exec-deps OK; grep
+confirms `classify_congestion_regimes` has no caller besides its own re-export. `git status`:
+exactly `crates/sweep/src/congestion.rs` (NEW) + `crates/sweep/src/lib.rs` + queue/worklog flip.
+Next: C8.6b (`portfolio::hf_priced::run_hf_priced`), fresh chat — does not depend on this card.

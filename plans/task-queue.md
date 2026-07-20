@@ -5978,7 +5978,14 @@ Proposed lens list for that review (operator to convene, not this planner's job 
 
 ---
 
-### M-HF-C8.6a — `sweep::congestion`: non-lookahead `CongestionRegime` classifier — `EXECUTOR-READY`
+### M-HF-C8.6a — `sweep::congestion`: non-lookahead `CongestionRegime` classifier — `DONE`
+
+**Result (2026-07-19):** gate 450/0/1 (444 baseline + 6 new `congestion` tests); demo shasum
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a` unchanged; sweep shasum
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8` unchanged; sweep-verify OK; no-exec-deps OK.
+`classify_congestion_regimes` has exactly one caller in the workspace (its own `lib.rs`
+re-export) — nothing wired into execution. `git status`: exactly `crates/sweep/src/congestion.rs`
+(NEW) + `crates/sweep/src/lib.rs` (additive) + this queue/worklog flip. Next: C8.6b, fresh chat.
 
 **Why this half is safe to pin now.** `portfolio::hf_cost::CongestionRegime` (C4) already exists,
 is already `pub`, already re-exported (`crates/portfolio/src/lib.rs:36`). Nothing about deriving it
