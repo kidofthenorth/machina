@@ -26,8 +26,12 @@ new priced execution entry, 4 files). They're order-independent (C8.6b only need
 `CongestionRegime` type, not C8.6a's classifier). **The 2026-07-18 fresh-session review of C8.5
 came back accept-with-one-fix** (MEDIUM: `resolution_secs` accepted unvalidated — a card gap, now
 carded as **C8.5.1**, parse-time lint + 3 tests). **The next command is executing C8.5.1** (tiny;
-its seed prompt is in the planner's handover message and reconstructible from the card), then
-C8.6a (seed prompt below; C8.6b's follows it). **Recommended before C8.6b lands:** the
+its seed prompt is now the FIRST seed prompt below), then
+C8.6a (seed prompt below; C8.6b's follows it). **The FOREMAN kit is fully activated as of
+2026-07-19:** the gate is `bash scripts/gate.sh` (run unprompted; paste its counts), handoff
+baselines come from `bash scripts/handoff-baselines.sh` (never hand-typed), the cadence is
+declared in AGENTS.md §Cadence, and `.claude/agents/` has `card-executor` + `review-lens`
+roles (model: sonnet — untracked, `.claude/` is never staged). **Recommended before C8.6b lands:** the
 FOREMAN §3 adversarial review of C8.4's second holdout seal (7-lens list in task-queue.md) —
 still unaddressed. **C8.7** (the real row-C8 gate: windowed HF sweep) stays scoped, not
 signature-pinned — needs its own reconciliation pass once C8.1–C8.6b have actually landed.
@@ -148,16 +152,17 @@ Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronolo
 
 ## Verified state (re-confirm on a fresh checkout)
 
-```bash
-cargo fmt --all --check                                  # clean
-cargo clippy --all-targets --all-features -- -D warnings # clean
-cargo test --workspace --all-features                    # 313 passed, 0 failed (2026-07-12, M5 gate declaration)
-cargo run -p cli -- demo                                 # deterministic, schema-valid RunResult (shasum ae064f79242f823ffd8f55bf9104e3e1b45d425a, identical on repeat)
-cargo run -p cli -- sweep                                # deterministic sweep report (shasum 7ad3df7de2e2c1139be427e9c953b57d4e289cb3, identical ×2 and at --threads 8)
-cargo run -p cli -- sweep-verify                         # sweep-verify: OK — byte-identical across sequential, 2 and 8 threads, and repeat (18990 bytes); exit 0
-# no-execution-deps scan (CI parity) — must print OK:
-pattern='solana-sdk|solana-client|solana-program|solana-rpc|jupiter|jito|ed25519-dalek|keypair|bip39|tiny-bip39|secp256k1'
-grep -REn --include='Cargo.toml' "$pattern" . | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || echo OK
+**One command — `bash scripts/gate.sh`** (fmt + clippy + full tests + demo×2 determinism +
+sweep shasum + sweep-verify + no-exec-deps scan; exit 0 = green). Last run 2026-07-19 at
+`fcd75e4` (clean tree), printed:
+
+```
+total: 441 passed; 0 failed; 1 ignored
+demo shasum: ae064f79242f823ffd8f55bf9104e3e1b45d425a (x2 identical)
+sweep shasum: 94e90c3c6060a11feddd8d55a19accf07a86f7d8
+sweep-verify: OK — byte-identical across sequential, 2 and 8 threads, and repeat (18990 bytes)
+no-exec-deps: OK
+== GATE: PASS ==
 ```
 
 Repo state (2026-07-12): **M5 gate declared (card M5-C6, Branch A reject-all).** The operator has
@@ -248,7 +253,52 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 
 ---
 
-## Seed prompt for the new chat — execute M-HF-C8.6a (recommended next; small, independent)
+## Seed prompt for the new chat — execute M-HF-C8.5.1 (THE NEXT COMMAND; tiny review-fix, run before C8.6a/C8.6b)
+
+> You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
+> crypto trading-**research** platform in Rust built toward **genuine autonomous passive income**
+> (truly autonomous, so truly passive), earned through milestone gates. The current phase is HF
+> research on SYNTHETIC data only: no keys/signing/RPC/network anywhere; every HF strategy family
+> is a hypothesis to test — rejecting them all cleanly is a successful outcome.
+>
+> **State (2026-07-19, HEAD `fcd75e4`, clean tree):** M5 CLOSED (reject-all; holdout unread, seal
+> intact). M-HF C1–C7 and **C8.1–C8.5** DONE + planner-verified. Gate is
+> **`bash scripts/gate.sh`** — last run printed **441 passed / 0 failed / 1 ignored**; demo shasum
+> `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2 identical); sweep shasum
+> `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; `sweep-verify: OK`; `no-exec-deps: OK`. Verify
+> HEAD/`git status` and re-run the gate yourself first — prior summaries are not evidence.
+>
+> **Your card is M-HF-C8.5.1** (spec-lint gap: validate `resolution_secs` at parse time — the
+> C8.5 review's one MEDIUM, adjudicated a card gap). Read the card in full in task-queue.md
+> ("### M-HF-C8.5.1") before touching anything. Exactly 2 files:
+> `crates/sweep/src/hf_spec.rs` (ONE new `HfSpecError::UnsupportedResolutionSecs(i64)` variant +
+> `Display` arm + the check in `from_toml_str` AFTER `grids` is assembled, immediately before the
+> final `Ok(Self { … })` at hf_spec.rs:269; also fix the module-doc sentence at lines 21–22 that
+> defers enforcement to C8.7) and `crates/sweep/tests/hf_spec_parsing.rs` (3 new tests per the
+> card). The pinned rule — do not re-decide it:
+> `if t.resolution_secs < 1 || (t.resolution_secs != 1 && !grids.is_empty()) { return Err(…) }`
+> — non-positive is ALWAYS rejected; `!= 1` is rejected only when a family is enabled; coarser
+> with all families disabled still parses (and a test documents that path).
+>
+> **Most likely ways this card goes wrong:** placing the check before `grids` exists (it needs
+> the family-enabled answer); forgetting the in-module `error_display_is_informative` extension;
+> touching `spec.rs`, any existing TOML, or a schema (all forbidden — parse-only card).
+>
+> Gate (from the card): `cargo test -p sweep hf_spec` green; then `bash scripts/gate.sh` green —
+> 0 failed / 1 ignored, record exact N (baseline 441 + your new tests); demo AND sweep shasums
+> **unchanged** (parse-only — if either moves, STOP); `git status` shows exactly the 2 files +
+> queue/worklog flip. When the gate passes: flip the card, one worklog line, stop — C8.6a gets a
+> fresh chat.
+>
+> Non-negotiables (unchanged): `Decimal`/integer only — never f64; no new dependencies;
+> determinism (no RNG/clock); never stage anything under `data/`; never edit `fixtures/`
+> (existing files), `plans/master-plan.md`, or `solana-crypto-trader-plan.md`; never
+> `git commit`/`git push` (stage explicit paths only, never `.claude/`, never `git add -A`);
+> never start M6+ (network) or M8/M9 (signing/submit — separate explicit human approval).
+
+---
+
+## Seed prompt for the new chat — execute M-HF-C8.6a (after C8.5.1; small, independent)
 
 > You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
 > crypto trading-**research** platform in Rust built toward **genuine autonomous passive income**

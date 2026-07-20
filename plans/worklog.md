@@ -1638,3 +1638,58 @@ tracking. No code touched; no gate run needed (docs-only).
 Workspace-wide ruling: repo-kit copies are deployments from the master (~/Downloads/repo-kit),
 never tracked. `.gitignore` gains `docs/repo-kit/` (staged). Kit also gained INIT_PROMPT.md
 (paste-in FOREMAN activation prompt). Docs-only; no gate needed.
+
+## 2026-07-19 — Planner: FOREMAN kit ACTIVATED — gate script + cadence declaration; step-0 reconcile found zero code drift
+
+Step 0 at HEAD `fcd75e4` (clean tree): plans scaffolding already live (M-HF queue current — open
+cards C8.5.1 `TODO` → C8.6a/C8.6b `EXECUTOR-READY` → C8.7 scoped-only), so no re-carding; the
+missing kit pieces were the gate script, baselines script, cadence declaration, and agent roles.
+C8.5.1's pins re-verified against source before trusting the card: hf_spec.rs:275 carries
+`resolution_secs` unvalidated, module doc :21-22 defers to C8.7, no `UnsupportedResolutionSecs`
+variant exists, local `grids` at :260 precedes `Ok(Self {` at :269 — card sound as written.
+
+Built: **`scripts/gate.sh`** (fmt + clippy + workspace tests w/ aggregated counts + demo×2
+determinism + sweep shasum + sweep-verify + no-exec-deps scan; exit 0 = green) and
+**`scripts/handoff-baselines.sh`** (kit copy; grep widened to include shasum/verify lines).
+Gate run twice today (direct + via baselines script), identical:
+`441 passed; 0 failed; 1 ignored` · demo `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2
+identical) · sweep `94e90c3c6060a11feddd8d55a19accf07a86f7d8` · sweep-verify OK (18990 bytes) ·
+no-exec-deps OK · **GATE: PASS** — zero drift vs the 2026-07-18 baselines.
+
+Doc drift fixed (flagged, not obeyed): root AGENTS.md still claimed "M4 in progress / 402 tests"
+→ corrected to M5-closed/M-HF-active + 441, and gained the **§Cadence** declaration
+(`project-management: off`, FOREMAN card-loop, GATE = `bash scripts/gate.sh`, generated
+baselines, worklog-line-per-run rule). handoff.md's "Verified state" block still carried
+2026-07-12's `313 passed` and the pre-1.2.0 sweep shasum `7ad3df7d…` → replaced with the gate
+script + today's printed counts; **C8.5.1's executor seed prompt added** (it previously lived
+only in a planner handover message). current-state.md pointer block refreshed.
+`.claude/agents/` gains `card-executor` + `review-lens` (model: sonnet, low effort; review-lens
+report-only) — untracked, `.claude/` is never staged.
+
+Staged: `AGENTS.md`, `plans/current-state.md`, `plans/handoff.md`, `plans/worklog.md`,
+`scripts/gate.sh`, `scripts/handoff-baselines.sh`. Next: **execute C8.5.1** (fresh executor
+session; seed prompt in handoff.md), then C8.6a → C8.6b; the FOREMAN §3 review of C8.4's
+holdout seal (7-lens list in task-queue.md) stays recommended before C8.6b lands — operator
+go-ahead required to convene it.
+
+## 2026-07-19 — Executor: M-HF-C8.5.1 DONE — `resolution_secs` validated at parse time
+
+Baseline gate re-run at HEAD `fcd75e4` before touching anything: `441 passed; 0 failed; 1
+ignored` · demo `ae064f79…` (×2 identical) · sweep `94e90c3c…` — exact match to the handoff.
+Change (exactly the card's 2 files): `crates/sweep/src/hf_spec.rs` — new
+`HfSpecError::UnsupportedResolutionSecs(i64)` + Display arm (names field, value, and rule);
+the pinned check `if t.resolution_secs < 1 || (t.resolution_secs != 1 && !grids.is_empty())`
+placed after `grids` assembly, immediately before `Ok(Self { … })`; module doc :21-22 rewritten
+(enforcement now here, not deferred to C8.7); `from_toml_str`'s `# Errors` doc extended;
+in-module `error_display_is_informative` extended. `crates/sweep/tests/hf_spec_parsing.rs` —
+3 new tests: 0 and −1 rejected (value carried in the variant); 60 with `intraday_meanrev_v1`
+enabled rejected; 60 with the family disabled parses (documents the future-coarser path).
+No spec.rs / TOML / schema / dependency changes.
+Gate after: `444 passed; 0 failed; 1 ignored` (441 + 3) · demo
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2 identical) · sweep
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8` · sweep-verify OK (18990 bytes) · no-exec-deps OK ·
+**GATE: PASS** — both shasums unchanged, as required for a parse-only card.
+
+Staged this run: `crates/sweep/src/hf_spec.rs`, `crates/sweep/tests/hf_spec_parsing.rs`,
+`plans/task-queue.md`, `plans/worklog.md` (on top of the planner's pending kit-activation
+staging). Next: **C8.6a** in a fresh executor session.

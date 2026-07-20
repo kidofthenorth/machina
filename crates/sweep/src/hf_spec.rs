@@ -18,8 +18,11 @@
 //! - `max_lookback_bars` must be `> 0` (m-hf-track §2's lookback bound), so an unbounded
 //!   warm-up can't silently break the windowed-memory bound.
 //!
-//! `resolution_secs` is carried as a field (not hardcoded; must be `1` for the families that
-//! exist today) — enforcement against the family set is the execution wiring's job (C8.7).
+//! `resolution_secs` is carried as a field (not hardcoded) and lint-checked here at parse time:
+//! a non-positive value is always rejected, and a value other than `1` is rejected whenever any
+//! HF family is enabled (every family that exists today is 1-second) — surfaced as
+//! [`HfSpecError::UnsupportedResolutionSecs`]. A coarser resolution with all families disabled
+//! still parses, so the field stays genuinely carried rather than hardcoded.
 
 use crate::advance::AdvancementThresholds;
 use crate::config::PartitionSpec;
@@ -146,6 +149,10 @@ pub enum HfSpecError {
     InvalidPriorityTable(HfCostError),
     /// `max_lookback_bars` was `0` — an unbounded/absent warm-up bound is rejected.
     ZeroMaxLookback,
+    /// `resolution_secs` (the offending value is carried) was non-positive, or was `!= 1` while
+    /// at least one HF family was enabled (every family that exists today is 1-second). A
+    /// coarser resolution parses only when all families are disabled.
+    UnsupportedResolutionSecs(i64),
 }
 
 impl std::fmt::Display for HfSpecError {
@@ -176,6 +183,13 @@ impl std::fmt::Display for HfSpecError {
             Self::ZeroMaxLookback => {
                 write!(f, "hf sweep spec max_lookback_bars must be > 0")
             }
+            Self::UnsupportedResolutionSecs(v) => {
+                write!(
+                    f,
+                    "hf sweep spec resolution_secs = {v} is unsupported: it must be >= 1, \
+                     and must be exactly 1 while any HF family is enabled"
+                )
+            }
         }
     }
 }
@@ -189,7 +203,8 @@ impl HfSweepSpec {
     /// Returns [`HfSpecError`] if the TOML fails to parse, `[advancement]` sets
     /// `turnover_budget`, a date fails to parse, the walk-forward window configuration is
     /// invalid, `walk_forward.kind` is unknown, the depth curve or priority table fails
-    /// `portfolio`'s fail-closed construction, or `max_lookback_bars` is `0`.
+    /// `portfolio`'s fail-closed construction, `max_lookback_bars` is `0`, or
+    /// `resolution_secs` is non-positive or `!= 1` with any HF family enabled.
     pub fn from_toml_str(s: &str) -> Result<Self, HfSpecError> {
         let t: HfSweepSpecToml = toml::from_str(s).map_err(|e| {
             let msg = e.to_string();
@@ -266,6 +281,9 @@ impl HfSweepSpec {
                 weights_out: t.intraday_meanrev_v1.weights_out,
             });
         }
+        if t.resolution_secs < 1 || (t.resolution_secs != 1 && !grids.is_empty()) {
+            return Err(HfSpecError::UnsupportedResolutionSecs(t.resolution_secs));
+        }
         Ok(Self {
             allowlist_version: t.allowlist_version,
             partition,
@@ -324,6 +342,9 @@ mod tests {
         assert!(HfSpecError::ZeroMaxLookback
             .to_string()
             .contains("max_lookback_bars"));
+        let msg = HfSpecError::UnsupportedResolutionSecs(60).to_string();
+        assert!(msg.contains("resolution_secs"));
+        assert!(msg.contains("60"));
     }
 
     /// The checked-in template with one exact-match line substitution applied.

@@ -10,9 +10,10 @@ approval.** No key loading, transaction signing, or submission exists — or may
 research phase (M0–M5) is complete and separately approved. Building the software never authorizes
 trading.
 
-**Status: M0–M2 complete; M3 scaffolds in place; M4 sweep/walk-forward in progress — subtasks S1–S11
-built and green in `crates/sweep`; only the S12 tail remains (task cards M4-C1…C10 in
-`plans/task-queue.md`).** The authoritative roadmap is `plans/master-plan.md` (the full M0–M11 plan;
+**Status: M0–M4 complete (M4 gate declared 2026-07-09); M5 research decision CLOSED 2026-07-12
+(Branch A reject-all — holdout unread, seal intact); the M-HF research track is ACTIVE (cards
+`M-HF-*` in `plans/task-queue.md`; next open card and seed prompt in `plans/handoff.md`).**
+The authoritative roadmap is `plans/master-plan.md` (the full M0–M11 plan;
 `solana-crypto-trader-plan.md` at the repo root is kept byte-identical to it — edit both or neither,
 per Q6). Live build
 state is `plans/current-state.md`. A Cargo workspace of 8 research crates builds and tests green;
@@ -23,12 +24,23 @@ require **separate explicit human approval**.
 ## Commands
 These run today (established in M0; CI runs the same from a clean checkout):
 - Build: `cargo build`
-- Test: `cargo test` *(deterministic and repeatable — 402 passed / 1 ignored as of 2026-07-17; the
-  prior "288 as of 2026-07-07" figure came from the unmerged `gnhf/unit-test-coverage` branch, not
-  `main` — see the 2026-07-17 drift audit, F3)*
+- Test: `cargo test` *(deterministic and repeatable — 441 passed / 0 failed / 1 ignored as of
+  2026-07-19, `scripts/gate.sh` run at `fcd75e4`)*
 - Run / dev: `cargo run -p cli -- demo` *(deterministic research demo; no network, no keys)*
 - Sweep: cargo run -p cli -- sweep [--threads N] [--out PATH]; verify determinism: cargo run -p cli -- sweep-verify *(research only; no network, no keys)*
 - Lint / typecheck: `cargo clippy --all-targets --all-features -- -D warnings` + `cargo fmt --check`
+
+## Cadence
+`project-management: off` — this repo runs the **FOREMAN card-loop** (`docs/repo-kit/FOREMAN.md`),
+which replaces the global Repo bootstrap cadence entirely.
+- Entry point for any fresh session: `plans/handoff.md`. Cards: `plans/task-queue.md` (the only
+  inbox — mid-session work becomes a card stub, never a scope expansion). Status truth:
+  `plans/current-state.md`. Append-only log: `plans/worklog.md`.
+- **GATE = `bash scripts/gate.sh`** — run unprompted before claiming green, flipping a card, or
+  writing any handoff/worklog entry; paste its printed counts as evidence, never transcribe counts
+  from memory. Handoff baselines are generated (`bash scripts/handoff-baselines.sh`), never typed.
+- Every run that touches this repo ends with a dated worklog line (what changed, gate evidence,
+  what's staged) — unprompted; a run without its worklog line is unfinished.
 
 ## Map
 A Cargo workspace. **Existing** crates (`crates/`): `research-core`, `market-data`, `portfolio`,

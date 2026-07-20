@@ -5897,7 +5897,7 @@ match the quoted shape at your HEAD; you find yourself needing to edit `spec.rs`
 
 ---
 
-### M-HF-C8.5.1 — spec-lint gap: validate `resolution_secs` at parse time — `TODO` (review fix, run before C8.6a/C8.6b)
+### M-HF-C8.5.1 — spec-lint gap: validate `resolution_secs` at parse time — `DONE` (review fix; landed 2026-07-19, gate 444/0/1, shasums unchanged)
 
 **Provenance.** The 2026-07-18 fresh-session review of C8.5 (sol5.6, accept-with-one-fix) found a
 MEDIUM contract miss: the C8.5 card's field description says `resolution_secs` "must be `1` for the

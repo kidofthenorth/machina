@@ -1,7 +1,8 @@
 //! Integration tests for `sweep::hf_spec` (M-HF card C8.5): the checked-in
 //! `hf-strategy-lab.example.toml` template parses and resolves to the values written in it,
 //! and the spec-lint rules reject the forbidden shapes (turnover budget set, empty depth
-//! curve, zero lookback bound). Parse-only — nothing here executes a sweep.
+//! curve, zero lookback bound, unsupported resolution). Parse-only — nothing here executes
+//! a sweep.
 
 use portfolio::{hf_trade_cost, CongestionRegime, HfCostError};
 use rust_decimal_macros::dec;
@@ -106,5 +107,41 @@ mod hf_spec_parsing {
             HfSweepSpec::from_toml_str(&zero_lookback),
             Err(HfSpecError::ZeroMaxLookback)
         ));
+    }
+
+    #[test]
+    fn non_positive_resolution_secs_is_rejected() {
+        for (bad_line, bad_value) in [("resolution_secs = 0", 0i64), ("resolution_secs = -1", -1)] {
+            let non_positive = TEMPLATE.replace("resolution_secs = 1", bad_line);
+            assert!(non_positive.contains(bad_line));
+            assert!(matches!(
+                HfSweepSpec::from_toml_str(&non_positive),
+                Err(HfSpecError::UnsupportedResolutionSecs(v)) if v == bad_value
+            ));
+        }
+    }
+
+    #[test]
+    fn coarser_resolution_with_family_enabled_is_rejected() {
+        // The template ships with `intraday_meanrev_v1` enabled; every family that exists is 1s.
+        let coarse = TEMPLATE.replace("resolution_secs = 1", "resolution_secs = 60");
+        assert!(coarse.contains("resolution_secs = 60"));
+        assert!(coarse.contains("enabled = true"));
+        assert!(matches!(
+            HfSweepSpec::from_toml_str(&coarse),
+            Err(HfSpecError::UnsupportedResolutionSecs(60))
+        ));
+    }
+
+    #[test]
+    fn coarser_resolution_with_all_families_disabled_parses() {
+        // Documents the future-coarser path: `resolution_secs` stays a carried field, so a
+        // coarser resolution is valid as long as no (necessarily 1s) family is enabled.
+        let coarse_disabled = TEMPLATE
+            .replace("resolution_secs = 1", "resolution_secs = 60")
+            .replace("enabled = true", "enabled = false");
+        let spec = HfSweepSpec::from_toml_str(&coarse_disabled).unwrap();
+        assert_eq!(spec.resolution_secs, 60);
+        assert!(spec.grids.is_empty());
     }
 }
