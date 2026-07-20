@@ -1693,3 +1693,28 @@ Gate after: `444 passed; 0 failed; 1 ignored` (441 + 3) · demo
 Staged this run: `crates/sweep/src/hf_spec.rs`, `crates/sweep/tests/hf_spec_parsing.rs`,
 `plans/task-queue.md`, `plans/worklog.md` (on top of the planner's pending kit-activation
 staging). Next: **C8.6a** in a fresh executor session.
+
+## 2026-07-19 — Planner: C8.5.1 verified (gate re-run PASS: 444/0/1, shasums unchanged); pointers → next is C8.6a
+
+FOREMAN §6 verification of the C8.5.1 executor report, all claims re-run at HEAD `4a0848c`
+(clean tree — the operator had already committed): diff of `7beef71` matches the card's pins
+exactly (variant + Display naming field/value/rule; check after `grids` assembly immediately
+before `Ok(Self {…})`; module doc + `# Errors` + `error_display_is_informative` extended; 3
+discriminating integration tests incl. the documented disabled-family coarser path); card
+flipped `DONE`; executor worklog line present. Gate re-run by the planner:
+`444 passed; 0 failed; 1 ignored` · demo `ae064f79…` (×2 identical) · sweep `94e90c3c…` ·
+sweep-verify OK (18990 bytes) · no-exec-deps OK · **GATE: PASS**.
+
+Two commit-hygiene notes (recorded, not rewritten — history stays): (1) `7beef71`'s message
+describes only the card slice, but the commit also carries the kit-activation files
+(AGENTS.md, scripts/gate.sh, scripts/handoff-baselines.sh, plan-file pointers) — the F5
+message-vs-stat rule tripped because both slices shared the index; future slices get separate
+commits before the next card lands. (2) `.claude/agents/` was committed at `4a0848c` — an
+explicit operator exception to never-stage-`.claude/`; the agent-side rule is unchanged.
+
+Pointers refreshed: handoff.md (C8.5.1 seed prompt retired; C8.6a promoted to next command;
+both remaining seed-prompt state lines → HEAD `4a0848c` / 444 baseline; verified-state block →
+444), current-state.md (C8.5.1 DONE line; next-up C8.6a→C8.6b). Staged: `plans/current-state.md`,
+`plans/handoff.md`, `plans/worklog.md`. Next: **execute C8.6a** (fresh executor session; seed
+prompt in handoff.md), then C8.6b; the FOREMAN §3 7-lens review of C8.4's intraday holdout seal
+stays recommended before C8.6b lands — operator go-ahead required.
