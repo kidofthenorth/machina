@@ -6090,7 +6090,7 @@ and re-derive from `bars[i-1]`; either shasum moves — STOP.
 
 ---
 
-### M-HF-C8.6b — `portfolio::hf_priced::run_hf_priced`: wire `HfCostModel` + `AdversarialModel` into a new priced execution entry — `EXECUTOR-READY`
+### M-HF-C8.6b — `portfolio::hf_priced::run_hf_priced`: wire `HfCostModel` + `AdversarialModel` into a new priced execution entry — `DONE` *(2026-07-20; gate 457/0/1, demo/sweep shasums unchanged; latency.rs diff confirmed visibility-only + new HfError::RegimesLength variant)*
 
 **Why this half is now pinnable (a real narrowing from the original sketch, logged).**
 `AdversarialModel` as landed by C5 (`adversarial.rs:23-36`) carries one flat `p_adverse_num`/

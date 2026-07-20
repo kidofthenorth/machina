@@ -22,6 +22,7 @@ pub mod adversarial;
 pub mod cost;
 pub mod equity;
 pub mod hf_cost;
+pub mod hf_priced;
 pub mod latency;
 pub mod simulator;
 pub mod state;
@@ -36,6 +37,7 @@ pub use hf_cost::{
     hf_trade_cost, scale_hf_cost_model, CongestionPriorityTable, CongestionRegime, DepthBand,
     DepthCurve, HfCostError, HfCostModel, HfTradeCost,
 };
+pub use hf_priced::{run_hf_priced, HfPricedRunOutput};
 pub use latency::{
     build_landing_table, fixed_latency, run_hf, HfError, HfRunOutput, LandingOutcome,
     LatencyPipeline,

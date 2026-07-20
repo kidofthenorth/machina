@@ -90,6 +90,8 @@ pub enum HfError {
     OffsetBelowMin { index: usize },
     /// Landing probability must be an exact rational with `den ≥ 1` and `num ≤ den`.
     BadProbability { num: u64, den: u64 },
+    /// One [`crate::hf_cost::CongestionRegime`] per bar: `regimes.len() == bars.len()`.
+    RegimesLength { regimes: usize, bars: usize },
 }
 
 impl fmt::Display for HfError {
@@ -108,6 +110,9 @@ impl fmt::Display for HfError {
                     f,
                     "landing probability {num}/{den} is not a valid rational in [0,1]"
                 )
+            }
+            Self::RegimesLength { regimes, bars } => {
+                write!(f, "regimes has {regimes} entries for {bars} bars")
             }
         }
     }
@@ -177,16 +182,16 @@ pub fn build_landing_table(
 // copy drifts, that gate breaks.
 
 /// Below this SOL amount the position is treated as flat.
-fn dust() -> Decimal {
+pub(crate) fn dust() -> Decimal {
     Decimal::new(1, 9) // 1e-9 SOL
 }
 
 /// Skip rebalances whose notional is below this (USDC) to avoid sub-cent churn.
-fn min_trade_notional() -> Decimal {
+pub(crate) fn min_trade_notional() -> Decimal {
     Decimal::new(1, 2) // 0.01 USDC
 }
 
-struct OpenPosition {
+pub(crate) struct OpenPosition {
     entry_ts: Timestamp,
     entry_price: Decimal,
     qty_base: Decimal,
@@ -194,7 +199,7 @@ struct OpenPosition {
 }
 
 /// Move the portfolio toward `target` SOL weight at `price`. Returns the executed trade, if any.
-fn rebalance(
+pub(crate) fn rebalance(
     state: &mut PortfolioState,
     target: Decimal,
     price: Decimal,
@@ -241,7 +246,7 @@ fn rebalance(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn record_round_trip(
+pub(crate) fn record_round_trip(
     open: &mut Option<OpenPosition>,
     round_trips: &mut Vec<RoundTrip>,
     state: &PortfolioState,
@@ -277,7 +282,7 @@ fn record_round_trip(
     }
 }
 
-fn clamp01(w: Decimal) -> Decimal {
+pub(crate) fn clamp01(w: Decimal) -> Decimal {
     w.max(Decimal::ZERO).min(Decimal::ONE)
 }
 
@@ -286,7 +291,7 @@ fn clamp01(w: Decimal) -> Decimal {
 /// Buy: the exact USDC spent (`-quote_delta == quote_in`). Sell: the mid value of the SOL disposed;
 /// `base_delta` on a sell is `-(base_in + gas_sol)`, so `base_in = |base_delta| - gas_sol` and the
 /// mid notional is `(|base_delta| - gas_sol) * exec_price`. Both are exact `Decimal`.
-fn traded_notional(outcome: &TradeOutcome) -> Decimal {
+pub(crate) fn traded_notional(outcome: &TradeOutcome) -> Decimal {
     match outcome.side {
         Side::Buy => -outcome.quote_delta,
         Side::Sell => (outcome.base_delta.abs() - outcome.gas_sol) * outcome.exec_price,
@@ -294,7 +299,7 @@ fn traded_notional(outcome: &TradeOutcome) -> Decimal {
 }
 
 /// Current SOL weight = base value / equity at `price`. Zero when flat or equity is non-positive.
-fn current_weight(state: &PortfolioState, price: Decimal) -> Decimal {
+pub(crate) fn current_weight(state: &PortfolioState, price: Decimal) -> Decimal {
     let equity = state.equity(price);
     if equity <= Decimal::ZERO {
         return Decimal::ZERO;

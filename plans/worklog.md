@@ -1757,3 +1757,25 @@ note), this worklog entry. Operator sequence: (1) commit the staged C8.6a slice;
 Next: **execute C8.6b** (fresh executor; seed prompt in handoff.md). Standing recommendation
 before C8.6b lands: the FOREMAN §3 7-lens review of C8.4's intraday holdout seal — operator
 go-ahead required (multi-agent spend).
+
+**2026-07-20 — M-HF-C8.6b DONE.** New `crates/portfolio/src/hf_priced.rs`: `run_hf_priced`
+(pinned signature) wires `HfCostModel` + `AdversarialModel` into a `run_hf`-shaped loop via a
+per-trade synthesized `CostModel` (never populates `slippage_bps`); `rebalance_priced` (private);
+`adverse_draw`/`adverse_selection_hit`/`ADVERSE_SELECTION_TAG` (private, distinct-tag splitmix64
+keying from `landing_draw`); `HfPricedRunOutput`; in-module tests incl. a hand-computed
+single-trade cross-check matching `hf_trade_cost(...).total_quote` to EXACT Decimal equality, and
+the landing-vs-adverse-draw independence proof over `0..100_000` (kept in-module since the draw
+fns are module-private, not re-exported — noted in the integration file). `latency.rs`:
+visibility-only (`dust`/`min_trade_notional`/`clamp01`/`current_weight`/`traded_notional`/
+`OpenPosition`/`record_round_trip` → `pub(crate)`, zero logic changes, diff confirmed) + new
+`HfError::RegimesLength` variant/Display arm. `lib.rs`: additive `pub mod hf_priced` +
+`pub use hf_priced::{run_hf_priced, HfPricedRunOutput}`. New
+`crates/portfolio/tests/hf_priced_regression.rs`: determinism, two-case never-cheaper-than-plain
+reference test, `regimes.len() != bars.len()` rejection. `run_hf`/`simulator.rs`/`cost.rs`/
+`state.rs` untouched; `hf_regression.rs`/`hf_cadence.rs` assertions unchanged.
+Gate: **457 passed / 0 failed / 1 ignored**; demo shasum
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a` unchanged; sweep shasum
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8` unchanged; sweep-verify OK. Staged: `hf_priced.rs`
+(new), `latency.rs`, `lib.rs`, `hf_priced_regression.rs` (new), `plans/task-queue.md`,
+`plans/worklog.md`. Next: C8.7 (windowed HF sweep wiring — needs a planner reconciliation pass
+first, per its own card).
