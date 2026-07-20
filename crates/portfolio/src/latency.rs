@@ -199,7 +199,7 @@ pub(crate) struct OpenPosition {
 }
 
 /// Move the portfolio toward `target` SOL weight at `price`. Returns the executed trade, if any.
-pub(crate) fn rebalance(
+fn rebalance(
     state: &mut PortfolioState,
     target: Decimal,
     price: Decimal,

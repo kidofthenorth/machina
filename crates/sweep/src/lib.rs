@@ -30,6 +30,7 @@ pub mod baseline;
 pub mod cell;
 pub mod config;
 pub mod congestion;
+pub mod hf_scenarios;
 pub mod hf_spec;
 pub mod intraday_partition;
 pub mod parallel;
@@ -50,6 +51,7 @@ pub use baseline::{best_baseline_return, eval_all_baselines, eval_baseline, Base
 pub use cell::{eval_cell, CellResult};
 pub use config::PartitionSpec;
 pub use congestion::classify_congestion_regimes;
+pub use hf_scenarios::{hf_cost_scenarios, HfCostScenario, HfLatencyParams};
 pub use hf_spec::{HfSpecError, HfSweepSpec};
 pub use intraday_partition::{
     evaluate_intraday_on_holdout, IntradayDevValidation, IntradayPartitionError,

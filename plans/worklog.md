@@ -1848,3 +1848,35 @@ executor seed prompt; verified-state → `44d483c`), current-state.md (top block
 section). Staged: `plans/task-queue.md`, `plans/handoff.md`, `plans/current-state.md`,
 `plans/worklog.md` — plan files ONLY, no code touched. Next: paste the C8.7a executor seed
 prompt into a fresh session.
+
+## 2026-07-20 — M-HF-C8.7a executor: `sweep::hf_scenarios` + CARD-HYG-3 fold — DONE
+
+Step 0 re-verified at `44d483c` before starting: gate `457 passed; 0 failed; 1 ignored` · demo
+`ae064f79…` (×2) · sweep `94e90c3c…` · sweep-verify OK — matched the card's pinned baseline
+exactly. All quoted signatures in the card (`CostScenario`, `ScenarioId`, `HfCostModel`,
+`AdversarialModel`, `CongestionRegime`, `latency.rs:202 rebalance`) grep-verified against HEAD
+before writing code — all matched verbatim, no drift found.
+
+Built `crates/sweep/src/hf_scenarios.rs` (**NEW**): `HfLatencyParams`, `HfCostScenario`, and
+`hf_cost_scenarios(base_hf, base_adversarial, base_latency) -> Vec<HfCostScenario>` assembling
+the 6-rung ladder `[BeforeCosts, Base, Doubled, HotCongestion, AdversarialWorst, Latency2x]`
+exactly per the card's per-rung spec (zeroed costs+probabilities for BeforeCosts; cost fields
+×2 but probability rationals untouched for Doubled; `p_adverse = 1/1` for AdversarialWorst;
+`offset_bars` ×2 only for Latency2x; HotCongestion = Base bundle + `force_regime`). 7 in-file
+tests cover ladder order, BeforeCosts zeroing, Doubled's cost/probability split, Adversarial-
+Worst's certainty, Latency2x's offset-only doubling, HotCongestion's single-field diff from
+Base, and determinism (two calls `assert_eq!`). `crates/sweep/src/lib.rs`: additive `pub mod
+hf_scenarios;` + re-export. `crates/portfolio/src/latency.rs:202`: CARD-HYG-3's sanctioned
+1-line fold, `pub(crate) fn rebalance(` → `fn rebalance(` — confirmed zero callers outside
+`latency.rs` (its own `run_hf`/`run_hf_priced` internal use at line 383) before and after the
+edit; `cargo test -p portfolio` compiled clean and green, proving no caller had appeared.
+
+Gate: `bash scripts/gate.sh` → **464 passed; 0 failed; 1 ignored** (457 baseline + 7 new).
+Demo `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2 identical) and sweep
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8` **both unchanged**, exactly as the card requires.
+`git status --porcelain` = exactly the card's 3 files (`crates/sweep/src/hf_scenarios.rs` new,
+`crates/sweep/src/lib.rs` modified, `crates/portfolio/src/latency.rs` modified) plus this flip.
+No execution wiring touched; LF `sensitivity::cost_scenarios` byte-untouched. CARD-HYG-3 rides
+this card to DONE per its fold note. Staged: the 3 code files + `plans/task-queue.md` +
+`plans/worklog.md`. Next: C8.7b (`HfSweepSpec` gains `[latency]`/`[adversarial]`/`[congestion]`,
+parse-only) — fresh chat per the queue's one-card-per-session rule.

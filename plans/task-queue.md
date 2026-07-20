@@ -6452,7 +6452,7 @@ C8 is declared or trusted. CARD-HYG-3 is FOLDED INTO C8.7a (sanctioned 3rd file)
 
 ---
 
-### M-HF-C8.7a — `sweep::hf_scenarios`: the HF cost-scenario ladder (+ CARD-HYG-3 fold) — `TODO`
+### M-HF-C8.7a — `sweep::hf_scenarios`: the HF cost-scenario ladder (+ CARD-HYG-3 fold) — `DONE`
 
 **Goal.** Build `hf_cost_scenarios` — the 6-rung HF ladder assembly m-hf-track §4 moved here —
 as a standalone, independently testable module (no execution wiring; C8.7f is its first real
@@ -7186,7 +7186,7 @@ research-core/portfolio/market-data + rustdoc) stays parked as **CARD-HYG-2 (sco
 must first measure the doc-gap on current `main`)**. Branch `gnhf/unit-test-coverage-i-b8ff70` + its
 worktree are deleted only after HYG-2 is executed or descoped on the record.
 
-### CARD-HYG-3 — revert the unneeded `latency::rebalance` visibility widening — `FOLDED INTO M-HF-C8.7a` *(2026-07-20 C8.7 planner pass: rides as C8.7a's sanctioned 3rd file; the verbatim quote, gate, and escalate-if below are restated on that card — flip THIS card to DONE when C8.7a lands)*
+### CARD-HYG-3 — revert the unneeded `latency::rebalance` visibility widening — `DONE` *(landed 2026-07-20 as M-HF-C8.7a's sanctioned 3rd file: `latency.rs:202` `pub(crate) fn rebalance(` → `fn rebalance(`, zero callers outside `latency.rs`, `cargo test -p portfolio` green)*
 
 **Provenance.** C8.6b's planner verification (2026-07-20, at `bb88831`): the card pinned exactly
 **seven** items to go `pub(crate)` (`dust`/`min_trade_notional`/`clamp01`/`current_weight`/
