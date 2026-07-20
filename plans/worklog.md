@@ -1880,3 +1880,34 @@ No execution wiring touched; LF `sensitivity::cost_scenarios` byte-untouched. CA
 this card to DONE per its fold note. Staged: the 3 code files + `plans/task-queue.md` +
 `plans/worklog.md`. Next: C8.7b (`HfSweepSpec` gains `[latency]`/`[adversarial]`/`[congestion]`,
 parse-only) — fresh chat per the queue's one-card-per-session rule.
+
+## 2026-07-20 — Planner verification of M-HF-C8.7a (FOREMAN §6) — VERIFIED, next is C8.7b
+
+FOREMAN §6 verification of C8.7a at `8d187ef` (operator had already committed both slices —
+the card at `8d187ef`, the C8.7 planner pass at `40e7ed4`; tree clean). Re-run + re-checked,
+not relayed: commit stat is exactly the card's 3 code files + queue/worklog flip (both flips
+present: C8.7a → DONE, CARD-HYG-3 → DONE); no AI/co-author trailers. `hf_scenarios.rs` read in
+full against the card's pinned per-rung spec — all six rungs match exactly (BeforeCosts:
+`CostModel::zero()` base + ×0-scaled hf fields + zeroed adversarial, latency untouched;
+Doubled: cost fields ×2 via `scale_hf_cost_model`/`scale_cost_model`/`saturating_mul`,
+probability rationals untouched; AdversarialWorst: `p = 1/1`, base bps; Latency2x:
+`offset_bars` ×2 only; HotCongestion: Base bundle + `force_regime` only — pinned by a
+field-equality test); 7 new tests = the card's list (a)–(g). Greps: `hf_cost_scenarios` has
+exactly one caller (its own lib.rs re-export) — unwired, as required; `latency::rebalance` is
+private again with zero external callers (the `simulator.rs` `rebalance` hits are simulator's
+OWN private fn, unrelated). Gate re-run by the planner: `464 passed; 0 failed; 1 ignored`
+(457 + 7) · demo `ae064f79…` (×2 identical) · sweep `94e90c3c…` · sweep-verify OK ·
+no-exec-deps OK · **GATE: PASS**.
+
+Two below-minor nits recorded, no action (§7 rule 3): (1) the executor's worklog line says
+`rebalance` is used by "`run_hf`/`run_hf_priced` internal use" — `run_hf_priced` uses its own
+`rebalance_priced` duplicate, never `latency::rebalance` (prose-only inaccuracy; the code and
+the grep evidence are right); (2) `before_costs_is_zeroed` asserts tip/priority/base but not
+the depth-curve impacts directly — those are zeroed by construction (`scale ×0`), covered
+transitively; not worth a card.
+
+Pointers refreshed: handoff.md (C8.7a seed retired; top block + verified-state → 464/`8d187ef`;
+NEW C8.7b executor seed — parse-only cautions, resolve into C8.7a's `HfLatencyParams` +
+`portfolio::AdversarialModel`, never duplicates), current-state.md (top block + next-command
+section). Staged: `plans/handoff.md`, `plans/current-state.md`, `plans/worklog.md` — plan
+files only. Next: paste the C8.7b executor seed prompt into a fresh session.

@@ -39,10 +39,14 @@ corrections on the record — headline pins: the report EXTENDS `SweepReport` (s
 at C8.7d, where the sweep shasum MOVES once, version-only diff, expected); `HfSweepSpec` gains
 `[latency]`/`[adversarial]`/`[congestion]` blocks (C8.7b — the spec can't feed `run_hf_priced`
 today); the §3 (regime,percentile) landing table is DEFERRED to C9+ (flat wave-1 params);
-landing tables use global dev-val event indices with window-excluded cell ids. Next up: a fresh
-**executor session on C8.7a** (seed prompt in handoff.md). The FOREMAN §3 7-lens review of
-C8.4's intraday holdout seal is now ORDERED IN THE QUEUE as ⛔ REVIEW-C8.4-SEAL, between C8.7e
-and C8.7f — operator go-ahead required; C8.7f's escalate-if enforces it.
+landing tables use global dev-val event indices with window-excluded cell ids. **C8.7a DONE
+2026-07-20** (committed `8d187ef`; planner re-verified: gate **464 / 0 / 1** (457 + 7), demo +
+sweep shasums unchanged, `hf_cost_scenarios` has zero callers outside its tests + lib.rs
+re-export — unwired as required; CARD-HYG-3 rode along and is CLOSED, `latency.rs:202` back to
+private with zero external callers). Next up: a fresh **executor session on C8.7b** (seed
+prompt in handoff.md). The FOREMAN §3 7-lens review of C8.4's intraday holdout seal is now
+ORDERED IN THE QUEUE as ⛔ REVIEW-C8.4-SEAL, between C8.7e and C8.7f — operator go-ahead
+required; C8.7f's escalate-if enforces it.
 `M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
 **2026-07-19 — FOREMAN kit ACTIVATED (planner reconcile pass, no code):** GATE is now
 **`bash scripts/gate.sh`** (fresh run at `fcd75e4`: **441 / 0 / 1**; demo `ae064f79…` ×2
@@ -242,7 +246,9 @@ flat probability instead.
   recorded in the section preamble (no latency/adversarial params in the spec; `Vec<Bar>` does
   NOT implement `IntradaySource`; the seal is materialized-Vec-shaped; `hf_cost_scenarios`
   didn't exist; `ColumnarFile` carries no provenance; the §3 percentile table is deferred to
-  C9+, on the record). **The next command is a fresh executor session on C8.7a.**
+  C9+, on the record). **C8.7a is DONE** (2026-07-20, `8d187ef`, planner-verified: 464/0/1,
+  shasums unchanged, ladder unwired, CARD-HYG-3 closed). **The next command is a fresh
+  executor session on C8.7b.**
 - **Operator ruling HF-Q4 (this session):** `statarb_pairs_v1` gets a real two-leg engine (the
   precomputed-spread-series shortcut was rejected as a fabricated-edge risk). Because that is roughly
   as large as C1–C7 combined, it is scoped OUT of C8's gate into a deferred mini-track,
