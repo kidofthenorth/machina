@@ -2009,3 +2009,17 @@ Staged (single slice, new process): `crates/sweep/src/hf_cell.rs`, `crates/sweep
 `plans/task-queue.md`, `plans/current-state.md`, `plans/handoff.md`, `plans/m-hf-track.md`,
 `plans/worklog.md`. Next: paste the C8.7d executor seed prompt (handoff.md) into a fresh
 session. Standing: ⛔ REVIEW-C8.4-SEAL still needs the operator go-ahead before C8.7f.
+
+**2026-07-21 — Foreman handoff rewritten from re-verified state (operator request).** The
+330-line accreted handoff.md compressed to the standard shape (role/scope → generated baselines
+→ mission state + exact next step → hard rules → staged/blockers → both seat seeds: planner cast
++ C8.7d executor). Everything in it re-run this pass, nothing from session memory: machina HEAD
+`02afbeb` (operator committed the C8.7c single slice with the planner's message), tree clean;
+`bash scripts/handoff-baselines.sh` → gate **475 passed / 0 failed / 1 ignored** · demo
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2 identical) · sweep
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8` · sweep-verify OK · no-exec-deps OK · GATE: PASS.
+Siblings recorded same pass: `../quant-sweep` @ `874d8eb` clean (dormant); `../drift-harvester`
+branch main, zero commits, bootstrap files staged (its own repo). History preserved in
+current-state.md/worklog/task-queue — nothing deleted, only the handoff compressed. Staged:
+`plans/handoff.md`, `plans/worklog.md`. Next: paste the C8.7d executor seed into a fresh chat;
+⛔ REVIEW-C8.4-SEAL still awaits operator go-ahead before C8.7f.
