@@ -56,13 +56,19 @@ plan-pinned types confirmed, no duplicate types defined). **C8.7c DONE 2026-07-2
 `94e90c3c…` unchanged; `sweep::hf_cell` adds `HfCellResult`, `eval_hf_strategy` (private),
 `eval_hf_cell` mirroring `cell.rs` line-for-line with `run_hf_priced` in place of `run`; `cell.rs`
 and `portfolio` byte-untouched; `finite()` duplicated, not exported; zero callers outside its own
-tests + the lib.rs re-export). **C8.7d DONE 2026-07-21** (staged, awaiting operator commit;
+tests + the lib.rs re-export). **C8.7d DONE 2026-07-21** (landed `a05880a`;
 planner re-verified: gate **478 / 0 / 1** (475 + 3), demo `ae064f79…` ×2 unchanged, sweep shasum
 **moved by design** `94e90c3c…` → `f6e1ab5132754d69c3a2be23fc549df36c07909f` with a version-only
 diff — `schema_version` 1.3.0→1.4.0, decision D-a honored; `HfRungsDto` + three optional
 `skip_serializing_if`-absent fields on `CandidateMetricsDto` + `with_hf` builder; schema additive
-only, `required` untouched). Next up: a fresh **executor session on C8.7e** (`sweep::hf_aggregate`
-— BOTH shasums unchanged there). The FOREMAN §3 7-lens review of C8.4's
+only, `required` untouched). **C8.7e DONE 2026-07-21** (staged, awaiting operator commit; planner
+re-verified: gate **485 / 0 / 1** (478 + 7), demo `ae064f79…` ×2 AND sweep `f6e1ab51…` both
+UNCHANGED; new `sweep::hf_aggregate::aggregate_hf` — one-pass HF sibling of the LF aggregation
+per D-b, shared-field recipes copied token-identical from `runner.rs`, D-g `cost_drag_share`/
+`per_trade_edge` finally `Some` with exact-Decimal `None` guards, D-h rung rollups with BASE-rung
+counter sums; `runner.rs` touched by exactly one visibility token on `neighbor_indices`; LF
+`aggregate_evidence`/`aggregate_fee_sensitivity` byte-untouched). Next up: **⛔ REVIEW-C8.4-SEAL**
+(the 7-lens seal review — operator go-ahead REQUIRED, multi-agent spend; blocks C8.7f). The FOREMAN §3 7-lens review of C8.4's
 intraday holdout seal is now
 ORDERED IN THE QUEUE as ⛔ REVIEW-C8.4-SEAL, between C8.7e and C8.7f — operator go-ahead
 required; C8.7f's escalate-if enforces it.
@@ -276,9 +282,11 @@ flat probability instead.
   `fedeb7c`; gate 470/0/1, shasums unchanged, parse-only held, resolved into
   C8.7a's `HfLatencyParams` + `portfolio::AdversarialModel` — no duplicate types). **C8.7c is
   DONE** (2026-07-21, landed `02afbeb`; 475/0/1, shasums unchanged). **C8.7d is DONE**
-  (2026-07-21, staged awaiting operator commit; 478/0/1, sweep shasum moved by design to
-  `f6e1ab51…`, version-only diff per D-a). **The next command is a fresh executor session on
-  C8.7e.**
+  (2026-07-21, landed `a05880a`; 478/0/1, sweep shasum moved by design to
+  `f6e1ab51…`, version-only diff per D-a). **C8.7e is DONE** (2026-07-21, staged awaiting
+  operator commit; 485/0/1, both shasums unchanged, `sweep::hf_aggregate` pure, LF aggregation
+  byte-untouched). **The next step is ⛔ REVIEW-C8.4-SEAL — operator go-ahead required before
+  C8.7f.**
 - **Operator ruling HF-Q4 (this session):** `statarb_pairs_v1` gets a real two-leg engine (the
   precomputed-spread-series shortcut was rejected as a fabricated-edge risk). Because that is roughly
   as large as C1–C7 combined, it is scoped OUT of C8's gate into a deferred mini-track,

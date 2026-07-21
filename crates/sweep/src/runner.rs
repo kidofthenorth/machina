@@ -215,7 +215,7 @@ pub fn aggregate_fee_sensitivity(
 }
 
 /// Concatenated-list indices of `pi`'s axis neighbors (±1 on exactly one grid axis).
-fn neighbor_indices(grids: &[ParamGrid], pi: usize) -> Vec<usize> {
+pub(crate) fn neighbor_indices(grids: &[ParamGrid], pi: usize) -> Vec<usize> {
     let mut offset = 0;
     for g in grids {
         let len = g.points().len();

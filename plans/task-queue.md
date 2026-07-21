@@ -6821,7 +6821,7 @@ don't patch call sites beyond the two listed files).
 
 ---
 
-### M-HF-C8.7e — `sweep::hf_aggregate`: HF evidence + fee-sensitivity + rung rollups — `TODO`
+### M-HF-C8.7e — `sweep::hf_aggregate`: HF evidence + fee-sensitivity + rung rollups — `DONE`
 
 **Goal.** The HF sibling of `runner.rs`'s aggregation (decision D-b): one pass from
 `(keys, HfCellResults, floors)` to `CandidateEvidence` (with `cost_drag_share`/`per_trade_edge`

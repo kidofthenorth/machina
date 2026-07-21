@@ -2058,3 +2058,36 @@ from regenerated baselines (`scripts/handoff-baselines.sh`; siblings re-checked:
 Staged as ONE slice: the 4 card files + `plans/task-queue.md`, `plans/worklog.md`,
 `plans/current-state.md`, `plans/handoff.md`. Next: operator commits, then C8.7e in a fresh
 chat; ⛔ REVIEW-C8.4-SEAL still awaits operator go-ahead before C8.7f.
+
+**2026-07-21 — M-HF-C8.7e DONE (executor).** NEW `crates/sweep/src/hf_aggregate.rs` —
+`aggregate_hf` one-pass HF sibling of the LF aggregation (evidence with D-g
+`cost_drag_share`/`per_trade_edge` now `Some` + exact-Decimal `None` guards, fee-sensitivity
+via `FeeSensitivity::from_scenarios`, D-h rung rollups with BASE-rung counter sums; exhaustive
+6-slot scenario match, LF-only rungs `unreachable!`); `lib.rs` re-exports; `runner.rs` one
+token (`neighbor_indices` → `pub(crate)`). LF `aggregate_evidence`/`aggregate_fee_sensitivity`
+byte-untouched. Gate: **485 passed / 0 failed / 1 ignored**; demo
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2) UNCHANGED; sweep
+`f6e1ab5132754d69c3a2be23fc549df36c07909f` UNCHANGED; sweep-verify OK; no-exec-deps OK.
+Staged: the card's 3 files + `plans/task-queue.md` + `plans/worklog.md`. Next: ⛔
+REVIEW-C8.4-SEAL (operator go-ahead) before C8.7f.
+
+**2026-07-21 — Planner verification: C8.7e ACCEPTED; pointers + handoff refreshed (one slice).**
+FOREMAN §6 pass on the executor report above: gate re-run by the planner — **485 passed / 0
+failed / 1 ignored** (478 + exactly the 7 new in-module tests); demo
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a` ×2 UNCHANGED; sweep
+`f6e1ab5132754d69c3a2be23fc549df36c07909f` UNCHANGED; sweep-verify OK (18990 bytes);
+no-exec-deps OK. Staged diff read in full: `runner.rs` is exactly the one sanctioned
+visibility token (`neighbor_indices` → `pub(crate)`), LF `aggregate_evidence`/
+`aggregate_fee_sensitivity` bodies byte-untouched (D-b); `hf_aggregate.rs` shared-field
+recipes compared side-by-side with runner.rs:100-143/162-214 — token-identical (mean/spread
+closures, candidate_label format, neighbor-degradation formula, fee accumulator); D-g guards
+and D-h BASE-rung-only counter sums verified in code and pinned by the leak test; spot
+hand-recomputations exact (per_trade_edge 400/5=80; drag share 0.1/0.3; counter sums 3/2/5).
+File scope exactly the card's 3 files + queue/worklog. C8.7d confirmed landed at `a05880a`.
+Same pass: current-state.md updated (C8.7d landed, C8.7e DONE, next = ⛔ REVIEW-C8.4-SEAL),
+handoff.md rewritten from regenerated baselines (siblings re-checked: quant-sweep `874d8eb`
+clean; drift-harvester zero commits, bootstrap staged) — next executor seed intentionally
+withheld until the seal-review verdict exists. Staged as ONE slice: the 3 card files +
+`plans/task-queue.md`, `plans/worklog.md`, `plans/current-state.md`, `plans/handoff.md`.
+Next: operator commits, then rules on the ⛔ REVIEW-C8.4-SEAL go-ahead (multi-agent spend,
+Sonnet low effort); C8.7f stays blocked until the verdict is recorded.
