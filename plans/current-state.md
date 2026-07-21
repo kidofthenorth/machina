@@ -51,13 +51,18 @@ new `[latency]`/`[adversarial]`/`[congestion]` TOML blocks with 4 fail-closed li
 (`ZeroLatencyOffset`, `InvalidLandingProbability`, `InvalidAdversarialProbability`,
 `ZeroCongestionLookback`); `spec.rs` and all LF fixtures byte-untouched; nothing wired into
 execution; planner-verified same day — gate re-run at the staged tree, counts reproduced, both
-plan-pinned types confirmed, no duplicate types defined). **C8.7c DONE 2026-07-21** (staged,
-awaiting operator commit; gate re-run: **475 / 0 / 1** (470 + 5), demo `ae064f79…` ×2 and sweep
+plan-pinned types confirmed, no duplicate types defined). **C8.7c DONE 2026-07-21** (landed
+`02afbeb`; gate re-run: **475 / 0 / 1** (470 + 5), demo `ae064f79…` ×2 and sweep
 `94e90c3c…` unchanged; `sweep::hf_cell` adds `HfCellResult`, `eval_hf_strategy` (private),
 `eval_hf_cell` mirroring `cell.rs` line-for-line with `run_hf_priced` in place of `run`; `cell.rs`
 and `portfolio` byte-untouched; `finite()` duplicated, not exported; zero callers outside its own
-tests + the lib.rs re-export). Next up: a fresh **executor session on C8.7d** (the sweep shasum
-MOVES there, by design — schema 1.3.0→1.4.0). The FOREMAN §3 7-lens review of C8.4's
+tests + the lib.rs re-export). **C8.7d DONE 2026-07-21** (staged, awaiting operator commit;
+planner re-verified: gate **478 / 0 / 1** (475 + 3), demo `ae064f79…` ×2 unchanged, sweep shasum
+**moved by design** `94e90c3c…` → `f6e1ab5132754d69c3a2be23fc549df36c07909f` with a version-only
+diff — `schema_version` 1.3.0→1.4.0, decision D-a honored; `HfRungsDto` + three optional
+`skip_serializing_if`-absent fields on `CandidateMetricsDto` + `with_hf` builder; schema additive
+only, `required` untouched). Next up: a fresh **executor session on C8.7e** (`sweep::hf_aggregate`
+— BOTH shasums unchanged there). The FOREMAN §3 7-lens review of C8.4's
 intraday holdout seal is now
 ORDERED IN THE QUEUE as ⛔ REVIEW-C8.4-SEAL, between C8.7e and C8.7f — operator go-ahead
 required; C8.7f's escalate-if enforces it.
@@ -267,10 +272,13 @@ flat probability instead.
   NOT implement `IntradaySource`; the seal is materialized-Vec-shaped; `hf_cost_scenarios`
   didn't exist; `ColumnarFile` carries no provenance; the §3 percentile table is deferred to
   C9+, on the record). **C8.7a is DONE** (2026-07-20, `8d187ef`, planner-verified: 464/0/1,
-  shasums unchanged, ladder unwired, CARD-HYG-3 closed). **C8.7b is DONE** (2026-07-20, staged
-  awaiting operator commit; gate 470/0/1, shasums unchanged, parse-only held, resolved into
-  C8.7a's `HfLatencyParams` + `portfolio::AdversarialModel` — no duplicate types). **The next
-  command is a fresh executor session on C8.7c.**
+  shasums unchanged, ladder unwired, CARD-HYG-3 closed). **C8.7b is DONE** (2026-07-20, landed
+  `fedeb7c`; gate 470/0/1, shasums unchanged, parse-only held, resolved into
+  C8.7a's `HfLatencyParams` + `portfolio::AdversarialModel` — no duplicate types). **C8.7c is
+  DONE** (2026-07-21, landed `02afbeb`; 475/0/1, shasums unchanged). **C8.7d is DONE**
+  (2026-07-21, staged awaiting operator commit; 478/0/1, sweep shasum moved by design to
+  `f6e1ab51…`, version-only diff per D-a). **The next command is a fresh executor session on
+  C8.7e.**
 - **Operator ruling HF-Q4 (this session):** `statarb_pairs_v1` gets a real two-leg engine (the
   precomputed-spread-series shortcut was rejected as a fabricated-edge risk). Because that is roughly
   as large as C1–C7 combined, it is scoped OUT of C8's gate into a deferred mini-track,

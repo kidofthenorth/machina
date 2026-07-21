@@ -16,7 +16,7 @@ use serde::Serialize;
 
 /// Version of the sweep-report schema this crate targets (matches `schema_version` in the JSON and
 /// `sweep-report.schema.json`).
-pub const SWEEP_SCHEMA_VERSION: &str = "1.3.0";
+pub const SWEEP_SCHEMA_VERSION: &str = "1.4.0";
 
 /// The fixed disclaimer embedded in every report (invariant 11).
 const REPORT_NOTE: &str = "Robustness filter only — not a profitability verdict. 'advanceable' means a candidate survived the robustness battery (costs, doubled costs, walk-forward, baselines) and is eligible for M5 review; it is never evidence the strategy is profitable. In-sample results never establish an edge.";
@@ -106,6 +106,45 @@ impl FeeSensitivityDto {
     }
 }
 
+/// The per-candidate HF cost-scenario ladder rollup (m-hf-track §3/§4, decision D-h): the three
+/// HF-only rungs' metrics plus BASE-rung sums of the everyday-economics counters. Absent entirely
+/// on LF (M4/M5) reports — additive per D-0001.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct HfRungsDto {
+    pub hot_congestion: ScenarioMetricsDto,
+    pub adversarial_worst: ScenarioMetricsDto,
+    pub latency_2x: ScenarioMetricsDto,
+    /// BASE-rung sum across windows (D-h) — not this rung's own count.
+    pub adverse_selection_hits: u32,
+    /// BASE-rung sum across windows (D-h), exact decimal string.
+    pub adverse_selection_paid_quote: String,
+    /// BASE-rung sum across windows (D-h) — not this rung's own count.
+    pub unlanded_orders: u32,
+}
+
+impl HfRungsDto {
+    /// Build the HF-rung rollup from the three ladder rungs' metrics plus the BASE-rung-summed
+    /// everyday-economics counters (D-h).
+    #[must_use]
+    pub fn new(
+        hot_congestion: &ScenarioMetrics,
+        adversarial_worst: &ScenarioMetrics,
+        latency_2x: &ScenarioMetrics,
+        adverse_selection_hits: u32,
+        adverse_selection_paid_quote: Decimal,
+        unlanded_orders: u32,
+    ) -> Self {
+        Self {
+            hot_congestion: ScenarioMetricsDto::from_metrics(hot_congestion),
+            adversarial_worst: ScenarioMetricsDto::from_metrics(adversarial_worst),
+            latency_2x: ScenarioMetricsDto::from_metrics(latency_2x),
+            adverse_selection_hits,
+            adverse_selection_paid_quote: adverse_selection_paid_quote.normalize().to_string(),
+            unlanded_orders,
+        }
+    }
+}
+
 /// One candidate's first-class reported metrics (M4 deliverable: turnover and fee-sensitivity
 /// reporting). `Ord` keys on `candidate_label` first — total canonical order, like verdicts.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize)]
@@ -114,6 +153,12 @@ pub struct CandidateMetricsDto {
     pub max_drawdown: String,
     pub turnover: String,
     pub fee_sensitivity: FeeSensitivityDto,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_drag_share: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub per_trade_edge: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hf_rungs: Option<HfRungsDto>,
 }
 
 impl CandidateMetricsDto {
@@ -130,7 +175,26 @@ impl CandidateMetricsDto {
             max_drawdown: max_drawdown.normalize().to_string(),
             turnover: turnover.normalize().to_string(),
             fee_sensitivity: FeeSensitivityDto::from_sensitivity(fee_sensitivity),
+            cost_drag_share: None,
+            per_trade_edge: None,
+            hf_rungs: None,
         }
+    }
+
+    /// Attach the HF-only evidence (decision D-g/D-h): the cost-drag-share and per-trade-edge
+    /// strings plus the per-candidate rung rollup. Additive only — existing callers of `new` are
+    /// unaffected until they opt in.
+    #[must_use]
+    pub fn with_hf(
+        mut self,
+        hf_rungs: HfRungsDto,
+        cost_drag_share: Option<Decimal>,
+        per_trade_edge: Option<Decimal>,
+    ) -> Self {
+        self.cost_drag_share = cost_drag_share.map(|d| d.normalize().to_string());
+        self.per_trade_edge = per_trade_edge.map(|d| d.normalize().to_string());
+        self.hf_rungs = Some(hf_rungs);
+        self
     }
 }
 

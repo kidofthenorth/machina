@@ -62,7 +62,7 @@ pub use intraday_partition::{
 pub use parallel::{run_cells, run_in_parallel, Parallelism, SweepCell};
 pub use param::{build_strategy, ParamGrid, ParamPoint};
 pub use partition::{evaluate_on_holdout, DevValidation, PartitionError, PartitionedBars, Sealed};
-pub use report::{SweepReport, ThresholdsDto, SWEEP_SCHEMA_VERSION};
+pub use report::{HfRungsDto, SweepReport, ThresholdsDto, SWEEP_SCHEMA_VERSION};
 pub use runner::{
     aggregate_evidence, aggregate_fee_sensitivity, enumerate_cells, run_sweep, CellKey, SweepError,
     SweepOutcome,

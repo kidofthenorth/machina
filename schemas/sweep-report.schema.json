@@ -67,7 +67,31 @@
         "candidate_label": { "type": "string", "minLength": 1 },
         "max_drawdown": { "$ref": "#/$defs/decimalString" },
         "turnover": { "$ref": "#/$defs/decimalString" },
-        "fee_sensitivity": { "$ref": "#/$defs/FeeSensitivity" }
+        "fee_sensitivity": { "$ref": "#/$defs/FeeSensitivity" },
+        "cost_drag_share": { "$ref": "#/$defs/decimalString" },
+        "per_trade_edge": { "$ref": "#/$defs/decimalString" },
+        "hf_rungs": { "$ref": "#/$defs/HfRungs" }
+      }
+    },
+    "HfRungs": {
+      "description": "Per-candidate HF cost-scenario ladder rollup (m-hf-track §3/§4): the three HF-only rungs' metrics plus BASE-rung sums of the everyday-economics counters (adverse selection, unlanded orders). Absent entirely on LF (M4/M5) reports.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hot_congestion",
+        "adversarial_worst",
+        "latency_2x",
+        "adverse_selection_hits",
+        "adverse_selection_paid_quote",
+        "unlanded_orders"
+      ],
+      "properties": {
+        "hot_congestion": { "$ref": "#/$defs/ScenarioMetrics" },
+        "adversarial_worst": { "$ref": "#/$defs/ScenarioMetrics" },
+        "latency_2x": { "$ref": "#/$defs/ScenarioMetrics" },
+        "adverse_selection_hits": { "type": "integer", "minimum": 0 },
+        "adverse_selection_paid_quote": { "$ref": "#/$defs/decimalString" },
+        "unlanded_orders": { "type": "integer", "minimum": 0 }
       }
     },
     "FeeSensitivity": {

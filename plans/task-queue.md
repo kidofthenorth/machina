@@ -6740,7 +6740,7 @@ ANY change to `cell.rs` or `portfolio`; either shasum moves.
 
 ---
 
-### M-HF-C8.7d — `SweepReport` additive HF extension + schema 1.4.0 — `TODO` ⚠️ the sweep shasum MOVES here, by design
+### M-HF-C8.7d — `SweepReport` additive HF extension + schema 1.4.0 — `DONE`
 
 **Goal.** Give the report layer the HF fields C8.7f will populate: an optional per-candidate
 `hf_rungs` block and optional `cost_drag_share`/`per_trade_edge` evidence strings. Additive per

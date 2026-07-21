@@ -9,8 +9,8 @@ use rust_decimal_macros::dec;
 use serde_json::{json, Value};
 use sweep::report::CandidateMetricsDto;
 use sweep::{
-    evaluate_candidate, AdvancementThresholds, CandidateEvidence, FeeSensitivity, RejectionKind,
-    ScenarioId, ScenarioMetrics, SweepReport, Verdict,
+    evaluate_candidate, AdvancementThresholds, CandidateEvidence, FeeSensitivity, HfRungsDto,
+    RejectionKind, ScenarioId, ScenarioMetrics, SweepReport, Verdict,
 };
 
 fn schema() -> Value {
@@ -128,7 +128,7 @@ fn m4_shape_report_validates_under_1_2_0() {
     let report = SweepReport::new(&thresholds(), 1, vec![], vec![]);
     assert_valid(&report.to_value());
     let value = report.to_value();
-    assert_eq!(value["schema_version"], json!("1.3.0"));
+    assert_eq!(value["schema_version"], json!("1.4.0"));
     assert!(value["thresholds"]["turnover_budget"].is_string());
     assert!(value["thresholds"].get("cost_drag_share_ceiling").is_none());
     assert!(value["thresholds"].get("per_trade_edge_floor").is_none());
@@ -224,6 +224,63 @@ fn candidate_rejects_additional_properties() {
         !validator().is_valid(&value),
         "additionalProperties:false must reject unknown candidate fields"
     );
+}
+
+#[test]
+fn candidate_with_full_hf_block_validates() {
+    let hf_rungs = HfRungsDto::new(
+        &scenario_metrics(ScenarioId::HotCongestion, dec!(0.18)),
+        &scenario_metrics(ScenarioId::AdversarialWorst, dec!(0.05)),
+        &scenario_metrics(ScenarioId::Latency2x, dec!(0.15)),
+        3,
+        dec!(0.75),
+        2,
+    );
+    let candidate = sample_candidate().with_hf(hf_rungs, Some(dec!(0.4)), Some(dec!(0.002)));
+    let report = SweepReport::new(&thresholds(), 1, vec![], vec![candidate]);
+    let value = report.to_value();
+    assert_valid(&value);
+    assert_eq!(value["candidates"][0]["cost_drag_share"], json!("0.4"));
+    assert_eq!(value["candidates"][0]["per_trade_edge"], json!("0.002"));
+    assert_eq!(
+        value["candidates"][0]["hf_rungs"]["adverse_selection_hits"],
+        json!(3)
+    );
+    assert_eq!(
+        value["candidates"][0]["hf_rungs"]["unlanded_orders"],
+        json!(2)
+    );
+}
+
+#[test]
+fn hf_rungs_rejects_additional_properties() {
+    let hf_rungs = HfRungsDto::new(
+        &scenario_metrics(ScenarioId::HotCongestion, dec!(0.18)),
+        &scenario_metrics(ScenarioId::AdversarialWorst, dec!(0.05)),
+        &scenario_metrics(ScenarioId::Latency2x, dec!(0.15)),
+        3,
+        dec!(0.75),
+        2,
+    );
+    let candidate = sample_candidate().with_hf(hf_rungs, Some(dec!(0.4)), Some(dec!(0.002)));
+    let report = SweepReport::new(&thresholds(), 1, vec![], vec![candidate]);
+    let mut value = report.to_value();
+    assert!(validator().is_valid(&value));
+    value["candidates"][0]["hf_rungs"]["surprise"] = json!("not allowed");
+    assert!(
+        !validator().is_valid(&value),
+        "hf_rungs additionalProperties:false must reject unknown fields"
+    );
+}
+
+#[test]
+fn candidate_without_hf_fields_omits_them_entirely() {
+    let report = SweepReport::new(&thresholds(), 1, vec![], vec![sample_candidate()]);
+    let value = report.to_value();
+    assert_valid(&value);
+    assert!(value["candidates"][0].get("cost_drag_share").is_none());
+    assert!(value["candidates"][0].get("per_trade_edge").is_none());
+    assert!(value["candidates"][0].get("hf_rungs").is_none());
 }
 
 #[test]

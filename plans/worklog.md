@@ -2023,3 +2023,38 @@ branch main, zero commits, bootstrap files staged (its own repo). History preser
 current-state.md/worklog/task-queue — nothing deleted, only the handoff compressed. Staged:
 `plans/handoff.md`, `plans/worklog.md`. Next: paste the C8.7d executor seed into a fresh chat;
 ⛔ REVIEW-C8.4-SEAL still awaits operator go-ahead before C8.7f.
+
+**2026-07-21 — M-HF-C8.7d DONE: `SweepReport` additive HF extension, schema 1.3.0→1.4.0.**
+Added `HfRungsDto` (report.rs) + three optional `skip_serializing_if`-absent fields on
+`CandidateMetricsDto` (`cost_drag_share`, `per_trade_edge`, `hf_rungs`, appended after
+`fee_sensitivity`) + `with_hf` builder; `SWEEP_SCHEMA_VERSION` → `"1.4.0"`; schema gained
+`$defs.HfRungs` + the three new `CandidateMetrics` properties (additive only, `required`
+unchanged); `lib.rs` exports `HfRungsDto`; `schema_validation.rs` version assert flipped to
+1.4.0 plus 3 new tests (full `with_hf` block validates, `hf_rungs` rejects an unknown property,
+a candidate without the new fields still validates absent-not-null). Gate: **478 passed / 0
+failed / 1 ignored** (up from the 475 baseline re-confirmed pre-change this session); demo
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2, unchanged); sweep shasum **moved by design**
+94e90c3c6060a11feddd8d55a19accf07a86f7d8 → `f6e1ab5132754d69c3a2be23fc549df36c07909f`;
+sweep-verify OK (byte-identical across threads at new content). Before/after `cargo run -p cli
+-- sweep` diff is version-only: `"schema_version": "1.3.0"` → `"1.4.0"`, no other line changed.
+Staged: `crates/sweep/src/report.rs`, `crates/sweep/src/lib.rs`,
+`crates/sweep/tests/schema_validation.rs`, `schemas/sweep-report.schema.json`,
+`plans/task-queue.md`. Next: C8.7e.
+
+**2026-07-21 — Planner verification: C8.7d ACCEPTED; pointers + handoff refreshed (one slice).**
+FOREMAN §6 pass on the executor report above: gate re-run by the planner — **478 passed / 0
+failed / 1 ignored**; demo `ae064f79242f823ffd8f55bf9104e3e1b45d425a` ×2 unchanged; sweep
+`f6e1ab5132754d69c3a2be23fc549df36c07909f` (moved exactly once, at C8.7d, per decision D-a);
+sweep-verify OK (18990 bytes); no-exec-deps OK. Staged diff read line-by-line against the
+card's 6 steps: additive-only (`required` lists untouched, `$defs.HfRungs`
+`additionalProperties:false` all-six-required), fields appended after `fee_sensitivity`,
+`::new` sets all three `None`, `with_hf` `#[must_use]`, version-only sweep diff reproduced by
+the gate shasums; 3 new tests account exactly for 475→478; file scope exactly the card's 4
+files + queue/worklog. Nit corrected on the record: the executor's staged-list line above
+omitted `plans/worklog.md` itself — the true slice includes it. Same pass: current-state.md
+updated (C8.7c recorded as landed `02afbeb`; C8.7d DONE; next-up C8.7e), handoff.md rewritten
+from regenerated baselines (`scripts/handoff-baselines.sh`; siblings re-checked: quant-sweep
+`874d8eb` clean, drift-harvester zero commits bootstrap staged), C8.7e executor seed drafted.
+Staged as ONE slice: the 4 card files + `plans/task-queue.md`, `plans/worklog.md`,
+`plans/current-state.md`, `plans/handoff.md`. Next: operator commits, then C8.7e in a fresh
+chat; ⛔ REVIEW-C8.4-SEAL still awaits operator go-ahead before C8.7f.
