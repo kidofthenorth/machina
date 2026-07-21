@@ -6899,9 +6899,9 @@ card's inputs cannot supply; either shasum moves.
 
 ---
 
-### ⛔ REVIEW-C8.4-SEAL — the standing 7-lens FOREMAN §3 review runs HERE, before C8.7f
+### REVIEW-C8.4-SEAL — the standing 7-lens FOREMAN §3 review — `DONE` (2026-07-21, PASS-with-rulings)
 
-**This is the last cheap moment**: C8.7f is the first code that actually calls
+**This was the last cheap moment**: C8.7f is the first code that actually calls
 `IntradayPartitionedBars::from_spec` → `seal_holdout()` → (never) `evaluate_intraday_on_holdout`.
 The lens list is pinned in the C8.6 reconciliation section above (forgery, call-once,
 no-accessor, spacing-hygiene, boundary/off-by-one, determinism, forward-fit). **Operator
@@ -6909,6 +6909,20 @@ go-ahead REQUIRED** (multi-agent spend; `review-lens` agents, `model: 'sonnet'`,
 report-only; skeptic pass + the §7 pre-committed decision rule). Feed lens 7 (forward-fit) the
 C8.7 reconciliation's drift item 3 (the materialized-Vec seal surface) and decision D-e/D-d.
 Confirmed blocker/major → STOP, the finding becomes a card BEFORE C8.7f runs.
+
+**VERDICT (2026-07-21, operator go-ahead received; 7 lenses + 8 skeptics, full record in the
+worklog): PASS-with-rulings — 0 blockers; C8.7f UNBLOCKED.** Forgery, no-accessor, determinism:
+NO FINDINGS (compile_fail doctests verified failing for their intended reasons; float-free
+content-order digest; `!Sync` seal). Spacing lens: the fixture's A/B against the daily
+validator is structurally discriminating (the top Escalate-if risk is refuted); its
+resolution-literal MINOR was REFUTED by skeptics (all reachable mismatch paths fail-closed).
+Call-once MINOR CONFIRMED + recorded as accepted design (counts-not-blocks; at-most-once is
+type-enforced, S9-precedented; no runtime guard added — it would break the audit-counter
+contract). Boundary MINOR CONFIRMED + FIXED under §7's test-only allowance
+(`by_date_degenerate_cuts_are_rejected_via_the_date_path`, gate 486/0/1, shasums unchanged).
+Forward-fit MAJOR CONFIRMED (no HF-priced holdout gateway carded anywhere) → **carded as
+M-HF-C8.8 below**, per the pre-committed rule; lens 7 also confirmed C8.7f's planned call
+shapes line up exactly (no adapter needed).
 
 ---
 
@@ -7104,6 +7118,35 @@ decision on fixture size); any needed change outside the 1 file.
 **After C8.7g:** convene the post-C8.7 FOREMAN §3 review (operator-gated), then the row-C8 gate
 declaration card (fresh evidence battery against m-hf-track's own row wording — never this
 session's claims).
+
+---
+
+### M-HF-C8.8 — `evaluate_intraday_hf_on_holdout`: the HF-priced holdout gateway — `TODO` (STUB — card-ify with the C9/C10 drafting wave; NOT part of row C8's gate)
+
+**Origin.** REVIEW-C8.4-SEAL confirmed-MAJOR (2026-07-21, both skeptics; worklog has the full
+record): the seal's only holdout gateway `evaluate_intraday_on_holdout`
+(`intraday_partition.rs:461-471`) is LF-shaped (`&CostModel` → `crate::cell::eval_cell`), while
+the track's real scoring engine is `eval_hf_cell` (`hf_cell.rs:96-118`: `&HfCostModel,
+&AdversarialModel, &LatencyPipeline, &[CongestionRegime], cell_id`). No HF-priced holdout read
+exists or is carded; the C10 research decision will need one. The danger this card prevents: a
+just-in-time lossy adapter downgrading the HF cost stack into a plain `CostModel`, understating
+costs on the one-shot, un-repeatable holdout read. (C8.4's own "flagged, not built, here" prose
+at task-queue.md:5735-5738 was a rationale note, not a card — this is the card.)
+
+**Shape (pinned by the review; every signature to be RE-COPIED verbatim at card-writing time,
+never trusted from here).** A sibling `evaluate_intraday_hf_on_holdout` INSIDE
+`intraday_partition.rs` (the `holdout` field is module-private, so the sibling must live there —
+additive; the sealed types and call-once semantics change ZERO). Consumes `IntradaySealed` by
+value; single `.read()`; scores through the SAME priced path as dev/val (cost-matched at the
+Base rung, per m-hf-track §3's "priced at the BASE rung"); returns the HF result shape. The LF
+gateway stays byte-untouched. Card-writer must run the construction-site sweep (every struct the
+card touches) and decide the `eval_hf_strategy` visibility question (it is private to
+`hf_cell.rs` today) in-session.
+
+**Sequencing.** Technically unblocked, deliberately deferred: C8.7f/g never read the holdout
+(row C8's gate asserts `holdout_read_count() == 0`), so this card is NOT in row C8's gate. It
+MUST be card-ified and executed with the C9/C10 wave, BEFORE any card whose steps read the
+holdout.
 
 ---
 

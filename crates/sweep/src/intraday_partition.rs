@@ -526,6 +526,32 @@ mod tests {
     }
 
     #[test]
+    fn by_date_degenerate_cuts_are_rejected_via_the_date_path() {
+        // A val_start before the first bar resolves (partition_point) to 0 → empty development;
+        // a holdout_start after the last bar resolves to n → empty holdout. Both rejections must
+        // fire via the DATE arm, not just the by_index one (REVIEW-C8.4-SEAL, boundary lens).
+        let before = PartitionSpec::ByDate {
+            val_start: Timestamp::from_unix(-5),
+            holdout_start: Timestamp::from_unix(7),
+        };
+        assert_eq!(
+            IntradayPartitionedBars::from_spec(series(10), &before).unwrap_err(),
+            IntradayPartitionError::DevelopmentEmpty
+        );
+        let after = PartitionSpec::ByDate {
+            val_start: Timestamp::from_unix(4),
+            holdout_start: Timestamp::from_unix(100),
+        };
+        assert_eq!(
+            IntradayPartitionedBars::from_spec(series(10), &after).unwrap_err(),
+            IntradayPartitionError::HoldoutEmpty {
+                holdout_start: 10,
+                n_bars: 10
+            }
+        );
+    }
+
+    #[test]
     fn holdout_is_a_separate_allocation_holding_the_tail_bars() {
         let pb =
             IntradayPartitionedBars::from_spec(series(10), &PartitionSpec::by_index(4, 7)).unwrap();

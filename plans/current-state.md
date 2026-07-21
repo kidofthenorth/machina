@@ -67,8 +67,15 @@ UNCHANGED; new `sweep::hf_aggregate::aggregate_hf` — one-pass HF sibling of th
 per D-b, shared-field recipes copied token-identical from `runner.rs`, D-g `cost_drag_share`/
 `per_trade_edge` finally `Some` with exact-Decimal `None` guards, D-h rung rollups with BASE-rung
 counter sums; `runner.rs` touched by exactly one visibility token on `neighbor_indices`; LF
-`aggregate_evidence`/`aggregate_fee_sensitivity` byte-untouched). Next up: **⛔ REVIEW-C8.4-SEAL**
-(the 7-lens seal review — operator go-ahead REQUIRED, multi-agent spend; blocks C8.7f). The FOREMAN §3 7-lens review of C8.4's
+`aggregate_evidence`/`aggregate_fee_sensitivity` byte-untouched). **REVIEW-C8.4-SEAL DONE 2026-07-21**
+(operator go-ahead; 7 lenses + 8 skeptics, Sonnet report-only: **PASS-with-rulings, 0
+blockers** — forgery/no-accessor/determinism clean; spacing's top risk refuted structurally;
+call-once MINOR recorded as accepted S9-precedented design; boundary MINOR fixed under §7's
+test allowance (new ByDate degenerate-rejection test → gate **486 / 0 / 1**, both shasums
+unchanged); resolution-literal MINOR refuted (all paths fail-closed); forward-fit MAJOR
+confirmed → carded as **M-HF-C8.8** stub (HF-priced holdout gateway, C9/C10 wave, not in row
+C8's gate)). Next up: a fresh **executor session on C8.7f** (`run_hf_sweep` capstone — BOTH
+shasums unchanged there; the seal review it waited on is ruled). The FOREMAN §3 7-lens review of C8.4's
 intraday holdout seal is now
 ORDERED IN THE QUEUE as ⛔ REVIEW-C8.4-SEAL, between C8.7e and C8.7f — operator go-ahead
 required; C8.7f's escalate-if enforces it.
@@ -285,8 +292,9 @@ flat probability instead.
   (2026-07-21, landed `a05880a`; 478/0/1, sweep shasum moved by design to
   `f6e1ab51…`, version-only diff per D-a). **C8.7e is DONE** (2026-07-21, staged awaiting
   operator commit; 485/0/1, both shasums unchanged, `sweep::hf_aggregate` pure, LF aggregation
-  byte-untouched). **The next step is ⛔ REVIEW-C8.4-SEAL — operator go-ahead required before
-  C8.7f.**
+  byte-untouched). **REVIEW-C8.4-SEAL is DONE** (2026-07-21: PASS-with-rulings, 0 blockers;
+  MAJOR carded as C8.8; one MINOR fixed as a test, gate 486/0/1; full record in the worklog).
+  **The next command is a fresh executor session on C8.7f.**
 - **Operator ruling HF-Q4 (this session):** `statarb_pairs_v1` gets a real two-leg engine (the
   precomputed-spread-series shortcut was rejected as a fabricated-edge risk). Because that is roughly
   as large as C1–C7 combined, it is scoped OUT of C8's gate into a deferred mini-track,

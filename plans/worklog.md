@@ -2091,3 +2091,51 @@ withheld until the seal-review verdict exists. Staged as ONE slice: the 3 card f
 `plans/task-queue.md`, `plans/worklog.md`, `plans/current-state.md`, `plans/handoff.md`.
 Next: operator commits, then rules on the ⛔ REVIEW-C8.4-SEAL go-ahead (multi-agent spend,
 Sonnet low effort); C8.7f stays blocked until the verdict is recorded.
+
+**2026-07-21 — REVIEW-C8.4-SEAL CONVENED + RULED: PASS-with-rulings, C8.7f UNBLOCKED.**
+Operator go-ahead received in-session. 15 Sonnet agents, report-only: 7 pinned lenses
+(task-queue.md C8.6 reconciliation list) + 8 skeptics (2 per surviving finding, §7). Target:
+`crates/sweep/src/intraday_partition.rs` at `e906607` before its first caller (C8.7f). Record:
+- **Forgery / no-accessor / determinism lenses: NO FINDINGS.** Each verified the compile_fail
+  doctests fail for their intended reasons (missing method / private field / moved value, with
+  passing same-shape canaries); `IntradayHoldout` never exported; both Debug impls redact;
+  digest is float-free content-order (Decimal serializes as strings) and empirically stable
+  cross-process; `Cell` makes the seal `!Sync` so cross-thread sharing is type-forbidden.
+- **Spacing lens:** the top Escalate-if risk is REFUTED structurally — the fixture asserts the
+  SAME bars pass the daily `validate_series` path and fail the intraday spacing path, so the
+  spacing check is provably the discriminator. Its MINOR (bare literal `1` at
+  intraday_partition.rs:178) was REFUTED by skeptic B on the failure mode: resolution≠1 with
+  any enabled family is rejected fail-closed at parse (`UnsupportedResolutionSecs`,
+  hf_spec.rs:341-342); genuinely mis-spaced data raises a loud `DataError::Gap`. Nothing
+  silent is reachable. Recorded; no card; residual = a doc-level note only.
+- **Call-once lens MINOR CONFIRMED (2/2 skeptics STANDS):** `read()` counts but never blocks
+  (intraday_partition.rs:114-117; the module's own test drives two silent reads). At-most-once
+  is enforced by move semantics + non-Clone + private ctor + the single gateway call site —
+  deliberate, byte-identical to the S9-reviewed daily seal. RULED: accepted design, recorded;
+  no runtime guard added (panic-on-second-read would break the audit-counter contract the M5
+  evidence used). Skeptic note kept on record: after legitimate by-value consumption the
+  counter is uninspectable, so C8.7g's read_count==0 gate cannot catch a future duplicate
+  internal read — convention + review guard that line.
+- **Boundary lens MINOR CONFIRMED (2/2 STANDS):** no arithmetic defect (half-open math
+  consistent; exact-boundary bar joins the later partition — safe for the holdout), but no
+  ByDate degenerate rejection was tested and the daily module HAS that class
+  (holdout_sealing.rs:181-191) — a duplication regression. RULED: FIXED under §7's test-only
+  allowance — new test `by_date_degenerate_cuts_are_rejected_via_the_date_path`
+  (before-first→DevelopmentEmpty, after-last→HoldoutEmpty, via the DATE arm). ~20 formatted
+  lines vs the nominal 10: planner ruled the overage acceptable on the record (test-only, zero
+  src lines, both confirmed halves of the gap closed).
+- **Forward-fit lens MAJOR CONFIRMED (2/2 STANDS, severity intact):** no HF-priced holdout
+  gateway exists or is carded anywhere (C8.4's "flagged, not built" is prose in a DONE card;
+  M4's precedent built its resolution-matched reader during engine construction; C10's row
+  names no function). RULED per the pre-committed rule: the finding is now **card M-HF-C8.8**
+  (stub, after C8.7g in the queue; sibling inside intraday_partition.rs, C9/C10 wave, NOT in
+  row C8's gate). C8.7f itself never reads the holdout, so the STOP lifts with the card on the
+  queue. Lens 7 also confirmed every C8.7f call shape lines up exactly (no adapter).
+Gate after the test fix (planner-run): **486 passed / 0 failed / 1 ignored** (485 + 1); demo
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a` ×2 unchanged; sweep
+`f6e1ab5132754d69c3a2be23fc549df36c07909f` unchanged; sweep-verify OK (18990 bytes);
+no-exec-deps OK. One skeptic misfired blank on first run and was re-prompted (same agent,
+verdict delivered second run — noted for the record). Staged as ONE slice:
+`crates/sweep/src/intraday_partition.rs`, `plans/task-queue.md` (REVIEW flip + C8.8 stub),
+`plans/worklog.md`, `plans/current-state.md`, `plans/handoff.md`. Next: C8.7f executor (seed
+in handoff.md).
