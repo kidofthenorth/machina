@@ -51,8 +51,13 @@ new `[latency]`/`[adversarial]`/`[congestion]` TOML blocks with 4 fail-closed li
 (`ZeroLatencyOffset`, `InvalidLandingProbability`, `InvalidAdversarialProbability`,
 `ZeroCongestionLookback`); `spec.rs` and all LF fixtures byte-untouched; nothing wired into
 execution; planner-verified same day — gate re-run at the staged tree, counts reproduced, both
-plan-pinned types confirmed, no duplicate types defined). Next up: a fresh **executor session
-on C8.7c** (seed prompt in handoff.md, refreshed). The FOREMAN §3 7-lens review of C8.4's
+plan-pinned types confirmed, no duplicate types defined). **C8.7c DONE 2026-07-21** (staged,
+awaiting operator commit; gate re-run: **475 / 0 / 1** (470 + 5), demo `ae064f79…` ×2 and sweep
+`94e90c3c…` unchanged; `sweep::hf_cell` adds `HfCellResult`, `eval_hf_strategy` (private),
+`eval_hf_cell` mirroring `cell.rs` line-for-line with `run_hf_priced` in place of `run`; `cell.rs`
+and `portfolio` byte-untouched; `finite()` duplicated, not exported; zero callers outside its own
+tests + the lib.rs re-export). Next up: a fresh **executor session on C8.7d** (the sweep shasum
+MOVES there, by design — schema 1.3.0→1.4.0). The FOREMAN §3 7-lens review of C8.4's
 intraday holdout seal is now
 ORDERED IN THE QUEUE as ⛔ REVIEW-C8.4-SEAL, between C8.7e and C8.7f — operator go-ahead
 required; C8.7f's escalate-if enforces it.
@@ -86,11 +91,12 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   **Holdout read count: 0** — the seal and the 2026-01-01..2026-06-30 holdout survive unseen.
   Step-0 pre-declaration review: PASS (6 agents). A clean reject-all is a success of the gates:
   neither daily-bar family earns mainnet shadow; **no execution work starts.**
-- **PARKED 2026-07-20 (operator decision):** the **M-HF research track** (Q7/D-0012,
-  [m-hf-track.md](m-hf-track.md)) — frozen cleanly at **C8.7b DONE** (gate 470/0/1, shasums in
-  worklog); resume point is card C8.7c, unchanged. **machina has no active track while parked.**
-  The operator's primary build (Drift funding-rate shadow harvester, PLAN-001) lives in the
-  **sibling repo `../drift-harvester`** — same-day operator decision: each build keeps its own
+- **DOING (park lifted 2026-07-21 by operator action):** the **M-HF research track** (Q7/D-0012,
+  [m-hf-track.md](m-hf-track.md)) — parked 2026-07-20 at C8.7b DONE, then **resumed 2026-07-21**:
+  the operator fired executor card C8.7c (planner seed), landed + planner-verified (475/0/1,
+  shasums unchanged). Card execution continues at **C8.7d**.
+  The operator's other build (Drift funding-rate shadow harvester, PLAN-001) lives in the
+  **sibling repo `../drift-harvester`** — 2026-07-20 operator decision: each build keeps its own
   repo; machina's purpose statement stays as-is. Track history: entered
   2026-07-12: C1–C2.6 unblocked by operator note; HF-Q2 resolved (USDT + jitoSOL research
   allowlist); wave-1 cards C1/C2 reconciled against m-hf-track §1/§2 (IntraBar alias, typed

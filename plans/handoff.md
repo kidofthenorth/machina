@@ -1,11 +1,16 @@
 # Handoff — for a new chat continuing machina
 
-> **⚠️ SUPERSEDED NOTE, 2026-07-20 (read first):** the M-HF track described below was **PARKED**
-> by operator decision at C8.7b DONE (gate re-run twice 2026-07-20, identical: 470/0/1, demo
-> `ae064f79…`, sweep `94e90c3c…`, sweep-verify OK). machina has **no active card**: the
-> operator's primary build moved to the **sibling repo `../drift-harvester`** (PLAN-001, Drift
-> funding-rate shadow harvester — each build keeps its own repo). Do NOT pick up card C8.7c
-> unless the operator un-parks M-HF. Everything below is kept for the eventual resume.
+> **⚠️ STATUS NOTE (read first), updated 2026-07-21:** the 2026-07-20 PARK of the M-HF track
+> (recorded in the worklog) was **LIFTED for card execution by operator action on 2026-07-21**:
+> the operator fired executor card C8.7c with the planner's seed prompt; it landed and was
+> planner-verified (475/0/1, shasums unchanged). **M-HF card execution is ACTIVE again**; the
+> operator's other build (PLAN-001, Drift funding-rate shadow harvester) continues in the
+> sibling repo `../drift-harvester` — each build keeps its own repo.
+>
+> **Role rule (added 2026-07-21 after observed drift):** EXECUTOR sessions end at the stop —
+> flip the card, one worklog line, stage, report. Executors NEVER draft commit messages or
+> next-session seed prompts; those are PLANNER deliverables (FOREMAN §5/§6), produced only
+> after the planner re-verifies. An executor-fabricated handoff is discarded unread.
 
 You are picking up a build where **M5 is CLOSED (reject-all, holdout unread) and the M-HF
 research track is ACTIVE**. Cards **C1–C2.6, C3/C4/C5, C5.1, and C6 are all DONE**; the C3–C5
@@ -59,9 +64,14 @@ hf_scenarios::HfLatencyParams`, `pub adversarial: portfolio::AdversarialModel`, 
 blocks, with 4 fail-closed parse-time lints (`ZeroLatencyOffset`,
 `InvalidLandingProbability`, `InvalidAdversarialProbability`, `ZeroCongestionLookback`) and 6
 new tests — parse-only held (`spec.rs` + LF fixtures byte-untouched; the only `HfSweepSpec`
-consumer is still the lib.rs re-export). Workspace is now **470 passed / 0 failed /
-1 ignored**; demo `ae064f79…` and sweep `94e90c3c…` both UNCHANGED.
-**The next command is a fresh EXECUTOR session on C8.7c** (seed prompt below). **The FOREMAN kit is fully activated as of 2026-07-19:** the gate is
+consumer is still the lib.rs re-export). **C8.7c is DONE (2026-07-21, staged awaiting operator
+commit, planner-verified):** `sweep::hf_cell` — `HfCellResult` + `eval_hf_cell` +
+`pub(crate) eval_hf_strategy` mirroring `cell.rs` line-for-line with `run_hf_priced` in place
+of `run`; `cell.rs`/`portfolio` byte-untouched; `finite()` duplicated, never exported; zero
+callers outside its own tests + the lib.rs re-export; 5 new tests. Workspace is now
+**475 passed / 0 failed / 1 ignored**; demo `ae064f79…` and sweep `94e90c3c…` both UNCHANGED.
+**The next command is a fresh EXECUTOR session on C8.7d — the ONE card where the sweep shasum
+MOVES by design** (seed prompt below). **The FOREMAN kit is fully activated as of 2026-07-19:** the gate is
 `bash scripts/gate.sh` (run unprompted; paste its counts), handoff baselines come from
 `bash scripts/handoff-baselines.sh` (never hand-typed), the cadence is declared in AGENTS.md
 §Cadence, and `.claude/agents/` has `card-executor` + `review-lens` roles (model: sonnet —
@@ -185,11 +195,11 @@ Audit + staged-diff record: [plans/review-packet.md](review-packet.md). Chronolo
 ## Verified state (re-confirm on a fresh checkout)
 
 **One command — `bash scripts/gate.sh`** (fmt + clippy + full tests + demo×2 determinism +
-sweep shasum + sweep-verify + no-exec-deps scan; exit 0 = green). Last run 2026-07-20 at the
-C8.7b staged tree (HEAD `52221c2` + staged C8.7b; planner re-run, not relayed), printed:
+sweep shasum + sweep-verify + no-exec-deps scan; exit 0 = green). Last run 2026-07-21 at the
+C8.7c staged tree (HEAD `fedeb7c` + staged C8.7c; planner re-run, not relayed), printed:
 
 ```
-total: 470 passed; 0 failed; 1 ignored
+total: 475 passed; 0 failed; 1 ignored
 demo shasum: ae064f79242f823ffd8f55bf9104e3e1b45d425a (x2 identical)
 sweep shasum: 94e90c3c6060a11feddd8d55a19accf07a86f7d8
 sweep-verify: OK — byte-identical across sequential, 2 and 8 threads, and repeat (18990 bytes)
@@ -229,9 +239,9 @@ needed. C8.4 (intraday holdout seal, S9-pattern) and C8.5 (HF-kind spec parsing)
 both DONE. **C8.7's own planner reconciliation pass is DONE (2026-07-20)**: the row-C8 gate is
 now seven signature-pinned executor cards **C8.7a–C8.7g** in task-queue.md, executed in order
 with the ⛔ REVIEW-C8.4-SEAL checkpoint (operator-gated 7-lens review) between C8.7e and C8.7f.
-**C8.7a and C8.7b are DONE** (2026-07-20, planner-verified — C8.7a at `8d187ef`; C8.7b staged,
-470/0/1, shasums unchanged, parse-only held; CARD-HYG-3 folded in and closed). Next up: a
-fresh executor session on **C8.7c**.
+**C8.7a, C8.7b, and C8.7c are DONE** (planner-verified — C8.7a at `8d187ef`; C8.7b at
+`fedeb7c`; C8.7c staged 2026-07-21, 475/0/1, shasums unchanged; CARD-HYG-3 folded in and
+closed). Next up: a fresh executor session on **C8.7d** (sweep shasum moves there by design).
 **`statarb_pairs_v1` (survey §1.6, SOL/LST
 pair) is scoped OUT of C8 into a deferred mini-track, `M-HF-C8-PAIR`** (operator ruling HF-Q4,
 2026-07-16: build the real two-leg engine, not a precomputed-spread approximation, because the
@@ -288,38 +298,39 @@ Do NOT start M6+ (network), and never M8/M9 (signing/submission — separate exp
 
 ---
 
-## Seed prompt for the new chat — EXECUTOR on card M-HF-C8.7c (the next command)
+## Seed prompt for the new chat — EXECUTOR on card M-HF-C8.7d (the next command)
 
 > You are the EXECUTOR for **machina** (`solana-crypto-trader`) — a paper-first, Solana-focused
 > trading-research platform in Rust built toward **genuine autonomous passive income**, earned
 > strictly through milestone gates. Current phase: the M-HF research track on SYNTHETIC data
 > only — no keys, no signing, no RPC, no network anywhere.
 >
-> **State (2026-07-20):** M-HF C1–C7, C8.1–C8.6b, C8.7a, and C8.7b DONE + planner-verified;
-> workspace green at **470 passed / 0 failed / 1 ignored**; demo shasum
+> **State (2026-07-21):** M-HF C1–C7, C8.1–C8.6b, and C8.7a–C8.7c DONE + planner-verified;
+> workspace green at **475 passed / 0 failed / 1 ignored**; demo shasum
 > `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2); sweep shasum
 > `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; sweep-verify OK. Your first act: run
 > `bash scripts/gate.sh` and confirm the world matches these numbers.
 >
-> **Your task is card M-HF-C8.7c in `plans/task-queue.md`** (section "M-HF-C8.7 planner
-> reconciliation (2026-07-20)"): `sweep::hf_cell` — the priced HF cell-evaluation core, the HF
-> sibling of `cell.rs` wrapping `run_hf_priced`. Read the queue's common rules, the section
-> preamble's pinned decisions D-a…D-h, then the card. It is self-contained — do not open files
-> it doesn't name; do not do more than it says.
+> **Your task is card M-HF-C8.7d in `plans/task-queue.md`** (section "M-HF-C8.7 planner
+> reconciliation (2026-07-20)"): the `SweepReport` additive HF extension + schema
+> **1.3.0 → 1.4.0**. Read the queue's common rules (including the 2026-07-21 role rule), the
+> section preamble's pinned decisions D-a…D-h, then the card. It is self-contained — do not
+> open files it doesn't name; do not do more than it says. This card is the ONE sanctioned
+> exception to the never-edit-schemas rule: exactly the additive `sweep-report.schema.json`
+> changes its steps specify, nothing else.
 >
-> The 3 ways THIS card most likely goes wrong: (1) `run_hf_priced`'s verbatim-quoted signature
-> doesn't match HEAD — the card is wrong, not the code: STOP, don't adapt; (2) the mirror
-> tempts you to edit `cell.rs` or anything in `portfolio` — this card is sweep-side only:
-> duplicate the small `finite()` helper, never export it from `cell.rs`; if the mirror can't
-> work without touching those files, STOP and report; (3) wiring creep — `eval_hf_cell` must
-> end this card with zero callers outside its own tests + the lib.rs re-export, and BOTH
-> shasums must be unchanged (if either moves, STOP). Hand-build `LatencyPipeline`/regime
-> fixtures exactly as `hf_priced.rs`'s own tests do — never a new fixture framework.
+> **Unique to this card: the sweep shasum MOVES, by design.** Capture the LF sweep output
+> BEFORE your change (`cargo run -q -p cli -- sweep > /tmp/sweep-before.json`), re-run after,
+> and diff: the ONLY changed line must be `schema_version` `"1.3.0"` → `"1.4.0"`. Do NOT stop
+> on that expected hash move — record the NEW sweep shasum in the flip and worklog line. STOP
+> only if the diff shows ANY other line, the demo shasum moves, or a
+> `CandidateMetricsDto` struct-literal construction site surfaces (compile error).
 >
-> When the gate passes: flip C8.7c, one dated worklog line with the gate counts, stage exactly
-> the card's 2 files + the two plan files, stop — C8.7d gets a fresh chat (heads-up: C8.7d is
-> the one card where the sweep shasum MOVES by design; not your problem this session). If any
-> escalate-if triggers: STOP, record the mismatch in the worklog, report. Never
-> `git commit`/`push`; never add co-author trailers; never stage `.claude/` or `data/`; never
-> create keys/signing/submission paths; never edit schemas or `plans/master-plan.md`/
-> `solana-crypto-trader-plan.md`; determinism and fixed-point money are non-negotiable.
+> When the gate passes: flip C8.7d, one dated worklog line with the gate counts AND the new
+> sweep shasum + the version-only diff pasted as evidence, stage exactly the card's 4 files +
+> the two plan files, report, STOP. **Executors never draft commit messages or next-session
+> prompts — the planner does that after re-verifying.** If any escalate-if triggers: STOP,
+> record the mismatch in the worklog, report. Never `git commit`/`push`; never add co-author
+> trailers; never stage `.claude/` or `data/`; never create keys/signing/submission paths;
+> never edit `plans/master-plan.md`/`solana-crypto-trader-plan.md`; determinism and
+> fixed-point money are non-negotiable.

@@ -1,10 +1,10 @@
 # M-HF — High-frequency research track (milestone plan)
 
-> **⏸ PARKED 2026-07-20 (operator decision)** — frozen cleanly at card C8.7b DONE (workspace
-> 470/0/1 green, shasums recorded in worklog). Next card on resume: C8.7c. The operator's
-> primary build moved to the **sibling repo `../drift-harvester`** (PLAN-001, Drift funding-rate
-> shadow harvester); machina has no active card until this track is un-parked. Nothing here is
-> abandoned; resuming means picking C8.7c back up unchanged.
+> **▶ RESUMED 2026-07-21 (operator action)** — parked 2026-07-20 at C8.7b DONE (470/0/1), then
+> the operator fired executor card C8.7c on 2026-07-21; it landed and was planner-verified
+> (475/0/1, shasums unchanged). Card execution continues at **C8.7d** (task-queue.md). The
+> operator's other build (PLAN-001, Drift funding-rate shadow harvester) continues in the
+> sibling repo `../drift-harvester` — each build keeps its own repo.
 
 **Status: AUTHORED 2026-07-09 (Q7 amendment, operator GO of the same date).** This is the formal
 milestone plan the Q7 amendment points at — the successor to the idea draft

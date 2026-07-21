@@ -1967,3 +1967,45 @@ executor seed prompt into a fresh session.
 2026-07-20 — PLANNING SESSION (operator present): **Lane B (Polymarket bot) killed by jurisdiction; PLAN-001 authored; M-HF PARKED.** Operator is in Quebec — Polymarket made CA-QC close-only on frontend AND API 2026-07-06 (verified against docs.polymarket.com/api-reference/geoblock this date; Kalshi has no Canadian API path either). Operator decisions: promote the delta-neutral funding harvest to primary; venue = Drift single-venue (jitoSOL collateral + short SOL-PERP); scope = shadow run + go/no-go, zero money-moving code; park M-HF at C8.7b DONE (resume point C8.7c); escalations = none beyond standing money gates. Changes (docs only, no code): NEW `plans/PLAN-001-drift-funding-shadow.md` (draft — needs adversarial review before M1); PARKED banner in `plans/m-hf-track.md`; superseded-note atop `plans/handoff.md`; `plans/current-state.md` DOING→PLAN-001 + M-HF PARKED entry; `AGENTS.md` north-star + status updated. Gate re-run before this entry: **PASS — 470 passed / 0 failed / 1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (x2 identical); sweep shasum `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; sweep-verify OK (byte-identical seq/2/8 threads + repeat); no-exec-deps OK. Staged: the six files above. Next step: adversarial review of PLAN-001, then card M1 (`drift-data` read-only client — first deliberate network dep, invariant amendment in the same diff).
 
 2026-07-20 — FOLLOW-UP (same session, operator correction): **PLAN-001 moved OUT of machina into the new sibling repo `../drift-harvester`; machina's identity restored.** Operator: "machina stays machina — each build gets its own repo." Reverted the AGENTS.md purpose paragraph to its original wording verbatim (spot-trading north star); status line now reads M-HF PARKED at C8.7b (unchanged) + primary build in sibling repo, no new-primary-path claim. Pointer fixes in the same pass: m-hf-track.md PARKED banner, handoff.md superseded-note, and current-state.md (DOING entry removed; PARKED entry points at ../drift-harvester). `plans/PLAN-001-drift-funding-shadow.md` removed via git rm — it lives (adapted) at `../drift-harvester/plans/`. The new repo was bootstrapped with the repo-kit (source: this repo's `docs/repo-kit/`, byte-identical to ibkr-bot's copy; `~/Downloads/repo-kit` master unreachable — TCC permission block, flagged to operator). Gate re-run before this entry (docs-only changes): **PASS — 470 passed / 0 failed / 1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (x2 identical); sweep shasum `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; sweep-verify OK; no-exec-deps OK. Staged: AGENTS.md, plans/current-state.md, plans/m-hf-track.md, plans/handoff.md, plans/worklog.md, PLAN-001 removal. M-HF parking decision itself stands (D: operator, this date).
+
+2026-07-21 — EXECUTOR SESSION: **Card M-HF-C8.7c DONE — `sweep::hf_cell`, the priced HF cell-evaluation core.** Baseline re-verified at session start (`bash scripts/gate.sh`): 470 passed / 0 failed / 1 ignored; demo `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2); sweep `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; sweep-verify OK — matched the card's pinned baseline exactly. Verified `run_hf_priced`'s signature (`hf_priced.rs:152-164`), `HfPricedRunOutput`/`HfRunOutput` (`hf_priced.rs:65-71`, `latency.rs:314-319`), and `cell.rs`'s `eval_strategy`/`CellResult` shape against HEAD before writing anything — all matched the card's verbatim block. Added `crates/sweep/src/hf_cell.rs` (NEW): `HfCellResult { cell: CellResult, unlanded_orders, adverse_selection_hits, adverse_selection_paid_quote }`; `eval_hf_strategy` (private) mirroring `cell.rs:71-104` line-for-line with `run_hf_priced` in place of `run`; `eval_hf_cell` (pub) delegating via `build_strategy`; `finite()` duplicated verbatim, never exported from or imported out of `cell.rs`. 5 new tests: matches-a-directly-wired-run, determinism across repeat calls, `slippage_paid_quote == 0` always, empty-bars → `HfError::Sim(SimError::NoBars)`, regimes-length mismatch → `HfError::RegimesLength`. Fixtures hand-built exactly as `hf_priced.rs`'s own test (`hf_priced.rs:394-409`) — no new fixture framework. `crates/sweep/src/lib.rs`: `pub mod hf_cell;` + `pub use hf_cell::{eval_hf_cell, HfCellResult};` (additive only). Zero edits to `cell.rs` or any `portfolio` file — grep-confirmed both untouched. Gate re-run after the change: **475 passed / 0 failed / 1 ignored** (470 + 5, matches the card's math); demo `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2 identical, unchanged); sweep `94e90c3c6060a11feddd8d55a19accf07a86f7d8` (unchanged); sweep-verify OK; no-exec-deps OK; **GATE: PASS**. `eval_hf_cell`/`HfCellResult` have zero callers outside their own tests + the lib.rs re-export — unwired, as the card requires (C8.7f is the first real caller). Staged: `crates/sweep/src/hf_cell.rs`, `crates/sweep/src/lib.rs`, `plans/task-queue.md` (C8.7c flipped TODO→DONE), `plans/current-state.md` (C8.7c DONE entry appended, next-up pointer moved to C8.7d). No escalate-if triggers fired. Next: a fresh executor session on **C8.7d** — heads-up already on record: the sweep shasum MOVES there by design (schema 1.3.0→1.4.0, version-only diff expected).
+
+## 2026-07-21 — Planner verification of M-HF-C8.7c + park lifted + two process corrections (FOREMAN §6/§8)
+
+**C8.7c VERIFIED** at the staged tree (HEAD `fedeb7c` + staged C8.7c). Re-run + re-checked, not
+relayed: staged scope exactly the card's 2 files + queue/current-state/worklog flips; `cell.rs`
+and all of `portfolio` absent from the staged name list; `eval_hf_cell`/`HfCellResult`'s only
+non-test caller is the lib.rs re-export (unwired — C8.7f is the first caller); `hf_cell.rs`
+read in full — faithful line-for-line mirror of `cell.rs` with `run_hf_priced` in place of
+`run`, `finite()` duplicated not exported, fixtures hand-built per `hf_priced.rs`'s own tests;
+5 new tests match the card's list (a)–(e). Gate re-run by the planner: `475 passed; 0 failed;
+1 ignored` (470 + 5) · demo `ae064f79…` (×2 identical) · sweep `94e90c3c…` · sweep-verify OK ·
+no-exec-deps OK · **GATE: PASS**.
+
+**Park lifted by operator action.** The operator fired C8.7c on 2026-07-21 with the planner's
+seed prompt — the 2026-07-20 PARK stands lifted for M-HF card execution (banner updated in
+m-hf-track.md, handoff.md status note, current-state.md PARKED→DOING). PLAN-001 continues in
+`../drift-harvester`, unchanged. (D: operator, by action, 2026-07-21.)
+
+**Correction 1 — executor role drift (recorded + ruled, artifact changed same pass):** the
+C8.7c executor, after finishing in-scope work, fabricated a commit message (in `git commit -m`
+command form — banned) and a full C8.7d next-session prompt — planner deliverables it was
+never asked for. Both discarded unread; the executor's in-scope work verified clean. Rule
+added to task-queue.md's C8.7 section ("Role rule, 2026-07-21") and baked into the handoff
+status note + the seed template's stop paragraph: executors never draft commit messages or
+seed prompts; planner-only, post-verification.
+
+**Correction 2 — commit-slicing failure recurred (F5 pattern, D-0014):** `fedeb7c` carries the
+C8.7b card message ("parse-only", 2 files named) but actually contains 8 files — the card,
+BOTH park-session plan passes (AGENTS.md, m-hf-track.md, handoff.md, current-state.md,
+PLAN-001 removal), and the planner's slice-2 pointer edits; the separate
+"C8.7b planner-verified" pointer commit was never made. History not rewritten (remote exists;
+operator has moved on) — recorded here so the label mismatch is on the record. **Process
+change to remove the failure mode: from C8.7c on, ONE commit per card** — card files +
+planner-verification pointer edits staged together, one message naming both. No more two-slice
+handovers.
+
+Staged (single slice, new process): `crates/sweep/src/hf_cell.rs`, `crates/sweep/src/lib.rs`,
+`plans/task-queue.md`, `plans/current-state.md`, `plans/handoff.md`, `plans/m-hf-track.md`,
+`plans/worklog.md`. Next: paste the C8.7d executor seed prompt (handoff.md) into a fresh
+session. Standing: ⛔ REVIEW-C8.4-SEAL still needs the operator go-ahead before C8.7f.

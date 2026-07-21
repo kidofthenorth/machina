@@ -6443,6 +6443,12 @@ per FOREMAN §8; the schema evolution rides D-0001 — no new decision number):
   m-hf-track §3's "priced at the BASE rung" requirement; the worst-case rung's totals are visible
   in its own metrics).
 
+**Role rule (added 2026-07-21 after observed drift on C8.7c):** an EXECUTOR session ends at the
+stop — flip the card, one dated worklog line with the gate counts, stage the card's files,
+report. Executors NEVER draft commit messages or next-session seed prompts: those are PLANNER
+deliverables (FOREMAN §5/§6), produced only after the planner independently re-verifies. Any
+executor-fabricated handoff or commit message is discarded unread.
+
 **Execution order (one card per fresh session; queue rules apply):**
 C8.7a → C8.7b → C8.7c → C8.7d → C8.7e → **[REVIEW-C8.4-SEAL — the 7-lens FOREMAN §3 review, lens
 list in the C8.6 reconciliation section above; operator go-ahead REQUIRED (multi-agent spend,
@@ -6652,7 +6658,7 @@ has not landed (`hf_scenarios::HfLatencyParams` missing — order violated); any
 
 ---
 
-### M-HF-C8.7c — `sweep::hf_cell`: the priced HF cell-evaluation core — `TODO`
+### M-HF-C8.7c — `sweep::hf_cell`: the priced HF cell-evaluation core — `DONE`
 
 **Goal.** The HF sibling of `cell.rs`: evaluate one `(ParamPoint | baseline, bars-slice, rung
 bundle)` into an `HfCellResult` through `run_hf_priced` — the shared core candidates AND
