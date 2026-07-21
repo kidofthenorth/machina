@@ -81,3 +81,20 @@ bands = [
 calm_lamports = 1000
 busy_lamports = 10000
 hot_lamports = 100000
+
+# ── latency + landing (flat wave-1 params; the (regime, percentile) table is C9+) ──
+[latency]
+offset_bars = 1
+p_land_num = 9
+p_land_den = 10
+
+# ── adversarial base rung (C5's flat base-rung probability; worst-case is a ladder rung) ──
+[adversarial]
+sandwich_bps = 5
+pickoff_bps = 5
+p_adverse_num = 1
+p_adverse_den = 20
+
+# ── congestion classifier (C8.6a) trailing-volume lookback, in bars ──
+[congestion]
+lookback = 300

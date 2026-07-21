@@ -6566,7 +6566,7 @@ shasum moves; an unlisted file seems needed.
 
 ---
 
-### M-HF-C8.7b — `HfSweepSpec` gains `[latency]` / `[adversarial]` / `[congestion]` (parse-only) — `TODO`
+### M-HF-C8.7b — `HfSweepSpec` gains `[latency]` / `[adversarial]` / `[congestion]` (parse-only) — `DONE`
 
 **Goal.** Close drift item 1: the HF spec must carry every parameter `run_hf_sweep` will need, so
 C8.7f reads ONE spec — parse-only, fail-closed lints, `spec.rs` and all LF fixtures byte-untouched

@@ -1911,3 +1911,59 @@ NEW C8.7b executor seed — parse-only cautions, resolve into C8.7a's `HfLatency
 `portfolio::AdversarialModel`, never duplicates), current-state.md (top block + next-command
 section). Staged: `plans/handoff.md`, `plans/current-state.md`, `plans/worklog.md` — plan
 files only. Next: paste the C8.7b executor seed prompt into a fresh session.
+
+**2026-07-20 — M-HF-C8.7b DONE (executor session).** `HfSweepSpec` gains `[latency]`/
+`[adversarial]`/`[congestion]` (parse-only): new private TOML mirror structs `LatencyToml`/
+`AdversarialToml`/`CongestionToml` added to `HfSweepSpecToml`; `HfSweepSpec` gains
+`pub latency: hf_scenarios::HfLatencyParams`, `pub adversarial: portfolio::AdversarialModel`,
+`pub congestion_lookback: usize`; 4 new fail-closed `HfSpecError` variants
+(`ZeroLatencyOffset`, `InvalidLandingProbability(u64,u64)`, `InvalidAdversarialProbability
+(u64,u64)`, `ZeroCongestionLookback`) with informative Display arms, checked after the existing
+`ZeroMaxLookback` lint, in that order; `hf-strategy-lab.example.toml` gained the three blocks
+appended after `[hf_cost.congestion_priority_table]`. 6 new tests (template resolves all three
+blocks to the pinned illustrative values; each of the 4 lints fires on a 1-line substitution;
+Display strings extended). Files touched: exactly the 2 the card named —
+`crates/sweep/src/hf_spec.rs`, `config/strategies/hf-strategy-lab.example.toml` — `spec.rs` and
+all LF TOML fixtures byte-untouched, nothing wired into execution. Gate:
+`bash scripts/gate.sh` → **470 passed / 0 failed / 1 ignored** (464 + 6); demo
+`ae064f79242f823ffd8f55bf9104e3e1b45d425a` (×2 identical); sweep
+`94e90c3c6060a11feddd8d55a19accf07a86f7d8` — **both shasums unchanged**, parse-only held;
+sweep-verify OK; no-exec-deps OK. Flipped C8.7b to `DONE` in task-queue.md; refreshed
+current-state.md (top block + C8.7 executor-status paragraph) to point next at C8.7c. Staged:
+`crates/sweep/src/hf_spec.rs`, `config/strategies/hf-strategy-lab.example.toml`,
+`plans/task-queue.md`, `plans/current-state.md`, `plans/worklog.md`. Never committed/pushed.
+Next: C8.7c gets a fresh chat (handoff.md seed prompt needs refresh first — not done this
+session, out of this card's scope).
+
+## 2026-07-20 — Planner verification of M-HF-C8.7b (FOREMAN §6) — VERIFIED, next is C8.7c
+
+FOREMAN §6 verification of C8.7b at the staged tree (HEAD `52221c2`, executor slice staged,
+not yet committed). Re-run + re-checked, not relayed: staged scope is exactly the card's 2
+files + queue flip + worklog + current-state (the current-state refresh is beyond the card's
+minimum but is the status-truth file updated accurately in the same diff — fine per AGENTS.md,
+noted, not drift). Diff read in full: 3 private TOML mirror structs; `HfSweepSpec` resolves
+into exactly the plan-pinned types — `crate::hf_scenarios::HfLatencyParams` and
+`portfolio::AdversarialModel`, NO duplicate types defined; 4 value-carrying `HfSpecError`
+variants with informative Display; lints fire in the card's listed order (placed after the
+`resolution_secs` check — the card said "after `ZeroMaxLookback`", trivially satisfied,
+ordering among error-paths is deterministic either way; below-nit); template diff is
+byte-for-byte the card's pinned three blocks, appended at end of file. 6 new tests = 470 − 464
+match the card's list. Greps: `crates/sweep/src/spec.rs` and LF fixtures absent from the
+staged name list (untouched); the only `HfSweepSpec` consumer remains the lib.rs re-export —
+parse-only held. Gate re-run by the planner at the staged tree: `470 passed; 0 failed;
+1 ignored` (464 + 6) · demo `ae064f79…` (×2 identical) · sweep `94e90c3c…` · sweep-verify OK ·
+no-exec-deps OK · **GATE: PASS**. Executor's suggested commit message diffed against the
+staged stat: accurate, no trailers.
+
+Pointers refreshed (planner slice, left UNSTAGED for the second commit): handoff.md (C8.7b
+seed retired; top block + verified-state → 470/staged-tree; NEW C8.7c executor seed —
+sweep-side-only cautions, duplicate `finite()` never export it, hand-built fixtures per
+`hf_priced.rs`'s own tests, C8.7d shasum-move heads-up), current-state.md ("needs refresh"
+note resolved + planner-verified annotation), this worklog entry. Operator: commit the staged
+executor slice first (card message), then stage `plans/handoff.md` + `plans/current-state.md`
++ `plans/worklog.md` and commit the planner-verified pointer slice. Next: paste the C8.7c
+executor seed prompt into a fresh session.
+
+2026-07-20 — PLANNING SESSION (operator present): **Lane B (Polymarket bot) killed by jurisdiction; PLAN-001 authored; M-HF PARKED.** Operator is in Quebec — Polymarket made CA-QC close-only on frontend AND API 2026-07-06 (verified against docs.polymarket.com/api-reference/geoblock this date; Kalshi has no Canadian API path either). Operator decisions: promote the delta-neutral funding harvest to primary; venue = Drift single-venue (jitoSOL collateral + short SOL-PERP); scope = shadow run + go/no-go, zero money-moving code; park M-HF at C8.7b DONE (resume point C8.7c); escalations = none beyond standing money gates. Changes (docs only, no code): NEW `plans/PLAN-001-drift-funding-shadow.md` (draft — needs adversarial review before M1); PARKED banner in `plans/m-hf-track.md`; superseded-note atop `plans/handoff.md`; `plans/current-state.md` DOING→PLAN-001 + M-HF PARKED entry; `AGENTS.md` north-star + status updated. Gate re-run before this entry: **PASS — 470 passed / 0 failed / 1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (x2 identical); sweep shasum `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; sweep-verify OK (byte-identical seq/2/8 threads + repeat); no-exec-deps OK. Staged: the six files above. Next step: adversarial review of PLAN-001, then card M1 (`drift-data` read-only client — first deliberate network dep, invariant amendment in the same diff).
+
+2026-07-20 — FOLLOW-UP (same session, operator correction): **PLAN-001 moved OUT of machina into the new sibling repo `../drift-harvester`; machina's identity restored.** Operator: "machina stays machina — each build gets its own repo." Reverted the AGENTS.md purpose paragraph to its original wording verbatim (spot-trading north star); status line now reads M-HF PARKED at C8.7b (unchanged) + primary build in sibling repo, no new-primary-path claim. Pointer fixes in the same pass: m-hf-track.md PARKED banner, handoff.md superseded-note, and current-state.md (DOING entry removed; PARKED entry points at ../drift-harvester). `plans/PLAN-001-drift-funding-shadow.md` removed via git rm — it lives (adapted) at `../drift-harvester/plans/`. The new repo was bootstrapped with the repo-kit (source: this repo's `docs/repo-kit/`, byte-identical to ibkr-bot's copy; `~/Downloads/repo-kit` master unreachable — TCC permission block, flagged to operator). Gate re-run before this entry (docs-only changes): **PASS — 470 passed / 0 failed / 1 ignored**; demo shasum `ae064f79242f823ffd8f55bf9104e3e1b45d425a` (x2 identical); sweep shasum `94e90c3c6060a11feddd8d55a19accf07a86f7d8`; sweep-verify OK; no-exec-deps OK. Staged: AGENTS.md, plans/current-state.md, plans/m-hf-track.md, plans/handoff.md, plans/worklog.md, PLAN-001 removal. M-HF parking decision itself stands (D: operator, this date).

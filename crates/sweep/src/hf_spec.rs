@@ -42,6 +42,9 @@ struct HfSweepSpecToml {
     max_lookback_bars: usize,
     intraday_meanrev_v1: IntradayMeanRevToml,
     hf_cost: HfSweepCostToml,
+    latency: LatencyToml,
+    adversarial: AdversarialToml,
+    congestion: CongestionToml,
 }
 #[derive(Debug, Clone, Deserialize)]
 struct PartitionsToml {
@@ -110,6 +113,23 @@ struct PriorityTableToml {
     busy_lamports: i64,
     hot_lamports: i64,
 }
+#[derive(Debug, Clone, Deserialize)]
+struct LatencyToml {
+    offset_bars: usize,
+    p_land_num: u64,
+    p_land_den: u64,
+}
+#[derive(Debug, Clone, Deserialize)]
+struct AdversarialToml {
+    sandwich_bps: u32,
+    pickoff_bps: u32,
+    p_adverse_num: u64,
+    p_adverse_den: u64,
+}
+#[derive(Debug, Clone, Deserialize)]
+struct CongestionToml {
+    lookback: usize,
+}
 
 /// A fully resolved HF-kind sweep specification (validated views of the TOML). Not consumed by
 /// `run_sweep`/`run_hf`/the CLI yet — C8.7 wires it.
@@ -128,6 +148,12 @@ pub struct HfSweepSpec {
     pub max_lookback_bars: usize,
     /// The HF cost model, built through `portfolio`'s fail-closed constructors.
     pub hf_cost: HfCostModel,
+    /// Flat wave-1 latency/landing parameters (see `hf_scenarios`'s doc comment).
+    pub latency: crate::hf_scenarios::HfLatencyParams,
+    /// Base-rung adversarial-selection parameters (worst-case is a ladder rung).
+    pub adversarial: portfolio::AdversarialModel,
+    /// Trailing-volume lookback (bars) for the congestion-regime classifier.
+    pub congestion_lookback: usize,
 }
 
 /// Why an HF spec failed to parse/resolve.
@@ -153,6 +179,17 @@ pub enum HfSpecError {
     /// at least one HF family was enabled (every family that exists today is 1-second). A
     /// coarser resolution parses only when all families are disabled.
     UnsupportedResolutionSecs(i64),
+    /// `[latency].offset_bars` was `0` — `LatencyPipeline::new` requires at least 1.
+    ZeroLatencyOffset,
+    /// `[latency]`'s landing-probability rational was degenerate (denominator `0`) or `> 1`
+    /// (numerator exceeded denominator). The offending values are carried.
+    InvalidLandingProbability(u64, u64),
+    /// `[adversarial]`'s adverse-selection-probability rational was degenerate (denominator
+    /// `0`) or `> 1` (numerator exceeded denominator). The offending values are carried.
+    InvalidAdversarialProbability(u64, u64),
+    /// `[congestion].lookback` was `0` — a degenerate all-`Hot` classification is never
+    /// configured silently.
+    ZeroCongestionLookback,
 }
 
 impl std::fmt::Display for HfSpecError {
@@ -189,6 +226,26 @@ impl std::fmt::Display for HfSpecError {
                     "hf sweep spec resolution_secs = {v} is unsupported: it must be >= 1, \
                      and must be exactly 1 while any HF family is enabled"
                 )
+            }
+            Self::ZeroLatencyOffset => {
+                write!(f, "hf sweep spec latency.offset_bars must be > 0")
+            }
+            Self::InvalidLandingProbability(num, den) => {
+                write!(
+                    f,
+                    "hf sweep spec latency landing probability {num}/{den} is invalid: \
+                     denominator must be > 0 and numerator must be <= denominator"
+                )
+            }
+            Self::InvalidAdversarialProbability(num, den) => {
+                write!(
+                    f,
+                    "hf sweep spec adversarial probability {num}/{den} is invalid: \
+                     denominator must be > 0 and numerator must be <= denominator"
+                )
+            }
+            Self::ZeroCongestionLookback => {
+                write!(f, "hf sweep spec congestion.lookback must be > 0")
             }
         }
     }
@@ -284,6 +341,37 @@ impl HfSweepSpec {
         if t.resolution_secs < 1 || (t.resolution_secs != 1 && !grids.is_empty()) {
             return Err(HfSpecError::UnsupportedResolutionSecs(t.resolution_secs));
         }
+        if t.latency.offset_bars == 0 {
+            return Err(HfSpecError::ZeroLatencyOffset);
+        }
+        if t.latency.p_land_den == 0 || t.latency.p_land_num > t.latency.p_land_den {
+            return Err(HfSpecError::InvalidLandingProbability(
+                t.latency.p_land_num,
+                t.latency.p_land_den,
+            ));
+        }
+        if t.adversarial.p_adverse_den == 0
+            || t.adversarial.p_adverse_num > t.adversarial.p_adverse_den
+        {
+            return Err(HfSpecError::InvalidAdversarialProbability(
+                t.adversarial.p_adverse_num,
+                t.adversarial.p_adverse_den,
+            ));
+        }
+        if t.congestion.lookback == 0 {
+            return Err(HfSpecError::ZeroCongestionLookback);
+        }
+        let latency = crate::hf_scenarios::HfLatencyParams {
+            offset_bars: t.latency.offset_bars,
+            p_land_num: t.latency.p_land_num,
+            p_land_den: t.latency.p_land_den,
+        };
+        let adversarial = portfolio::AdversarialModel {
+            sandwich_bps: t.adversarial.sandwich_bps,
+            pickoff_bps: t.adversarial.pickoff_bps,
+            p_adverse_num: t.adversarial.p_adverse_num,
+            p_adverse_den: t.adversarial.p_adverse_den,
+        };
         Ok(Self {
             allowlist_version: t.allowlist_version,
             partition,
@@ -293,6 +381,9 @@ impl HfSweepSpec {
             resolution_secs: t.resolution_secs,
             max_lookback_bars: t.max_lookback_bars,
             hf_cost,
+            latency,
+            adversarial,
+            congestion_lookback: t.congestion.lookback,
         })
     }
 }
@@ -345,6 +436,75 @@ mod tests {
         let msg = HfSpecError::UnsupportedResolutionSecs(60).to_string();
         assert!(msg.contains("resolution_secs"));
         assert!(msg.contains("60"));
+        assert!(HfSpecError::ZeroLatencyOffset
+            .to_string()
+            .contains("offset_bars"));
+        let msg = HfSpecError::InvalidLandingProbability(11, 10).to_string();
+        assert!(msg.contains("11/10"));
+        let msg = HfSpecError::InvalidAdversarialProbability(21, 20).to_string();
+        assert!(msg.contains("21/20"));
+        assert!(HfSpecError::ZeroCongestionLookback
+            .to_string()
+            .contains("lookback"));
+    }
+
+    #[test]
+    fn template_resolves_latency_adversarial_congestion() {
+        let template = include_str!("../../../config/strategies/hf-strategy-lab.example.toml");
+        let spec = HfSweepSpec::from_toml_str(template).unwrap();
+        assert_eq!(spec.latency.offset_bars, 1);
+        assert_eq!(spec.latency.p_land_num, 9);
+        assert_eq!(spec.latency.p_land_den, 10);
+        assert_eq!(spec.adversarial.sandwich_bps, 5);
+        assert_eq!(spec.adversarial.pickoff_bps, 5);
+        assert_eq!(spec.adversarial.p_adverse_num, 1);
+        assert_eq!(spec.adversarial.p_adverse_den, 20);
+        assert_eq!(spec.congestion_lookback, 300);
+    }
+
+    #[test]
+    fn zero_latency_offset_is_rejected() {
+        let toml_str = template_with(("offset_bars = 1", "offset_bars = 0"));
+        assert!(matches!(
+            HfSweepSpec::from_toml_str(&toml_str),
+            Err(HfSpecError::ZeroLatencyOffset)
+        ));
+    }
+
+    #[test]
+    fn zero_landing_probability_denominator_is_rejected() {
+        let toml_str = template_with(("p_land_den = 10", "p_land_den = 0"));
+        assert!(matches!(
+            HfSweepSpec::from_toml_str(&toml_str),
+            Err(HfSpecError::InvalidLandingProbability(9, 0))
+        ));
+    }
+
+    #[test]
+    fn landing_probability_over_one_is_rejected() {
+        let toml_str = template_with(("p_land_num = 9", "p_land_num = 11"));
+        assert!(matches!(
+            HfSweepSpec::from_toml_str(&toml_str),
+            Err(HfSpecError::InvalidLandingProbability(11, 10))
+        ));
+    }
+
+    #[test]
+    fn adversarial_probability_over_one_is_rejected() {
+        let toml_str = template_with(("p_adverse_num = 1", "p_adverse_num = 21"));
+        assert!(matches!(
+            HfSweepSpec::from_toml_str(&toml_str),
+            Err(HfSpecError::InvalidAdversarialProbability(21, 20))
+        ));
+    }
+
+    #[test]
+    fn zero_congestion_lookback_is_rejected() {
+        let toml_str = template_with(("lookback = 300", "lookback = 0"));
+        assert!(matches!(
+            HfSweepSpec::from_toml_str(&toml_str),
+            Err(HfSpecError::ZeroCongestionLookback)
+        ));
     }
 
     /// The checked-in template with one exact-match line substitution applied.

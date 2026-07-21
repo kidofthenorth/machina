@@ -43,8 +43,17 @@ landing tables use global dev-val event indices with window-excluded cell ids. *
 2026-07-20** (committed `8d187ef`; planner re-verified: gate **464 / 0 / 1** (457 + 7), demo +
 sweep shasums unchanged, `hf_cost_scenarios` has zero callers outside its tests + lib.rs
 re-export — unwired as required; CARD-HYG-3 rode along and is CLOSED, `latency.rs:202` back to
-private with zero external callers). Next up: a fresh **executor session on C8.7b** (seed
-prompt in handoff.md). The FOREMAN §3 7-lens review of C8.4's intraday holdout seal is now
+private with zero external callers). **C8.7b DONE 2026-07-20** (staged, awaiting operator
+commit; gate re-run: **470 / 0 / 1** (464 + 6), demo `ae064f79…` ×2 and sweep `94e90c3c…`
+unchanged — parse-only held; `HfSweepSpec` gains `pub latency: hf_scenarios::HfLatencyParams`,
+`pub adversarial: portfolio::AdversarialModel`, `pub congestion_lookback: usize` resolved from
+new `[latency]`/`[adversarial]`/`[congestion]` TOML blocks with 4 fail-closed lints
+(`ZeroLatencyOffset`, `InvalidLandingProbability`, `InvalidAdversarialProbability`,
+`ZeroCongestionLookback`); `spec.rs` and all LF fixtures byte-untouched; nothing wired into
+execution; planner-verified same day — gate re-run at the staged tree, counts reproduced, both
+plan-pinned types confirmed, no duplicate types defined). Next up: a fresh **executor session
+on C8.7c** (seed prompt in handoff.md, refreshed). The FOREMAN §3 7-lens review of C8.4's
+intraday holdout seal is now
 ORDERED IN THE QUEUE as ⛔ REVIEW-C8.4-SEAL, between C8.7e and C8.7f — operator go-ahead
 required; C8.7f's escalate-if enforces it.
 `M-HF-C8-PAIR` stays deferred (HF-Q4/HF-Q2).
@@ -77,7 +86,12 @@ through the milestone gates (money-moving capability stays gated by explicit hum
   **Holdout read count: 0** — the seal and the 2026-01-01..2026-06-30 holdout survive unseen.
   Step-0 pre-declaration review: PASS (6 agents). A clean reject-all is a success of the gates:
   neither daily-bar family earns mainnet shadow; **no execution work starts.**
-- **DOING:** the **M-HF research track** (Q7/D-0012, [m-hf-track.md](m-hf-track.md)) — entered
+- **PARKED 2026-07-20 (operator decision):** the **M-HF research track** (Q7/D-0012,
+  [m-hf-track.md](m-hf-track.md)) — frozen cleanly at **C8.7b DONE** (gate 470/0/1, shasums in
+  worklog); resume point is card C8.7c, unchanged. **machina has no active track while parked.**
+  The operator's primary build (Drift funding-rate shadow harvester, PLAN-001) lives in the
+  **sibling repo `../drift-harvester`** — same-day operator decision: each build keeps its own
+  repo; machina's purpose statement stays as-is. Track history: entered
   2026-07-12: C1–C2.6 unblocked by operator note; HF-Q2 resolved (USDT + jitoSOL research
   allowlist); wave-1 cards C1/C2 reconciled against m-hf-track §1/§2 (IntraBar alias, typed
   Provenance) and flipped TODO. **Wave 1 C1–C2.6 ALL DONE 2026-07-13** (C1 intraday types +
@@ -247,8 +261,10 @@ flat probability instead.
   NOT implement `IntradaySource`; the seal is materialized-Vec-shaped; `hf_cost_scenarios`
   didn't exist; `ColumnarFile` carries no provenance; the §3 percentile table is deferred to
   C9+, on the record). **C8.7a is DONE** (2026-07-20, `8d187ef`, planner-verified: 464/0/1,
-  shasums unchanged, ladder unwired, CARD-HYG-3 closed). **The next command is a fresh
-  executor session on C8.7b.**
+  shasums unchanged, ladder unwired, CARD-HYG-3 closed). **C8.7b is DONE** (2026-07-20, staged
+  awaiting operator commit; gate 470/0/1, shasums unchanged, parse-only held, resolved into
+  C8.7a's `HfLatencyParams` + `portfolio::AdversarialModel` — no duplicate types). **The next
+  command is a fresh executor session on C8.7c.**
 - **Operator ruling HF-Q4 (this session):** `statarb_pairs_v1` gets a real two-leg engine (the
   precomputed-spread-series shortcut was rejected as a fabricated-edge risk). Because that is roughly
   as large as C1–C7 combined, it is scoped OUT of C8's gate into a deferred mini-track,

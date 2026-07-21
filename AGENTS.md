@@ -3,6 +3,8 @@
 goal: **genuine autonomous passive income** — low-touch, hands-off on-chain spot trading for a solo
 operator, once a strategy has earned that trust. Getting there means first proving a strategy has a
 robust edge after costs, latency, slippage, and operational failure; **no strategy is guaranteed to
+clear that bar, and live trading starts only once its own milestone gate is explicitly approved.** Getting there means first proving a strategy has a
+robust edge after costs, latency, slippage, and operational failure; **no strategy is guaranteed to
 clear that bar, and live trading starts only once its own milestone gate is explicitly approved.**
 
 The one thing not to get wrong: **money-moving capability is gated by milestone and by explicit human
@@ -11,8 +13,10 @@ research phase (M0–M5) is complete and separately approved. Building the softw
 trading.
 
 **Status: M0–M4 complete (M4 gate declared 2026-07-09); M5 research decision CLOSED 2026-07-12
-(Branch A reject-all — holdout unread, seal intact); the M-HF research track is ACTIVE (cards
-`M-HF-*` in `plans/task-queue.md`; next open card and seed prompt in `plans/handoff.md`).**
+(Branch A reject-all — holdout unread, seal intact); the M-HF research track is PARKED 2026-07-20
+at C8.7b DONE (resume point C8.7c — see the banner in `plans/m-hf-track.md`). machina has no
+active track while parked; the operator's current primary build lives in the sibling repo
+`../drift-harvester` (each build keeps its own repo — operator decision 2026-07-20).**
 The authoritative roadmap is `plans/master-plan.md` (the full M0–M11 plan;
 `solana-crypto-trader-plan.md` at the repo root is kept byte-identical to it — edit both or neither,
 per Q6). Live build
