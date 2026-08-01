@@ -2164,3 +2164,12 @@ in handoff.md).
   `crates/sweep/src/lib.rs` + `plans/task-queue.md` (flip) + this worklog line.
 - C8.7f flipped `DONE` in `plans/task-queue.md`. Per the FOREMAN Role rule, this executor
   session stops here — no commit message, no next-session seed prompt (planner deliverables).
+
+## 2026-07-25 (repo-kit 2.0.0 propagation)
+
+KIT-2.0.0 | propagate repo-kit 2.0.0 into docs/repo-kit/ | DONE-AUTO-VERIFIED | 33 actions (4 UPDATE, 19 ADD, 10 tombstone DELETE) via master propagate.sh; dry-run verified first; docs/repo-kit gitignored so nothing to commit; pre-existing uncommitted changes untouched. No push.
+
+
+## 2026-08-01 (repo-kit 2.1.2 propagation)
+
+KIT-2.1.2 | propagate repo-kit 2.1.2 into docs/repo-kit/ | DONE-AUTO-VERIFIED | 11 actions via master propagate.sh (dry-run then --apply); check-fleet CURRENT (2.1.2); MANIFEST ship-set byte-identical to master. docs/repo-kit gitignored so nothing kit-shaped to commit; prior KIT-2.0.0 ledger line still uncommitted until this commit; untracked gnhf worktrees left untouched. No push.
