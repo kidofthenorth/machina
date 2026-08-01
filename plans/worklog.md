@@ -2139,3 +2139,28 @@ verdict delivered second run — noted for the record). Staged as ONE slice:
 `crates/sweep/src/intraday_partition.rs`, `plans/task-queue.md` (REVIEW flip + C8.8 stub),
 `plans/worklog.md`, `plans/current-state.md`, `plans/handoff.md`. Next: C8.7f executor (seed
 in handoff.md).
+
+## 2026-07-21 — M-HF-C8.7f `run_hf_sweep` capstone
+- Landed `run_hf_sweep` (`crates/sweep/src/hf_runner.rs`, NEW) + `lib.rs` re-export
+  (`pub mod hf_runner;` + `pub use hf_runner::{run_hf_sweep, HfSweepError, HfSweepOutcome}`).
+  Verbatim-checked against the card: cell-id formulas exact (D-d, window index excluded,
+  baseline tag bit `0x8000_0000_0000_0000`); seal via `IntradayPartitionedBars::from_spec(...)
+  .seal_holdout()` runs BEFORE any cell is evaluated; `classify_congestion_regimes` computed
+  ONCE over `dev.dev_validation()` (D-e); the parallel closure's regime lookup uses `.to_vec()`
+  in BOTH the `force_regime` and classifier arms; cell evaluation collects
+  `Vec<Result<HfCellResult, _>> → Result<Vec<_>, _>` via `.into_iter().collect()` (first error
+  by lowest index, the `run_cells` convention); the seal is returned UNCONSUMED in
+  `HfSweepOutcome`. `evaluate_intraday_on_holdout` grepped — zero calls anywhere in the new
+  file. `runner.rs`/`spec.rs`/`cell.rs` byte-untouched (`git diff --stat` empty for all three).
+  In-file tests: canonical enumeration order + stable index; candidate/baseline cell-id tag-bit
+  disjointness; a 2-window, 6-rung, 1-point smoke over a 200-bar synthetic series —
+  `Parallelism::Sequential` and `Threads(2)` report JSON byte-identical, both sealed outcomes'
+  `holdout_read_count() == 0`.
+- Gate: **489 passed / 0 failed / 1 ignored** (486 + 3 new hf_runner tests); demo
+  `ae064f79242f823ffd8f55bf9104e3e1b45d425a` ×2 unchanged; sweep
+  `f6e1ab5132754d69c3a2be23fc549df36c07909f` unchanged (this card is a parallel path — it must
+  not, and does not, touch the LF sweep); sweep-verify OK; no-exec-deps OK; clippy `-D warnings`
+  clean; fmt clean. `git status` = exactly `crates/sweep/src/hf_runner.rs` (new) +
+  `crates/sweep/src/lib.rs` + `plans/task-queue.md` (flip) + this worklog line.
+- C8.7f flipped `DONE` in `plans/task-queue.md`. Per the FOREMAN Role rule, this executor
+  session stops here — no commit message, no next-session seed prompt (planner deliverables).

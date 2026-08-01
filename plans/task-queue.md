@@ -6926,7 +6926,7 @@ shapes line up exactly (no adapter needed).
 
 ---
 
-### M-HF-C8.7f — `run_hf_sweep`: the windowed HF sweep capstone — `TODO` *(sanctioned ~200 lines: single coherent orchestration; splitting leaves non-compiling intermediates)*
+### M-HF-C8.7f — `run_hf_sweep`: the windowed HF sweep capstone — `DONE` *(sanctioned ~200 lines: single coherent orchestration; splitting leaves non-compiling intermediates)*
 
 **Goal.** Wire C8.1–C8.7e into one deterministic entry: spec + source + provenance in, sealed
 holdout + schema-valid `SweepReport` out. Mirrors `run_sweep`'s shape (`runner.rs:329-398`).

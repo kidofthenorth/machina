@@ -32,6 +32,7 @@ pub mod config;
 pub mod congestion;
 pub mod hf_aggregate;
 pub mod hf_cell;
+pub mod hf_runner;
 pub mod hf_scenarios;
 pub mod hf_spec;
 pub mod intraday_partition;
@@ -55,6 +56,7 @@ pub use config::PartitionSpec;
 pub use congestion::classify_congestion_regimes;
 pub use hf_aggregate::{aggregate_hf, HfAggregate, HfRungRollup};
 pub use hf_cell::{eval_hf_cell, HfCellResult};
+pub use hf_runner::{run_hf_sweep, HfSweepError, HfSweepOutcome};
 pub use hf_scenarios::{hf_cost_scenarios, HfCostScenario, HfLatencyParams};
 pub use hf_spec::{HfSpecError, HfSweepSpec};
 pub use intraday_partition::{
