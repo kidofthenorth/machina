@@ -7,6 +7,16 @@ do not authorize any new capability (no signing, no submission — see
 
 ---
 
+## D-0015 — Device-B AWC runs: the planner seat commits + pushes verified slices (operator, 2026-08-06)
+**Context.** The operator cast a 24h autonomous workflow cadence (AWC) on device B, seeded by
+`plans/handoff.md`; older repo docs said agents never commit/push.
+**Decision.** For AWC runs, the PLANNER commits verified green slices under the operator's
+configured global git identity (zero co-author/AI trailers, one commit per card) and pushes
+`origin/main`. EXECUTORS still never commit. Consistent with the operator's standing global
+ruling of 2026-08-05; recorded here from the 2026-08-06 instruction.
+**Consequences.** Planner worklog rows may state "committed + pushed". No other authority
+changes — keys/signing/submission/RPC/network still require M8/M9's separate explicit approval.
+
 ## D-0014 — Repo-hygiene remediation: DECISIONS.md restored to root; leaked repo-kit/FOREMAN scaffolding removed (agent-drift audit 2026-07-17)
 **Context.** Commit `f09761b` (2026-07-16), under a copy-pasted "plan files only" message, silently
 relocated this decision log to `docs/DECISIONS.md` and committed two things that never belonged in

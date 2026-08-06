@@ -1,5 +1,11 @@
 # Current state
 
+**As of 2026-08-06 (AWC handoff pass — supersedes the prose below where they conflict):**
+C8.7a–f DONE (C8.7f `run_hf_sweep` capstone landed at `12babe1`; REVIEW-C8.4-SEAL ruled PASS
+2026-07-21). Gate re-verified 2026-08-06, exit 0: **489 / 0 / 1**, demo `ae064f79…` ×2, sweep
+`f6e1ab51…`, sweep-verify OK. **Next: M-HF-C8.7g** (row-C8 gate battery, test-only) →
+post-C8.7 review → row-C8 declaration. Entry point: `plans/handoff.md`.
+
 Optimized for fast agent parsing. Source of truth for "where are we." Updated 2026-07-18 (M-HF
 wave 2: C1–C7 and **C8.1–C8.5 + CARD-HYG-1 all DONE + planner-verified**. C8.1–C8.4 committed at
 `3757d2a`/`ddd4512` (ScenarioId HF rungs; `data_provenance` — sweep schema **1.3.0**, sweep shasum

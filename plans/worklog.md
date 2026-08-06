@@ -2173,3 +2173,7 @@ KIT-2.0.0 | propagate repo-kit 2.0.0 into docs/repo-kit/ | DONE-AUTO-VERIFIED | 
 ## 2026-08-01 (repo-kit 2.1.2 propagation)
 
 KIT-2.1.2 | propagate repo-kit 2.1.2 into docs/repo-kit/ | DONE-AUTO-VERIFIED | 11 actions via master propagate.sh (dry-run then --apply); check-fleet CURRENT (2.1.2); MANIFEST ship-set byte-identical to master. docs/repo-kit gitignored so nothing kit-shaped to commit; prior KIT-2.0.0 ledger line still uncommitted until this commit; untracked gnhf worktrees left untouched. No push.
+
+## 2026-08-06 (AWC handoff pass — device-B 24h cadence prep)
+
+AWC-1 | AWC handoff rewrite + stale-doc reconcile + gate portability guard | DONE-AUTO-VERIFIED | Gate re-run this session (post-edit), exit 0: 489 passed / 0 failed / 1 ignored; demo ae064f79… ×2 identical; sweep f6e1ab51…; sweep-verify OK; no-exec-deps OK. Stale handoff/current-state (claimed next=C8.7f; actually DONE @ 12babe1) superseded — next card is M-HF-C8.7g. gate.sh gains fail-loud `shasum` guard (fault-injected: empty-PATH run → FAIL exit 1, review finding — silent false PASS on Windows otherwise). D-0015 records AWC commit/push authority. .gitignore += machina-gnhf-worktrees/ (1.2G device-local worktree scratch). 3-lens adversarial review run (factual/runnability/safety): factual + safety CLEAN. Committed + pushed per operator instruction 2026-08-06.

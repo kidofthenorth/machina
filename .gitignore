@@ -74,3 +74,6 @@ plans/reports/agent-drift-audit-2026-07-17.md
 
 # FOREMAN repo-kit is deployed from the master (~/Downloads/repo-kit) — local-only, never track
 docs/repo-kit/
+
+# Device-local git worktrees for parallel agent runs — never track
+machina-gnhf-worktrees/

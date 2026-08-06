@@ -7,6 +7,13 @@ cd "$(dirname "$0")/.."
 
 fail=0
 
+# Determinism hashes need `shasum` (a perl script — absent on stock Git-for-Windows).
+# Fail loud and early: empty hashes would otherwise compare equal as a silent false PASS.
+if ! command -v shasum >/dev/null 2>&1; then
+  echo "== GATE: FAIL == (shasum not found — run under WSL, or install perl/coreutils)"
+  exit 1
+fi
+
 echo "== gate: fmt =="
 cargo fmt --all --check || fail=1
 
